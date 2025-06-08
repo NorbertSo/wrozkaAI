@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'screens/welcome_screen.dart';
 
 void main() {
@@ -27,9 +28,9 @@ class AIWrozkaApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
         brightness: Brightness.dark,
-        textTheme: TextTheme().apply(
-          fontFamily: 'Playfair Display',
-        ),
+        textTheme: GoogleFonts.cinzelDecorativeTextTheme(
+          Theme.of(context).textTheme,
+        ).apply(bodyColor: Colors.white, displayColor: Colors.white),
       ),
       home: const WelcomeScreen(),
     );
