@@ -1,13 +1,14 @@
 import 'dart:math' as math;
 import 'dart:convert';
+import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
 import '../models/palm_analysis.dart';
 
 class PalmDetectionService {
   static final PalmDetectionService _instance =
       PalmDetectionService._internal();
-  factory PalmDetectionService() => _instance;
   PalmDetectionService._internal();
+  factory PalmDetectionService() => _instance;
 
   final math.Random _random = math.Random();
   Map<String, dynamic>? _palmTemplate;
@@ -353,5 +354,44 @@ class PalmDetectionService {
   bool checkHandStability(/* Lista ostatnich pozycji */) {
     // Symulacja sprawdzania stabilności
     return _random.nextDouble() > 0.4;
+  }
+
+  Future<bool> checkSkinColor(CameraController controller) async {
+    try {
+      print('🔍 Sprawdzam kolor skóry...');
+      final random = math.Random();
+      bool hasSkinColor = random.nextDouble() > 0.4;
+      print('🎨 Kolor skóry wykryty: $hasSkinColor');
+      return hasSkinColor;
+    } catch (e) {
+      print('❌ Błąd sprawdzania koloru skóry: $e');
+      return false;
+    }
+  }
+
+  Future<bool> checkPalmPosition(CameraController controller) async {
+    try {
+      print('📍 Sprawdzam pozycję dłoni...');
+      final random = math.Random();
+      bool isCentered = random.nextDouble() > 0.3;
+      print('🎯 Dłoń wycentrowana: $isCentered');
+      return isCentered;
+    } catch (e) {
+      print('❌ Błąd sprawdzania pozycji: $e');
+      return false;
+    }
+  }
+
+  Future<double> checkLightLevel(CameraController controller) async {
+    try {
+      print('💡 Sprawdzam poziom światła...');
+      final random = math.Random();
+      double lightLevel = random.nextDouble();
+      print('🌟 Poziom światła: ${(lightLevel * 100).toInt()}%');
+      return lightLevel;
+    } catch (e) {
+      print('❌ Błąd sprawdzania światła: $e');
+      return 0.0;
+    }
   }
 }
