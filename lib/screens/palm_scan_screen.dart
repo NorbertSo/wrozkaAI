@@ -75,6 +75,17 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   final int _requiredStabilityFrames =
       15; // 1.5 sekundy stabilności przy 100ms interwałach
 
+  // Nowe zmienne dla lepszego UX
+  int _goodConditionsStreak = 0;
+  final int _requiredGoodStreak = 10;
+  int _autoCaptureCooldown = 0;
+  bool _isInCooldown = false;
+  final int _extendedMaxAttempts = 600;
+  final int _extendedForceCloseTime = 120;
+
+  DateTime? _lastCheck;
+  final Duration _checkDelay = const Duration(milliseconds: 200);
+
   @override
   void initState() {
     super.initState();
@@ -132,30 +143,41 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       _cameras = await availableCameras();
       if (_cameras!.isNotEmpty) {
         _cameraController = CameraController(
-          _cameras![0], // Użyj tylnej kamery
-          ResolutionPreset.high,
+          _cameras![0],
+          ResolutionPreset.medium,
           enableAudio: false,
+          imageFormatGroup: ImageFormatGroup.jpeg,
         );
 
-        await _cameraController!.initialize();
+        try {
+          await _cameraController!.initialize();
 
-        setState(() {
-          _isCameraInitialized = true;
-          _detectionStatus = 'Umieść dłoń w ramce';
-        });
+          setState(() {
+            _isCameraInitialized = true;
+            _detectionStatus = 'Umieść dłoń w ramce';
+          });
 
-        _loggingService.logCameraActivity(
-          'Kamera zainicjalizowana',
-          details: {
-            'Rozdzielczość': 'High',
-            'Kamera': 'Tylna',
-            'Audio': 'Wyłączone',
-          },
-        );
+          _loggingService.logCameraActivity(
+            'Kamera zainicjalizowana',
+            details: {
+              'Rozdzielczość': 'Medium',
+              'Kamera': 'Tylna',
+              'Audio': 'Wyłączone',
+            },
+          );
 
-        await _loggingService.logFileLocation();
-        _startPalmDetection();
-        _startForceCloseTimer();
+          await _loggingService.logFileLocation();
+          _startPalmDetection();
+          _startForceCloseTimer();
+        } catch (e) {
+          _loggingService.logToConsole(
+            'Błąd inicjalizacji kamery: $e',
+            tag: 'ERROR',
+          );
+          setState(() {
+            _detectionStatus = 'Błąd inicjalizacji kamery';
+          });
+        }
       }
     } catch (e) {
       _loggingService.logToConsole(
@@ -181,7 +203,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
 
   void _startPalmDetection() {
     _loggingService.logToConsole(
-      'Rozpoczęcie wykrywania dłoni',
+      'Rozpoczęcie wykrywania dłoni - tryb ciągły',
       tag: 'DETECTION',
     );
 
@@ -195,17 +217,20 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         return;
       }
 
+      final now = DateTime.now();
+      if (_lastCheck != null && now.difference(_lastCheck!) < _checkDelay) {
+        return;
+      }
+      _lastCheck = now;
+
       _scanAttempts++;
       _checkPalmPosition();
 
-      // Automatyczne zakończenie po maksymalnej liczbie prób
-      if (_scanAttempts >= _maxScanAttempts) {
+      if (_scanAttempts % 100 == 0) {
         _loggingService.logToConsole(
-          'Osiągnięto maksymalną liczbę prób skanowania: $_scanAttempts',
+          'Ciągłe skanowanie - próba $_scanAttempts, dobra seria: $_goodConditionsStreak/$_requiredGoodStreak',
           tag: 'DETECTION',
         );
-        timer.cancel();
-        _forceCompleteScan();
       }
     });
   }
@@ -546,7 +571,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
 
   // Nowe metody dla ulepszonego skanowania
   Future<void> _checkPalmPosition() async {
-    if (_isDetecting || !mounted) return;
+    if (_isDetecting || !mounted || _isInCooldown) return;
 
     setState(() {
       _isDetecting = true;
@@ -555,116 +580,163 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     try {
       // === PRAWDZIWA WALIDACJA NAWET W TRYBIE TESTOWYM ===
       if (widget.testMode) {
-        await Future.delayed(const Duration(milliseconds: 100));
-
-        final random = math.Random();
-        bool simulatedLighting = random.nextDouble() > 0.3;
-        bool simulatedStability = random.nextDouble() > 0.4;
-        bool simulatedPalmColor = random.nextDouble() > 0.5;
-        bool simulatedCentering = random.nextDouble() > 0.6;
-
-        setState(() {
-          _hasGoodLighting = simulatedLighting;
-          _isStable = simulatedStability;
-          _hasPalmColor = simulatedPalmColor;
-          _isCentered = simulatedCentering;
-
-          if (_hasGoodLighting && _isStable && _hasPalmColor && _isCentered) {
-            _palmDetected = true;
-            _detectedHand = 'right';
-            _detectionStatus = 'Dłoń wykryta - analiza w toku...';
-            _stabilityCounter++;
-
-            if (_stabilityCounter >= _requiredStabilityFrames) {
-              _startCountdownIfReady();
-            }
-          } else {
-            _palmDetected = false;
-            _stabilityCounter = 0;
-            _detectionStatus = _getPositioningMessage();
-            _countdownTimer?.cancel();
-            _countdownTimer = null;
-          }
-
-          _isDetecting = false;
-        });
-        return;
+        await _simulateTestModeChecks();
+      } else {
+        await _performRealChecks();
       }
 
-      // === PRAWDZIWA WALIDACJA KAMERY ===
-      final bool isCameraClear = await _checkIfCameraClear();
-      if (!isCameraClear) {
+      bool allConditionsGood =
+          _hasGoodLighting && _isStable && _hasPalmColor && _isCentered;
+
+      if (allConditionsGood) {
+        _goodConditionsStreak++;
+
+        setState(() {
+          _palmDetected = true;
+          _detectedHand ??= math.Random().nextBool() ? 'left' : 'right';
+
+          int remaining = _requiredGoodStreak - _goodConditionsStreak;
+          if (remaining > 0) {
+            double remainingSeconds = remaining / 10.0;
+            _detectionStatus =
+                'Świetnie! Utrzymaj pozycję jeszcze ${remainingSeconds.toStringAsFixed(1)}s';
+          } else {
+            _detectionStatus = 'Doskonale! Robię zdjęcie za chwilę...';
+          }
+        });
+
+        if (_goodConditionsStreak >= _requiredGoodStreak &&
+            !_isAnalyzingWithAI) {
+          _detectionTimer?.cancel();
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) {
+            _capturePalmData();
+          }
+        }
+      } else {
+        _goodConditionsStreak = 0;
+
         setState(() {
           _palmDetected = false;
-          _hasGoodLighting = _isStable = _hasPalmColor = _isCentered = false;
-          _detectionStatus = 'Kamera jest zasłonięta lub zbyt ciemno';
-          _stabilityCounter = 0;
-          _isDetecting = false;
+          _detectionStatus = _getPositioningMessage();
         });
 
         _countdownTimer?.cancel();
         _countdownTimer = null;
-        return;
       }
 
-      final double currentLightLevel = await _palmDetectionService
-          .checkLightLevel(_cameraController!);
-      _hasGoodLighting = currentLightLevel > 0.3;
-
-      _isStable = (currentLightLevel - _lastBrightnessValue).abs() < 0.05;
-      _isStable ? _stabilityCounter++ : _stabilityCounter = 0;
-      _lastBrightnessValue = currentLightLevel;
-
-      _hasPalmColor = _hasGoodLighting
-          ? await _palmDetectionService.checkSkinColor(_cameraController!)
-          : false;
-
-      _isCentered = (_hasGoodLighting && _hasPalmColor)
-          ? await _palmDetectionService.checkPalmPosition(_cameraController!)
-          : false;
-
       setState(() {
-        bool allConditionsMet =
-            _hasGoodLighting &&
-            _isStable &&
-            _stabilityCounter >= _requiredStabilityFrames &&
-            _hasPalmColor &&
-            _isCentered;
-
-        if (allConditionsMet) {
-          _palmDetected = true;
-          _detectedHand = math.Random().nextBool() ? 'left' : 'right';
-          _detectionStatus = 'Dłoń w dobrej pozycji - utrzymaj nieruchomo';
-          _glowController.forward();
-          _startCountdownIfReady();
-        } else {
-          _palmDetected = false;
-          _detectionStatus = _getPositioningMessage();
-          _lightLevel = currentLightLevel;
-          _stabilityCounter = math.max(0, _stabilityCounter - 1);
-
-          if (_countdownTimer != null) {
-            _countdownTimer?.cancel();
-            _countdownTimer = null;
-            _countdownSeconds = 5;
-          }
-        }
-
         _isDetecting = false;
       });
     } catch (e) {
-      _loggingService.logToConsole(
-        'Błąd podczas sprawdzania pozycji dłoni: $e',
-        tag: 'ERROR',
-      );
-      setState(() {
-        _isDetecting = false;
+      if (mounted) {
+        setState(() {
+          _isDetecting = false;
+          _palmDetected = false;
+          _detectionStatus = 'Błąd sprawdzania pozycji - spróbuj ponownie';
+          _goodConditionsStreak = 0;
+        });
+      }
+    }
+  }
+
+  Future<void> _simulateTestModeChecks() async {
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    final random = math.Random();
+    bool simulatedLighting = random.nextDouble() > 0.3;
+    bool simulatedStability = random.nextDouble() > 0.4;
+    bool simulatedPalmColor = random.nextDouble() > 0.5;
+    bool simulatedCentering = random.nextDouble() > 0.6;
+
+    setState(() {
+      _hasGoodLighting = simulatedLighting;
+      _isStable = simulatedStability;
+      _hasPalmColor = simulatedPalmColor;
+      _isCentered = simulatedCentering;
+
+      if (_hasGoodLighting && _isStable && _hasPalmColor && _isCentered) {
+        _palmDetected = true;
+        _detectedHand = 'right';
+        _detectionStatus = 'Dłoń wykryta - analiza w toku...';
+        _stabilityCounter++;
+
+        if (_stabilityCounter >= _requiredStabilityFrames) {
+          _startCountdownIfReady();
+        }
+      } else {
         _palmDetected = false;
-        _detectionStatus = 'Błąd sprawdzania pozycji';
+        _stabilityCounter = 0;
+        _detectionStatus = _getPositioningMessage();
         _countdownTimer?.cancel();
         _countdownTimer = null;
+      }
+
+      _isDetecting = false;
+    });
+  }
+
+  Future<void> _performRealChecks() async {
+    final bool isCameraClear = await _checkIfCameraClear();
+    if (!isCameraClear) {
+      setState(() {
+        _palmDetected = false;
+        _hasGoodLighting = _isStable = _hasPalmColor = _isCentered = false;
+        _detectionStatus = 'Kamera jest zasłonięta lub zbyt ciemno';
+        _stabilityCounter = 0;
+        _isDetecting = false;
       });
+
+      _countdownTimer?.cancel();
+      _countdownTimer = null;
+      return;
     }
+
+    final double currentLightLevel = await _palmDetectionService
+        .checkLightLevel(_cameraController!);
+    _hasGoodLighting = currentLightLevel > 0.3;
+
+    _isStable = (currentLightLevel - _lastBrightnessValue).abs() < 0.05;
+    _isStable ? _stabilityCounter++ : _stabilityCounter = 0;
+    _lastBrightnessValue = currentLightLevel;
+
+    _hasPalmColor = _hasGoodLighting
+        ? await _palmDetectionService.checkSkinColor(_cameraController!)
+        : false;
+
+    _isCentered = (_hasGoodLighting && _hasPalmColor)
+        ? await _palmDetectionService.checkPalmPosition(_cameraController!)
+        : false;
+
+    setState(() {
+      bool allConditionsMet =
+          _hasGoodLighting &&
+          _isStable &&
+          _stabilityCounter >= _requiredStabilityFrames &&
+          _hasPalmColor &&
+          _isCentered;
+
+      if (allConditionsMet) {
+        _palmDetected = true;
+        _detectedHand = math.Random().nextBool() ? 'left' : 'right';
+        _detectionStatus = 'Dłoń w dobrej pozycji - utrzymaj nieruchomo';
+        _glowController.forward();
+        _startCountdownIfReady();
+      } else {
+        _palmDetected = false;
+        _detectionStatus = _getPositioningMessage();
+        _lightLevel = currentLightLevel;
+        _stabilityCounter = math.max(0, _stabilityCounter - 1);
+
+        if (_countdownTimer != null) {
+          _countdownTimer?.cancel();
+          _countdownTimer = null;
+          _countdownSeconds = 5;
+        }
+      }
+
+      _isDetecting = false;
+    });
   }
 
   Future<bool> _checkIfCameraClear() async {
@@ -730,16 +802,58 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     return 'Umieść dłoń w ramce';
   }
 
+  String _getPositionHint() {
+    List<String> issues = [];
+
+    if (!_hasGoodLighting) {
+      issues.add('znajdź lepsze oświetlenie (używaj jasnego światła)');
+    }
+    if (!_isStable) {
+      issues.add('trzymaj dłoń stabilnie przez kilka sekund');
+    }
+    if (!_hasPalmColor) {
+      issues.add('obróć dłoń wewnętrzną stroną do kamery');
+    }
+    if (!_isCentered) {
+      issues.add('umieść dłoń w centrum zaznaczonego obszaru');
+    }
+
+    if (issues.isEmpty) {
+      if (_goodConditionsStreak > 0) {
+        return 'Świetnie! Utrzymaj tę pozycję...';
+      }
+      return 'Umieść dłoń w zaznaczonym obszarze';
+    } else if (issues.length == 1) {
+      return 'Wskazówka: ${issues.first}';
+    } else {
+      return 'Potrzebne poprawki:\n${issues.join("\n")}';
+    }
+  }
+
   @override
   void dispose() {
     _loggingService.logCameraActivity('Zamykanie kamery i zasobów');
 
+    // Anuluj wszystkie timery
     _detectionTimer?.cancel();
     _forceCloseTimer?.cancel();
+    _countdownTimer?.cancel();
+
+    // Zatrzymaj wszystkie animacje
+    _scanController.stop();
+    _pulseController.stop();
+    _glowController.stop();
+
+    // Zwolnij kontrolery
     _cameraController?.dispose();
     _scanController.dispose();
     _pulseController.dispose();
     _glowController.dispose();
+
+    // Reset zmiennych stanu
+    _isDetecting = false;
+    _palmDetected = false;
+    _isAnalyzingWithAI = false;
 
     _loggingService.logToConsole('Zasoby zwolnione pomyślnie', tag: 'CLEANUP');
     super.dispose();
@@ -1091,29 +1205,60 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                 ),
               ),
             ],
+            _buildLiveProgressBar(), // Add the progress bar here
           ],
         ),
       ),
     );
   }
 
-  String _getPositionHint() {
-    if (!_hasGoodLighting) {
-      return 'Znajdź lepsze oświetlenie - upewnij się, że dłoń jest dobrze widoczna';
+  Widget _buildLiveProgressBar() {
+    if (!_palmDetected || _goodConditionsStreak == 0) {
+      return const SizedBox.shrink();
     }
-    if (!_isStable) {
-      return 'Trzymaj dłoń stabilnie przez kilka sekund, aby umożliwić dokładne skanowanie';
-    }
-    if (!_hasPalmColor) {
-      return 'Pokaż wewnętrzną stronę dłoni - wszystkie linie powinny być widoczne';
-    }
-    if (!_isCentered) {
-      return 'Umieść dłoń dokładnie w środku zaznaczonego obszaru';
-    }
-    if (_stabilityCounter < _requiredStabilityFrames) {
-      return 'Utrzymaj pozycję jeszcze przez ${(_requiredStabilityFrames - _stabilityCounter) / 10} sekund...';
-    }
-    return 'Gotowe do zrobienia zdjęcia dłoni!';
+
+    double progress = _goodConditionsStreak / _requiredGoodStreak;
+    progress = progress.clamp(0.0, 1.0);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Postęp: $_goodConditionsStreak/$_requiredGoodStreak',
+            style: GoogleFonts.cinzelDecorative(
+              fontSize: 12,
+              color: Colors.green,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.grey.withOpacity(0.3),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              progress > 0.8
+                  ? Colors.green
+                  : progress > 0.5
+                  ? Colors.orange
+                  : Colors.blue,
+            ),
+            minHeight: 6,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            progress >= 1.0
+                ? 'Robię zdjęcie...'
+                : 'Utrzymaj pozycję jeszcze ${((1.0 - progress) * _requiredGoodStreak / 10).toStringAsFixed(1)}s',
+            style: GoogleFonts.cinzelDecorative(
+              fontSize: 10,
+              color: Colors.white70,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildStatusIndicator({
@@ -1392,7 +1537,6 @@ class PalmScanOverlayPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
-// Placeholder dla ekranu wyników analizy
 class PalmAnalysisResultScreen extends StatelessWidget {
   final String userName;
   final String userGender;
@@ -1430,13 +1574,16 @@ class PalmAnalysisResultScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  'Drogi $userName,\nTwoja dłoń została przeanalizowana.',
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 16,
-                    color: Colors.white,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'Drogi ${userName.trim()},\nTwoja dłoń została przeanalizowana.',
+                    style: GoogleFonts.cinzelDecorative(
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
                 Text(
