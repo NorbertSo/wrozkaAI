@@ -3,8 +3,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
-import 'dart:math' as math;
-import '../widgets/animated_hand.dart';
+
+import '../widgets/magic_hand_widget.dart';
 import '../utils/constants.dart';
 import 'onboarding_screen.dart';
 
@@ -100,7 +100,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             colors: AppColors.welcomeGradient,
           ),
         ),
-        child: Stack(          children: [            // Gwiezdne tło
+        child: Stack(
+          children: [
+            // Gwiezdne tło
             SizedBox.expand(
               child: Lottie.asset(
                 'assets/animations/star_bg.json',
@@ -122,7 +124,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                     builder: (context, child) {
                       return Transform.scale(
                         scale: _handAnimation.value,
-                        child: const AnimatedHand(),
+                        child: const MagicHandWidget(),
                       );
                     },
                   ),
@@ -168,7 +170,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 40),
                           child: MysticButton(
-                            text: '✨ Zajrzyj w swoje przeznaczenie',
+                            text: 'Zajrzyj w swoje przeznaczenie',
                             onPressed: () {
                               Navigator.of(context).push(
                                 PageRouteBuilder(
@@ -278,7 +280,13 @@ class _MysticButtonState extends State<MysticButton>
               ),
               elevation: 0,
             ),
-            child: Text(widget.text, style: AppTextStyles.buttonText),
+            child: Center(
+              child: Text(
+                widget.text,
+                style: AppTextStyles.buttonText,
+                textAlign: TextAlign.center,
+              ),
+            ),
           ),
         );
       },
