@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:io';
+import 'package:camera/camera.dart';
 import '../services/ai_vision_service.dart';
 import 'ai_results_screen.dart';
 
@@ -42,7 +43,6 @@ class _AIUploadScreenState extends State<AIUploadScreen>
   @override
   void initState() {
     super.initState();
-    _initAnimations();
     _startAnalysis();
   }
 
@@ -51,25 +51,30 @@ class _AIUploadScreenState extends State<AIUploadScreen>
       duration: const Duration(seconds: 3),
       vsync: this,
     );
-    
+
     _particleController = AnimationController(
       duration: const Duration(seconds: 8),
       vsync: this,
     )..repeat();
-    
+
     _glowController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
     )..repeat(reverse: true);
 
-    _uploadAnimation = Tween<double>(begin: 0.0, end: 1.0)
-        .animate(CurvedAnimation(parent: _uploadController, curve: Curves.easeInOut));
-    
-    _particleAnimation = Tween<double>(begin: 0.0, end: 1.0)
-        .animate(_particleController);
-    
-    _glowAnimation = Tween<double>(begin: 0.3, end: 1.0)
-        .animate(_glowController);
+    _uploadAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _uploadController, curve: Curves.easeInOut),
+    );
+
+    _particleAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(_particleController);
+
+    _glowAnimation = Tween<double>(
+      begin: 0.3,
+      end: 1.0,
+    ).animate(_glowController);
   }
 
   Future<void> _startAnalysis() async {
@@ -90,7 +95,7 @@ class _AIUploadScreenState extends State<AIUploadScreen>
       "Obliczam pozycje planet...",
       "Interpretuję energetyczne wzorce...",
       "Przygotowuję personalną analizę...",
-      "Finalizuję mistyczną interpretację..."
+      "Finalizuję mistyczną interpretację...",
     ];
 
     for (int i = 0; i < steps.length; i++) {
@@ -98,7 +103,7 @@ class _AIUploadScreenState extends State<AIUploadScreen>
         _statusText = steps[i];
         _uploadProgress = (i + 1) / steps.length;
       });
-      
+
       await Future.delayed(Duration(milliseconds: 800 + (i * 200)));
     }
 
@@ -114,15 +119,22 @@ class _AIUploadScreenState extends State<AIUploadScreen>
 
   Future<void> _sendToAI() async {
     try {
-      // Użycie prawdziwego AI Vision Service
-      final analysisResult = await AIVisionService.analyzePalm(
-        palmImage: widget.palmImage,
+      setState(() {
+        _isAnalyzing = true;
+        _statusText = "Analizuję wzorce energetyczne...";
+      });
+
+      final aiService = AIVisionService();
+      final analysisResult = await AIVisionService.analyzePalmWithAI(
+        palmImagePath: widget.palmImage.path,
         userName: widget.userName,
-        birthDate: widget.birthDate,
-        gender: widget.userGender,
-        dominantHand: widget.dominantHand,
+        userGender: widget.userGender,
       );
-      
+
+      setState(() {
+        _isAnalyzing = false;
+      });
+
       // Nawigacja do ekranu wyników z prawdziwą analizą
       if (mounted) {
         Navigator.pushReplacement(
@@ -130,13 +142,16 @@ class _AIUploadScreenState extends State<AIUploadScreen>
           MaterialPageRoute(
             builder: (context) => AIResultsScreen(
               userName: widget.userName,
-              analysisResult: analysisResult, // Tekst z AI
-              palmImage: widget.palmImage,   // Zdjęcie dłoni
+              palmData: {'analysisResult': analysisResult},
+              palmImage: widget.palmImage,
             ),
           ),
         );
       }
     } catch (e) {
+      setState(() {
+        _isAnalyzing = false;
+      });
       _showErrorDialog(e.toString());
     }
   }
@@ -187,11 +202,7 @@ class _AIUploadScreenState extends State<AIUploadScreen>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF1A0B3D),
-              Color(0xFF2D1B5E),
-              Color(0xFF1A0B3D),
-            ],
+            colors: [Color(0xFF1A0B3D), Color(0xFF2D1B5E), Color(0xFF1A0B3D)],
           ),
         ),
         child: Stack(
@@ -360,10 +371,7 @@ class _AIUploadScreenState extends State<AIUploadScreen>
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: Image.file(
-                          widget.palmImage,
-                          fit: BoxFit.cover,
-                        ),
+                        child: Image.file(widget.palmImage, fit: BoxFit.cover),
                       ),
                     ),
 
@@ -403,19 +411,22 @@ class MysticParticlesPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < 15; i++) {
-      final x = (size.width * 0.1) + 
+      final x =
+          (size.width * 0.1) +
           (size.width * 0.8 * ((i * 0.1 + animationValue) % 1.0));
-      final y = (size.height * 0.1) + 
+      final y =
+          (size.height * 0.1) +
           (size.height * 0.8 * ((i * 0.07 + animationValue * 0.5) % 1.0));
-      
+
       final radius = 2.0 + (3.0 * ((animationValue + i * 0.1) % 1.0));
-      
+
       canvas.drawCircle(
         Offset(x, y),
         radius,
-        paint..color = Colors.amber.withOpacity(
-          0.3 + 0.4 * ((animationValue + i * 0.1) % 1.0)
-        ),
+        paint
+          ..color = Colors.amber.withOpacity(
+            0.3 + 0.4 * ((animationValue + i * 0.1) % 1.0),
+          ),
       );
     }
   }
