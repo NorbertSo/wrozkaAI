@@ -767,21 +767,17 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         registrationDate: DateTime.now(),
       );
 
-      // Debug - sprawdź dane
+      // Wyświetl dane w konsoli
       print('Dane użytkownika: $userData');
-      print(
-        'DEBUG Onboarding: gender = ${userData.gender}, dominantHand = ${userData.dominantHand}',
-      );
 
-      // POPRAWIONE PRZEJŚCIE do następnego ekranu po animacji
+      // Przejście do następnego ekranu po animacji
       Future.delayed(const Duration(milliseconds: 1000), () {
         Navigator.of(context).push(
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 PalmIntroScreen(
                   userName: userData.name,
-                  userGender: userData.gender,
-                  dominantHand: userData.dominantHand,
+                  userGender: userData.genderForMessages,
                 ),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {

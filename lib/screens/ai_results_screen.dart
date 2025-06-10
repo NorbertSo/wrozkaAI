@@ -3,15 +3,16 @@ import 'package:lottie/lottie.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:io';
 
+
 class AIResultsScreen extends StatefulWidget {
   final String userName;
-  final String analysisResult;
+  final Map<String, dynamic> palmData;
   final File? palmImage;
 
   const AIResultsScreen({
     Key? key,
     required this.userName,
-    required this.analysisResult,
+    required this.palmData,
     this.palmImage,
   }) : super(key: key);
 
@@ -54,19 +55,14 @@ class _AIResultsScreenState extends State<AIResultsScreen>
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeIn));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0)
+        .animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeIn));
 
-    _particleAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(_particleController);
+    _particleAnimation = Tween<double>(begin: 0.0, end: 1.0)
+        .animate(_particleController);
 
     _textAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _textController, curve: Curves.easeOutBack),
-    );
+        CurvedAnimation(parent: _textController, curve: Curves.easeOutBack));
 
     _fadeController.forward();
     Future.delayed(const Duration(milliseconds: 500), () {
@@ -102,7 +98,11 @@ class _AIResultsScreenState extends State<AIResultsScreen>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A0B3D), Color(0xFF2D1B5E), Color(0xFF1A0B3D)],
+            colors: [
+              Color(0xFF1A0B3D),
+              Color(0xFF2D1B5E),
+              Color(0xFF1A0B3D),
+            ],
           ),
         ),
         child: Stack(
@@ -174,10 +174,7 @@ class _AIResultsScreenState extends State<AIResultsScreen>
             height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.amber.withOpacity(0.3),
-                width: 1,
-              ),
+              border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1),
               color: Colors.deepPurple.shade900.withOpacity(0.3),
             ),
             child: IconButton(
@@ -218,10 +215,7 @@ class _AIResultsScreenState extends State<AIResultsScreen>
             height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.amber.withOpacity(0.3),
-                width: 1,
-              ),
+              border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1),
               color: Colors.deepPurple.shade900.withOpacity(0.3),
             ),
             child: IconButton(
@@ -306,10 +300,7 @@ class _AIResultsScreenState extends State<AIResultsScreen>
             height: 200,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.amber.withOpacity(0.5),
-                width: 2,
-              ),
+              border: Border.all(color: Colors.amber.withOpacity(0.5), width: 2),
               boxShadow: [
                 BoxShadow(
                   color: Colors.amber.withOpacity(0.2),
@@ -320,7 +311,10 @@ class _AIResultsScreenState extends State<AIResultsScreen>
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: Image.file(widget.palmImage!, fit: BoxFit.cover),
+              child: Image.file(
+                widget.palmImage!,
+                fit: BoxFit.cover,
+              ),
             ),
           ),
         ],
@@ -430,7 +424,10 @@ class _AIResultsScreenState extends State<AIResultsScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
                   "✨",
-                  style: TextStyle(fontSize: 16, color: Colors.amber.shade300),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.amber.shade300,
+                  ),
                 ),
               ),
               Expanded(
@@ -471,7 +468,10 @@ class _AIResultsScreenState extends State<AIResultsScreen>
             children: [
               Text(
                 "🔮 ✨ 🌟 ✨ 🔮",
-                style: TextStyle(fontSize: 18, color: Colors.amber.shade300),
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.amber.shade300,
+                ),
               ),
             ],
           ),
@@ -514,7 +514,11 @@ class _AIResultsScreenState extends State<AIResultsScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.refresh, color: Colors.white, size: 24),
+                const Icon(
+                  Icons.refresh,
+                  color: Colors.white,
+                  size: 24,
+                ),
                 const SizedBox(width: 12),
                 Text(
                   "Nowa Analiza",
@@ -542,7 +546,9 @@ class _AIResultsScreenState extends State<AIResultsScreen>
         elevation: 8,
         label: Text(
           "Nowa Analiza",
-          style: GoogleFonts.cinzelDecorative(fontWeight: FontWeight.w600),
+          style: GoogleFonts.cinzelDecorative(
+            fontWeight: FontWeight.w600,
+          ),
         ),
         icon: const Icon(Icons.refresh),
       ),
@@ -551,8 +557,7 @@ class _AIResultsScreenState extends State<AIResultsScreen>
 
   void _shareAnalysis() {
     // Implementacja udostępniania analizy
-    final textToShare =
-        '''
+    final textToShare = '''
 🔮 Mistyczna Analiza Dłoni dla ${widget.userName} 🔮
 
 ${widget.analysisResult}
@@ -581,7 +586,10 @@ Wygenerowano przez AI Wróżka
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("OK", style: TextStyle(color: Colors.amber)),
+            child: const Text(
+              "OK",
+              style: TextStyle(color: Colors.amber),
+            ),
           ),
         ],
       ),
@@ -608,7 +616,10 @@ Wygenerowano przez AI Wróżka
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("Anuluj", style: TextStyle(color: Colors.grey)),
+            child: const Text(
+              "Anuluj",
+              style: TextStyle(color: Colors.grey),
+            ),
           ),
           TextButton(
             onPressed: () {
@@ -640,43 +651,37 @@ class MysticParticlesPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < 20; i++) {
-      final x =
-          (size.width * 0.1) +
+      final x = (size.width * 0.1) + 
           (size.width * 0.8 * ((i * 0.1 + animationValue) % 1.0));
-      final y =
-          (size.height * 0.1) +
+      final y = (size.height * 0.1) + 
           (size.height * 0.8 * ((i * 0.07 + animationValue * 0.3) % 1.0));
-
+      
       final radius = 1.5 + (2.5 * ((animationValue + i * 0.1) % 1.0));
-
+      
       canvas.drawCircle(
         Offset(x, y),
         radius,
-        paint
-          ..color = Colors.amber.withOpacity(
-            0.2 + 0.3 * ((animationValue + i * 0.1) % 1.0),
-          ),
+        paint..color = Colors.amber.withOpacity(
+          0.2 + 0.3 * ((animationValue + i * 0.1) % 1.0)
+        ),
       );
     }
 
     // Dodatkowe większe cząsteczki
     for (int i = 0; i < 8; i++) {
-      final x =
-          size.width * 0.2 +
+      final x = size.width * 0.2 + 
           (size.width * 0.6 * ((i * 0.15 + animationValue * 0.5) % 1.0));
-      final y =
-          size.height * 0.2 +
+      final y = size.height * 0.2 + 
           (size.height * 0.6 * ((i * 0.11 + animationValue * 0.4) % 1.0));
-
+      
       final radius = 2.0 + (4.0 * ((animationValue * 0.7 + i * 0.1) % 1.0));
-
+      
       canvas.drawCircle(
         Offset(x, y),
         radius,
-        paint
-          ..color = Colors.purple.withOpacity(
-            0.1 + 0.2 * ((animationValue * 0.8 + i * 0.1) % 1.0),
-          ),
+        paint..color = Colors.purple.withOpacity(
+          0.1 + 0.2 * ((animationValue * 0.8 + i * 0.1) % 1.0)
+        ),
       );
     }
   }

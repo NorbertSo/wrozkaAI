@@ -10,11 +10,10 @@ import 'package:camera/camera.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import '../utils/constants.dart';
-import '../services/palm_detection_service.dart';
 import '../services/logging_service.dart';
 import '../services/ai_vision_service.dart';
-import '../models/palm_analysis.dart';
-import 'palm_analysis_result_screen.dart';
+import 'ai_results_screen.dart';
+
 
 class PalmScanScreen extends StatefulWidget {
   final String userName;
@@ -46,9 +45,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   bool _hasCompletedScan = false;
   bool _isCameraLocked = false;
   bool _isAnalyzingWithAI = false;
-
   // ===== SERWISY =====
-  final PalmDetectionService _palmDetectionService = PalmDetectionService();
   final LoggingService _loggingService = LoggingService();
   final AIVisionService _aiVisionService = AIVisionService();
 
@@ -518,55 +515,33 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       }
     } catch (e) {
       _loggingService.logToConsole(
-        'Błąd AI - używam starożytnej wiedzy: $e',
+        'Błąd analizy: $e',
         tag: 'AI_ERROR',
       );
 
-      setState(() {
-        _detectionStatus =
-            'Błąd duchowych przewodników - sięgam po starożytną mądrość';
-      });
-
-      try {
-        final palmData = await _palmDetectionService.analyzePalm(
-          handType: _targetHand,
-          userName: widget.userName,
-        );
-
-        await _loggingService.saveAnalysisToFile(palmData);
-
-        if (mounted) {
-          _navigateToResults(palmData);
-        }
-      } catch (fallbackError) {
-        _loggingService.logToConsole(
-          'Błąd fallback: $fallbackError',
-          tag: 'FALLBACK_ERROR',
-        );
-
-        if (mounted) {
-          setState(() {
-            _detectionStatus =
-                'Zakłócenia w przepływie energii - spróbuj ponownie';
-            _isAnalyzingWithAI = false;
-            _hasCompletedScan = false;
-          });
-        }
+      if (mounted) {
+        setState(() {
+          _detectionStatus = 'Zakłócenia w przepływie energii - spróbuj ponownie';
+          _isAnalyzingWithAI = false;
+          _hasCompletedScan = false;
+        });
       }
+
+      _restartScanning();
     }
   }
 
   void _navigateToResults(dynamic palmData) {
     if (!mounted) return;
 
-    _loggingService.logToConsole('Nawigacja do wyników', tag: 'NAVIGATE');
-
-    Navigator.of(context).pushReplacement(
+    _loggingService.logToConsole('Nawigacja do wyników', tag: 'NAVIGATE');    Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            PalmAnalysisResultScreen(
+            AIResultsScreen(
               userName: widget.userName,
-              userGender: widget.userGender,
+              userGender: widget.userGender.isEmpty ? 'unspecified' : widget.userGender,
+              birthDate: DateTime.now(), // Używamy aktualnej daty jako domyślnej
+              dominantHand: widget.dominantHand ?? 'unknown',
               palmData: palmData,
             ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -985,15 +960,12 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: _palmDetected
-                        ? Colors.green.withOpacity(0.9)
-                        : AppColors.cyan.withOpacity(0.7),
+                    color: _palmDetected ? Colors.green.withOpacity(0.9) : AppColors.cyan.withOpacity(0.7),
                     width: 3,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: (_palmDetected ? Colors.green : AppColors.cyan)
-                          .withOpacity(0.3 * _pulseAnimation.value),
+                      color: (_palmDetected ? Colors.green : AppColors.cyan).withOpacity(0.3 * _pulseAnimation.value),
                       blurRadius: 25,
                       spreadRadius: 8,
                     ),
@@ -1013,49 +985,31 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: _palmDetected
-                                    ? Colors.green
-                                    : AppColors.cyan,
+                                color: _palmDetected ? Colors.green : AppColors.cyan,
                                 width: 2,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color:
-                                      (_palmDetected
-                                              ? Colors.green
-                                              : AppColors.cyan)
-                                          .withOpacity(0.3),
+                                  color: (_palmDetected ? Colors.green : AppColors.cyan).withOpacity(0.3),
                                   blurRadius: 12,
                                   spreadRadius: 2,
                                 ),
                               ],
                             ),
                             child: Icon(
-                              _palmDetected
-                                  ? Icons.check_circle_outline
-                                  : Icons.pan_tool_outlined,
-                              color: _palmDetected
-                                  ? Colors.green
-                                  : AppColors.cyan,
+                              _palmDetected ? Icons.check_circle_outline : Icons.pan_tool_outlined,
+                              color: _palmDetected ? Colors.green : AppColors.cyan,
                               size: 32,
-                              semanticLabel: _palmDetected
-                                  ? 'Dłoń wykryta'
-                                  : 'Umieść dłoń w ramce',
                             ),
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            _palmDetected
-                                ? 'ENERGIA WYKRYTA'
-                                : 'POKAŻ ${_getTargetHandName().toUpperCase()} DŁOŃ',
+                            _palmDetected ? 'ENERGIA WYKRYTA' : 'POKAŻ ${_getTargetHandName().toUpperCase()} DŁOŃ',
                             style: GoogleFonts.cinzelDecorative(
-                              color: _palmDetected
-                                  ? Colors.green
-                                  : AppColors.cyan,
+                              color: _palmDetected ? Colors.green : AppColors.cyan,
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 0.8,
-                              height: 1.2,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -1081,8 +1035,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
-                                semanticsLabel:
-                                    'Postęp: $_goodChecks z $_requiredGoodChecks sprawdzeń',
                               ),
                             ),
                           ],
