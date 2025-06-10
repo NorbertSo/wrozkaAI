@@ -1,34 +1,71 @@
+# pubspec.yaml - Wymagane dependencje dla AIVisionService
+
 name: ai_wrozka
-description: Aplikacja do wróżenia z dłoni z wykorzystaniem AI
-publish_to: none
+description: AI Wróżka - Analiza Dłoni z wykorzystaniem AI
+
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.8.0 <4.0.0'
-  flutter: '>=3.16.0'
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.10.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  flutter_localizations:
-    sdk: flutter
-  lottie: ^3.0.0
-  cupertino_icons: ^1.0.2
+
+  # UI & Animations
+  cupertino_icons: ^1.0.6
   google_fonts: ^6.1.0
-  path_provider: ^2.1.2
-  camera: ^0.10.5+5
+  lottie: ^2.7.0
+  
+  # Camera & Image
+  camera: ^0.10.6
+  image: ^4.1.3
+  flutter_image_compress: ^2.1.0
+  
+  # HTTP & API
   http: ^1.1.0
-  image_picker: ^1.1.2
+  dio: ^5.3.3  # Alternative HTTP client z lepszym error handling
+  
+  # File & Storage
+  path_provider: ^2.1.1
+  permission_handler: ^11.1.0
+  
+  # Sharing & Clipboard
+  share_plus: ^7.2.1
+  
+  # Crypto & Security
+  crypto: ^3.0.3
+  
+  # JSON & Serialization (jeśli potrzebujesz structured models)
+  json_annotation: ^4.8.1
+  
+  # State Management (opcjonalnie)
+  provider: ^6.1.1
+  
+  # Utility
+  intl: ^0.18.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.0
+  flutter_lints: ^3.0.1
+  
+  # JSON serialization (jeśli używasz)
+  build_runner: ^2.4.7
+  json_serializable: ^6.7.1
 
 flutter:
   uses-material-design: true
+  
   assets:
-    - assets/animations/
     - assets/images/
-    - assets/sound/
-    - assets/data/
+    - assets/animations/
+    - assets/sounds/
+    
+  fonts:
+    - family: CinzelDecorative
+      fonts:
+        - asset: assets/fonts/CinzelDecorative-Regular.ttf
+        - asset: assets/fonts/CinzelDecorative-Bold.ttf
+          weight: 700
