@@ -54,8 +54,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
     _slideAnimation =
         Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
-          CurvedAnimation(parent: _formController, curve: Curves.easeOutCubic),
-        );
+      CurvedAnimation(parent: _formController, curve: Curves.easeOutCubic),
+    );
 
     _glowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
@@ -524,9 +524,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(15),
           border: Border.all(
-            color: isSelected
-                ? AppColors.cyan
-                : AppColors.cyan.withOpacity(0.3),
+            color:
+                isSelected ? AppColors.cyan : AppColors.cyan.withOpacity(0.3),
             width: isSelected ? 2 : 1.5,
           ),
           color: isSelected
@@ -623,9 +622,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(15),
           border: Border.all(
-            color: isSelected
-                ? AppColors.cyan
-                : AppColors.cyan.withOpacity(0.3),
+            color:
+                isSelected ? AppColors.cyan : AppColors.cyan.withOpacity(0.3),
             width: isSelected ? 2 : 1.5,
           ),
           color: isSelected
@@ -776,28 +774,27 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 PalmIntroScreen(
-                  userName: userData.name,
-                  userGender: userData.genderForMessages,
-                ),
+              userName: userData.name,
+              userGender: userData.genderForMessages,
+            ),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position:
-                          Tween<Offset>(
-                            begin: const Offset(0.0, 0.3),
-                            end: Offset.zero,
-                          ).animate(
-                            CurvedAnimation(
-                              parent: animation,
-                              curve: Curves.easeOutCubic,
-                            ),
-                          ),
-                      child: child,
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.0, 0.3),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutCubic,
                     ),
-                  );
-                },
+                  ),
+                  child: child,
+                ),
+              );
+            },
             transitionDuration: const Duration(milliseconds: 1200),
           ),
         );

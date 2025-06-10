@@ -1,6 +1,3 @@
-// lib/screens/palm_intro_screen.dart
-// POPRAWIONY PLIK Z DOMINUJĄCĄ DŁONIĄ
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
@@ -11,13 +8,11 @@ import 'palm_scan_screen.dart';
 class PalmIntroScreen extends StatefulWidget {
   final String userName;
   final String userGender;
-  final String? dominantHand; // ← DODANE!
 
   const PalmIntroScreen({
     super.key,
     required this.userName,
     required this.userGender,
-    this.dominantHand, // ← DODANE!
   });
 
   @override
@@ -169,25 +164,24 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
                               return Transform.scale(
                                 scale: _textAnimation.value,
                                 child: Container(
-                                  width: 120,
-                                  height: 120,
+                                  padding: const EdgeInsets.all(20),
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    gradient: RadialGradient(
-                                      colors: [
-                                        AppColors.cyan.withOpacity(0.3),
-                                        AppColors.cyan.withOpacity(0.1),
-                                        Colors.transparent,
-                                      ],
-                                    ),
                                     border: Border.all(
                                       color: AppColors.cyan.withOpacity(0.5),
                                       width: 2,
                                     ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.cyan.withOpacity(0.3),
+                                        blurRadius: 20,
+                                        spreadRadius: 5,
+                                      ),
+                                    ],
                                   ),
                                   child: Icon(
-                                    Icons.auto_awesome,
-                                    size: 60,
+                                    Icons.pan_tool_outlined,
+                                    size: 64,
                                     color: AppColors.cyan,
                                   ),
                                 ),
@@ -195,24 +189,30 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
                             },
                           ),
 
-                          const SizedBox(height: 40),
+                          const SizedBox(height: 60),
 
-                          // Tekst spersonalizowany
+                          // Główny tekst
                           AnimatedBuilder(
                             animation: _textAnimation,
                             builder: (context, child) {
                               return Opacity(
                                 opacity: _textAnimation.value,
-                                child: Text(
-                                  _personalizedMessage,
-                                  style: GoogleFonts.cinzelDecorative(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w300,
-                                    color: Colors.white,
-                                    height: 1.6,
-                                    letterSpacing: 0.3,
+                                child: Transform.translate(
+                                  offset: Offset(
+                                    0,
+                                    50 * (1 - _textAnimation.value),
                                   ),
-                                  textAlign: TextAlign.center,
+                                  child: Text(
+                                    _personalizedMessage,
+                                    style: GoogleFonts.cinzelDecorative(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w300,
+                                      color: Colors.white,
+                                      height: 1.6,
+                                      letterSpacing: 0.3,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
                               );
                             },
@@ -293,32 +293,28 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
   }
 
   void _startRitual() {
-    print(
-      'DEBUG PalmIntro: userGender = ${widget.userGender}, dominantHand = ${widget.dominantHand}',
-    );
+    // Dodaj efekt drgania/vibracji
+    // HapticFeedback.mediumImpact();
 
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => PalmScanScreen(
           userName: widget.userName,
-          userGender: widget.userGender, // ← PRZESYŁAMY ORYGINALNĄ WARTOŚĆ!
-          dominantHand: widget.dominantHand, // ← PRZESYŁAMY DOMINUJĄCĄ DŁOŃ!
-          testMode: false, // Zmień na true żeby zobaczyć mistyczny interfejs
+          userGender: widget.userGender,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: animation,
             child: SlideTransition(
-              position:
-                  Tween<Offset>(
-                    begin: const Offset(0.0, 0.3),
-                    end: Offset.zero,
-                  ).animate(
-                    CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeOutCubic,
-                    ),
-                  ),
+              position: Tween<Offset>(
+                begin: const Offset(0.0, 0.3),
+                end: Offset.zero,
+              ).animate(
+                CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                ),
+              ),
               child: child,
             ),
           );
@@ -344,8 +340,7 @@ class MysticParticlesPainter extends CustomPainter {
     // Rysowanie cząsteczek w różnych miejscach
     for (int i = 0; i < 20; i++) {
       final x = (size.width * 0.1) + (i * size.width * 0.04);
-      final y =
-          size.height * 0.3 +
+      final y = size.height * 0.3 +
           (50 * math.sin((animationValue * 2 * math.pi) + i * 0.5));
 
       final radius = 1.5 + (math.sin(animationValue * 4 * math.pi + i) * 0.8);
@@ -363,8 +358,7 @@ class MysticParticlesPainter extends CustomPainter {
     // Dodatkowe cząsteczki po prawej stronie
     for (int i = 0; i < 15; i++) {
       final x = size.width * 0.7 + (i * size.width * 0.02);
-      final y =
-          size.height * 0.6 +
+      final y = size.height * 0.6 +
           (30 * math.cos((animationValue * 1.5 * math.pi) + i * 0.8));
 
       final radius = 1.0 + (math.cos(animationValue * 3 * math.pi + i) * 0.5);
@@ -373,7 +367,7 @@ class MysticParticlesPainter extends CustomPainter {
         Offset(x, y),
         radius,
         paint
-          ..color = AppColors.cyan.withOpacity(
+          ..color = AppColors.lightCyan.withOpacity(
             0.15 + (0.25 * math.cos(animationValue * 2.5 * math.pi + i)),
           ),
       );

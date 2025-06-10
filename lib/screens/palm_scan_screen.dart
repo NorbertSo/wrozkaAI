@@ -1,5 +1,5 @@
 // lib/screens/palm_scan_screen.dart
-// Naprawiony ekran skanowania z proper lifecycle management
+// Naprawiony ekran skanowania bez AI dependency
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,12 +7,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:camera/camera.dart';
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:io';
 import '../utils/constants.dart';
+import '../services/palm_detection_service.dart';
 import '../services/logging_service.dart';
-import '../services/ai_vision_service.dart';
-import 'ai_results_screen.dart';
-
+import '../models/palm_analysis.dart';
+import 'palm_analysis_result_screen.dart';
 
 class PalmScanScreen extends StatefulWidget {
   final String userName;
@@ -36,34 +35,26 @@ class PalmScanScreen extends StatefulWidget {
 
 class _PalmScanScreenState extends State<PalmScanScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
-  
   // ===== STAN KAMERY =====
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
   String _detectionStatus = 'Inicjalizacja mistycznej energii...';
-  List<CameraDescription>? _cameras;
 
   // ===== FLAGI ZABEZPIECZAJĄCE =====
   bool _isDisposing = false;
   bool _hasCompletedScan = false;
   bool _isCameraLocked = false;
-  bool _isAnalyzingWithAI = false;
-  bool _isCameraDisposed = false;
+  bool _isAnalyzing = false;
 
   // ===== SERWISY =====
+  final PalmDetectionService _palmDetectionService = PalmDetectionService();
   final LoggingService _loggingService = LoggingService();
-  final AIVisionService _aiVisionService = AIVisionService();
 
-  // ===== DANE WYKRYWANIA =====
+  // ===== WYKRYWANIE =====
   int _scanAttempts = 0;
   int _goodChecks = 0;
+  final int _requiredGoodChecks = 5;
   bool _palmDetected = false;
-  double _lightLevel = 0.0;
-  
-  // Stałe konfiguracyjne zgodne z constants
-  static const int _maxScanAttempts = AppConfig.maxScanAttempts;
-  static const int _requiredGoodChecks = AppConfig.requiredGoodStreak;
-  static const double _minLightLevel = AppConfig.minLightLevel;
 
   // ===== ANIMACJE =====
   late AnimationController _pulseController;
@@ -78,99 +69,176 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   // ===== TIMERY =====
   Timer? _detectionTimer;
   Timer? _forceCloseTimer;
-  Timer? _stabilityTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeAnimations();
-    _initializeCamera();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_isDisposing) {
+        if (widget.testMode) {
+          _initializeTestMode();
+        } else {
+          _initializeCamera();
+        }
+      }
+    });
   }
 
   void _initializeAnimations() {
-    // Animacje zgodne z wytycznymi czasowymi (150-300ms)
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 200),
-      vsync: this,
-    );
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
+    try {
+      _pulseController = AnimationController(
+        duration: const Duration(milliseconds: 2000),
+        vsync: this,
+      )..repeat(reverse: true);
 
-    _orbController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _orbAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _orbController, curve: Curves.easeInOut),
-    );
+      _orbController = AnimationController(
+        duration: const Duration(milliseconds: 4000),
+        vsync: this,
+      )..repeat();
 
-    _runeController = AnimationController(
-      duration: const Duration(milliseconds: 250),
-      vsync: this,
-    );
-    _runeAnimation = Tween<double>(begin: 0.0, end: 2 * math.pi).animate(
-      CurvedAnimation(parent: _runeController, curve: Curves.linear),
-    );
+      _runeController = AnimationController(
+        duration: const Duration(milliseconds: 6000),
+        vsync: this,
+      )..repeat();
 
-    _feedbackController = AnimationController(
-      duration: const Duration(milliseconds: 150),
-      vsync: this,
-    );
-    _feedbackAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _feedbackController, curve: Curves.elasticOut),
-    );
+      _feedbackController = AnimationController(
+        duration: const Duration(milliseconds: 200),
+        vsync: this,
+      );
 
-    // Start continuous animations
-    _pulseController.repeat(reverse: true);
-    _orbController.repeat();
-    _runeController.repeat();
+      _pulseAnimation = Tween<double>(begin: 0.9, end: 1.1).animate(
+        CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+      );
+
+      _orbAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _orbController, curve: Curves.linear),
+      );
+
+      _runeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _runeController, curve: Curves.linear),
+      );
+
+      _feedbackAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
+        CurvedAnimation(parent: _feedbackController, curve: Curves.elasticOut),
+      );
+    } catch (e) {
+      print('Błąd inicjalizacji animacji: $e');
+    }
   }
 
-  Future<void> _initializeCamera() async {
-    if (_isDisposing || _hasCompletedScan || _isCameraLocked) {
-      return;
-    }
+  void _initializeTestMode() {
+    if (_isDisposing || _hasCompletedScan) return;
+    setState(() {
+      _isCameraInitialized = true;
+      _detectionStatus = _getHandInstruction();
+    });
+    _startPalmDetection();
+  }
 
-    _isCameraLocked = true;
+  String _getHandInstruction() {
+    print(
+        'DEBUG: userGender = ${widget.userGender}, dominantHand = ${widget.dominantHand}');
+
+    // Obsługa różnych płci zgodnie z wymaganiami
+    if (widget.userGender == 'other' ||
+        widget.userGender == 'inna' ||
+        widget.userGender == 'neutral') {
+      // Dla płci "inna" lub "neutral" - używaj dominującej dłoni
+      final dominantHand = widget.dominantHand?.toLowerCase() ?? 'right';
+      final handName = dominantHand == 'left' ? 'lewą' : 'prawą';
+      return 'Przygotuj $handName dłoń - dominującą energię';
+    } else {
+      // Dla binarnych płci - tradycyjne podejście
+      final handType = widget.userGender == 'female' ? 'lewą' : 'prawą';
+      final energyType = widget.userGender == 'female' ? 'kobiecą' : 'męską';
+      return 'Przygotuj $handType dłoń - $energyType energię';
+    }
+  }
+
+  String get _targetHand {
+    // Określenie docelowej dłoni
+    if (widget.userGender == 'other' ||
+        widget.userGender == 'inna' ||
+        widget.userGender == 'neutral') {
+      return widget.dominantHand?.toLowerCase() ?? 'right';
+    }
+    return widget.userGender == 'female' ? 'left' : 'right';
+  }
+
+  String _getTargetHandName() {
+    if (widget.userGender == 'other' ||
+        widget.userGender == 'inna' ||
+        widget.userGender == 'neutral') {
+      final dominantHand = widget.dominantHand?.toLowerCase() ?? 'right';
+      return dominantHand == 'left' ? 'lewą' : 'prawą';
+    }
+    return widget.userGender == 'female' ? 'lewą' : 'prawą';
+  }
+
+  // ===== MIKROINTERAKCJE =====
+  void _triggerHapticFeedback() {
+    try {
+      HapticFeedback.selectionClick();
+      _feedbackController.forward().then((_) => _feedbackController.reverse());
+    } catch (e) {
+      print('Błąd haptic feedback: $e');
+    }
+  }
+
+  void _triggerSuccessFeedback() {
+    try {
+      HapticFeedback.mediumImpact();
+      _feedbackController.forward().then((_) => _feedbackController.reverse());
+    } catch (e) {
+      print('Błąd success feedback: $e');
+    }
+  }
+
+  void _triggerErrorFeedback() {
+    try {
+      HapticFeedback.heavyImpact();
+    } catch (e) {
+      print('Błąd error feedback: $e');
+    }
+  }
+
+  // ===== INICJALIZACJA KAMERY =====
+  Future<void> _initializeCamera() async {
+    if (_isDisposing || _hasCompletedScan || _isCameraLocked) return;
 
     try {
+      _isCameraLocked = true;
       _loggingService.logCameraActivity('Inicjalizacja kamery - START');
 
-      // Get available cameras
-      _cameras = await availableCameras();
-      
-      if (_cameras == null || _cameras!.isEmpty) {
-        throw Exception('Brak dostępnych kamer');
+      await _safeDisposeCamera();
+      if (_isDisposing || _hasCompletedScan) return;
+
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        throw CameraException('no_cameras', 'Brak dostępnych kamer');
       }
 
-      // Prefer back camera for palm scanning
-      CameraDescription selectedCamera = _cameras!.first;
-      for (final camera in _cameras!) {
-        if (camera.lensDirection == CameraLensDirection.back) {
-          selectedCamera = camera;
-          break;
-        }
-      }
-
-      if (_isDisposing || _hasCompletedScan || !mounted) {
-        return;
-      }
-
-      // Initialize camera controller
       _cameraController = CameraController(
-        selectedCamera,
+        cameras[0],
         ResolutionPreset.high,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
 
+      if (_isDisposing || _hasCompletedScan) {
+        await _cameraController?.dispose();
+        _cameraController = null;
+        return;
+      }
+
       await _cameraController!.initialize();
 
-      // Double check for disposal
-      if (_isDisposing || _hasCompletedScan || !mounted || _isCameraDisposed) {
-        await _safeDisposeCamera();
+      if (_isDisposing || _hasCompletedScan || !mounted) {
+        await _cameraController?.dispose();
+        _cameraController = null;
         return;
       }
 
@@ -182,7 +250,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       _loggingService.logCameraActivity('Kamera zainicjalizowana POMYŚLNIE');
       _startPalmDetection();
       _startForceCloseTimer();
-
     } catch (e) {
       _loggingService.logToConsole('Camera Error: $e', tag: 'ERROR');
       if (mounted && !_isDisposing) {
@@ -197,132 +264,163 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   }
 
   Future<void> _safeDisposeCamera() async {
-    if (_isCameraDisposed || _cameraController == null) {
-      return;
-    }
-
-    try {
-      _loggingService.logCameraActivity('Dispose kamery - START');
-      
-      _isCameraDisposed = true;
-      final controller = _cameraController;
-      _cameraController = null;
-      _isCameraInitialized = false;
-      
-      if (controller != null) {
-        await controller.dispose();
+    if (_cameraController != null) {
+      try {
+        _loggingService.logCameraActivity('Dispose kamery - START');
+        final controller = _cameraController;
+        _cameraController = null;
+        _isCameraInitialized = false;
+        await controller?.dispose();
+        _loggingService.logCameraActivity('Dispose kamery - ZAKOŃCZONE');
+      } catch (e) {
+        _loggingService.logToConsole('Błąd dispose kamery: $e', tag: 'ERROR');
       }
-      
-      _loggingService.logCameraActivity('Dispose kamery - ZAKOŃCZONE');
-    } catch (e) {
-      _loggingService.logToConsole('Błąd dispose kamery: $e', tag: 'ERROR');
     }
   }
 
-  void _startPalmDetection() {
-    if (_detectionTimer?.isActive == true) {
-      _detectionTimer?.cancel();
+  // ===== LIFECYCLE =====
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (widget.testMode || _hasCompletedScan) return;
+
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+        _pauseAllOperations();
+        break;
+      case AppLifecycleState.resumed:
+        _resumeOperations();
+        break;
+      default:
+        break;
     }
+  }
 
-    _detectionTimer = Timer.periodic(
-      const Duration(milliseconds: 500),
-      (timer) => _checkPalmPosition(),
-    );
+  void _pauseAllOperations() {
+    _cancelAllTimers();
+    _safeDisposeCamera();
+  }
 
-    _loggingService.logToConsole('Wykrywanie dłoni uruchomione', tag: 'DETECTION');
+  void _resumeOperations() {
+    if (!_isDisposing && !_hasCompletedScan && mounted) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (!_isDisposing && !_hasCompletedScan && mounted) {
+          _initializeCamera();
+        }
+      });
+    }
+  }
+
+  // ===== ZARZĄDZANIE TIMERAMI =====
+  void _cancelAllTimers() {
+    _loggingService.logToConsole('Anulowanie wszystkich timerów',
+        tag: 'TIMERS');
+    _detectionTimer?.cancel();
+    _forceCloseTimer?.cancel();
+    _detectionTimer = null;
+    _forceCloseTimer = null;
   }
 
   void _startForceCloseTimer() {
+    if (_hasCompletedScan || _isDisposing) return;
+
     _forceCloseTimer?.cancel();
-    _forceCloseTimer = Timer(AppConfig.cameraTimeout, () {
+    _forceCloseTimer = Timer(const Duration(seconds: 30), () {
       if (!_hasCompletedScan && mounted) {
-        _loggingService.logToConsole(
-          'Timeout kamery - automatyczne zamknięcie',
-          tag: 'TIMEOUT',
-        );
-        Navigator.of(context).pop();
+        _loggingService.logToConsole('TIMEOUT: Automatyczne zamknięcie',
+            tag: 'TIMEOUT');
+        _forceCompleteScan();
       }
     });
   }
 
-  void _checkPalmPosition() {
-    if (_hasCompletedScan || _isAnalyzingWithAI || !mounted || _isDisposing) {
+  void _startPalmDetection() {
+    if (_hasCompletedScan || _isDisposing) return;
+
+    _loggingService.logToConsole('START wykrywania dłoni', tag: 'DETECTION');
+
+    _detectionTimer?.cancel();
+    _detectionTimer =
+        Timer.periodic(const Duration(milliseconds: 1500), (timer) {
+      if (!mounted || _hasCompletedScan || _isDisposing) {
+        timer.cancel();
+        return;
+      }
+
+      if (_cameraController == null ||
+          !_cameraController!.value.isInitialized) {
+        timer.cancel();
+        return;
+      }
+
+      _scanAttempts++;
+      _checkPalmPosition();
+
+      if (_scanAttempts % 5 == 0) {
+        _loggingService.logToConsole(
+          'Skanowanie - próba $_scanAttempts, dobre sprawdzenia: $_goodChecks/$_requiredGoodChecks',
+          tag: 'DETECTION',
+        );
+      }
+    });
+  }
+
+  // ===== WYKRYWANIE POZYCJI DŁONI =====
+  Future<void> _checkPalmPosition() async {
+    if (!mounted || _isDisposing || _hasCompletedScan || _isAnalyzing) {
       return;
     }
 
     try {
-      _scanAttempts++;
-      
-      // Symulacja warunków (w rzeczywistości użyj ML/Computer Vision)
-      final random = math.Random();
-      final mockPalmDetected = random.nextDouble() > 0.4;
-      final mockLightLevel = 0.3 + (random.nextDouble() * 0.7);
-      final mockHandStability = random.nextDouble() > 0.3;
+      bool conditionsGood = false;
 
-      _lightLevel = mockLightLevel;
-
-      _loggingService.logScanningDetails(
-        palmDetected: mockPalmDetected,
-        detectionStatus: _detectionStatus,
-        lightLevel: _lightLevel,
-        detectedHand: widget.dominantHand,
-        additionalData: {
-          'attempt': _scanAttempts,
-          'goodChecks': _goodChecks,
-          'stability': mockHandStability,
-        },
-      );
-
-      if (_scanAttempts >= _maxScanAttempts) {
-        _loggingService.logToConsole(
-          'Maksymalna liczba prób osiągnięta',
-          tag: 'LIMIT',
-        );
-        _showMaxAttemptsDialog();
-        return;
+      if (widget.testMode) {
+        final random = math.Random();
+        double successChance = math.min(0.9, _scanAttempts / 10.0);
+        conditionsGood = random.nextDouble() < successChance;
+      } else {
+        double baseChance = math.min(0.85, _scanAttempts / 8.0);
+        conditionsGood = math.Random().nextDouble() < baseChance;
       }
 
-      // Check all conditions
-      bool allConditionsMet = mockPalmDetected && 
-                             mockLightLevel >= _minLightLevel && 
-                             mockHandStability;
-
-      if (allConditionsMet) {
+      if (conditionsGood) {
         _goodChecks++;
-        
+
         setState(() {
           _palmDetected = true;
-          if (_goodChecks >= _requiredGoodChecks) {
-            _detectionStatus = 'Doskonale! Uwieczniam wizję...';
-            _triggerSuccessFeedback();
+          int remaining = _requiredGoodChecks - _goodChecks;
+          if (remaining > 0) {
+            _detectionStatus =
+                'Energia się koncentruje... jeszcze $remaining sprawdzeń';
+            _triggerHapticFeedback();
           } else {
-            _detectionStatus = 'Świetnie! Trzymaj spokojnie... $_goodChecks/$_requiredGoodChecks';
+            _detectionStatus = 'Mistyczne moce są z Tobą! Uwieczniam wizję...';
+            _triggerSuccessFeedback();
           }
         });
 
         _loggingService.logToConsole(
-          'DOBRE WARUNKI: $_goodChecks/$_requiredGoodChecks',
-          tag: 'DETECTION',
-        );
+            'DOBRE WARUNKI: $_goodChecks/$_requiredGoodChecks',
+            tag: 'DETECTION');
 
-        if (_goodChecks >= _requiredGoodChecks && 
-            !_isAnalyzingWithAI && 
+        if (_goodChecks >= _requiredGoodChecks &&
+            !_isAnalyzing &&
             !_hasCompletedScan) {
           _loggingService.logToConsole(
-            'WSZYSTKIE WARUNKI SPEŁNIONE - WYKONUJĘ ZDJĘCIE!',
-            tag: 'CAPTURE',
-          );
+              'WSZYSTKIE WARUNKI SPEŁNIONE - WYKONUJĘ ANALIZĘ!',
+              tag: 'CAPTURE');
           _cancelAllTimers();
-          
+
           Future.delayed(const Duration(milliseconds: 1500), () {
-            if (mounted && !_hasCompletedScan && !_isAnalyzingWithAI) {
-              _capturePalmData();
+            if (mounted && !_hasCompletedScan && !_isAnalyzing) {
+              _performPalmAnalysis();
             }
           });
         }
       } else {
         if (_goodChecks > 0) {
-          _loggingService.logToConsole('WARUNKI ZŁAMANE - RESET', tag: 'DETECTION');
+          _loggingService.logToConsole('WARUNKI ZŁAMANE - RESET',
+              tag: 'DETECTION');
         }
         _goodChecks = 0;
 
@@ -333,138 +431,14 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         _triggerErrorFeedback();
       }
     } catch (e) {
-      _loggingService.logToConsole(
-        'Błąd sprawdzania pozycji: $e',
-        tag: 'ERROR',
-      );
+      _loggingService.logToConsole('Błąd sprawdzania pozycji: $e',
+          tag: 'ERROR');
       _goodChecks = 0;
       setState(() {
         _palmDetected = false;
         _detectionStatus = 'Przeszkoda w energii - spróbuj ponownie';
       });
     }
-  }
-
-  Future<void> _capturePalmData() async {
-    if (_hasCompletedScan || _isDisposing || _isAnalyzingWithAI) {
-      _loggingService.logToConsole(
-        'Capture przerwane - scan już zakończony',
-        tag: 'CAPTURE',
-      );
-      return;
-    }
-
-    _loggingService.logToConsole('=== ROZPOCZYNAM CAPTURE ===', tag: 'CAPTURE');
-    _cancelAllTimers();
-
-    setState(() {
-      _hasCompletedScan = true;
-      _isAnalyzingWithAI = true;
-      _detectionStatus = 'Uwieczniam sekretną mapę Twojej duszy...';
-    });
-
-    try {
-      if (_cameraController == null || 
-          !_cameraController!.value.isInitialized ||
-          _isCameraDisposed) {
-        throw Exception('Kamera niedostępna podczas robienia zdjęcia');
-      }
-
-      final XFile palmPhoto = await _cameraController!.takePicture();
-      _loggingService.logToConsole(
-        'Zdjęcie wykonane pomyślnie: ${palmPhoto.path}',
-        tag: 'CAPTURE',
-      );
-
-      // Safely dispose camera before analysis
-      await _safeDisposeCamera();
-
-      setState(() {
-        _detectionStatus = 'Przesyłanie do świata duchów na analizę...';
-      });
-
-      // Analyze with unified AI service
-      final analysisResult = await _aiVisionService.analyzePalmWithAI(
-        palmImage: palmPhoto,
-        userName: widget.userName,
-        userGender: widget.userGender,
-        dominantHand: widget.dominantHand,
-        birthDate: widget.birthDate,
-      );
-
-      // Save logs
-      await _loggingService.saveDetectionLogsToFile(widget.userName);
-
-      if (mounted) {
-        _navigateToResults(analysisResult, File(palmPhoto.path));
-      }
-    } catch (e) {
-      _loggingService.logToConsole(
-        'Błąd analizy: $e',
-        tag: 'AI_ERROR',
-      );
-
-      if (mounted) {
-        setState(() {
-          _detectionStatus = 'Zakłócenia w przepływie energii - spróbuj ponownie';
-          _isAnalyzingWithAI = false;
-          _hasCompletedScan = false;
-        });
-        
-        _showErrorDialog(e.toString());
-        _restartScanning();
-      }
-    }
-  }
-
-  void _navigateToResults(String analysisResult, File palmImage) {
-    if (!mounted) return;
-
-    _loggingService.logToConsole('Nawigacja do wyników', tag: 'NAVIGATE');
-
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => AIResultsScreen(
-          userName: widget.userName,
-          userGender: widget.userGender,
-          birthDate: widget.birthDate,
-          dominantHand: widget.dominantHand,
-          analysisResult: analysisResult,
-          palmImage: palmImage,
-        ),
-        transitionDuration: const Duration(milliseconds: 300),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-      ),
-    );
-  }
-
-  void _cancelAllTimers() {
-    _detectionTimer?.cancel();
-    _forceCloseTimer?.cancel();
-    _stabilityTimer?.cancel();
-    
-    _loggingService.logToConsole('Wszystkie timery anulowane', tag: 'TIMERS');
-  }
-
-  void _triggerSuccessFeedback() {
-    _feedbackController.reset();
-    _feedbackController.forward();
-    HapticFeedback.lightImpact();
-  }
-
-  void _triggerErrorFeedback() {
-    HapticFeedback.selectionClick();
-  }
-
-  String _getHandInstruction() {
-    final handType = widget.dominantHand ?? 'prawą';
-    return 'Umieść $handType dłoń w mistycznym kręgu';
-  }
-
-  String _getTargetHandName() {
-    return widget.dominantHand ?? 'prawą';
   }
 
   String _getPositioningMessage() {
@@ -479,50 +453,151 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     return messages[_scanAttempts % messages.length];
   }
 
-  Future<void> _restartScanning() async {
-    _cancelAllTimers();
-    await _safeDisposeCamera();
+  // ===== ANALIZA DŁONI =====
+  Future<void> _performPalmAnalysis() async {
+    if (_hasCompletedScan || _isDisposing || _isAnalyzing) {
+      _loggingService.logToConsole('Analiza przerwana - już w toku',
+          tag: 'ANALYSIS');
+      return;
+    }
 
-    if (!mounted) return;
+    _loggingService.logToConsole('=== ROZPOCZYNAM ANALIZĘ ===',
+        tag: 'ANALYSIS');
+    _cancelAllTimers();
 
     setState(() {
-      _hasCompletedScan = false;
-      _isAnalyzingWithAI = false;
-      _isCameraInitialized = false;
-      _isCameraDisposed = false;
-      _scanAttempts = 0;
-      _goodChecks = 0;
-      _palmDetected = false;
-      _detectionStatus = 'Wzywam mistyczną energię...';
+      _hasCompletedScan = true;
+      _isAnalyzing = true;
+      _detectionStatus = 'Analizuję starożytne znaki w Twojej dłoni...';
     });
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      // Wykonanie zdjęcia (opcjonalnie, dla przyszłych wersji)
+      if (_cameraController != null && _cameraController!.value.isInitialized) {
+        try {
+          final XFile palmPhoto = await _cameraController!.takePicture();
+          _loggingService.logToConsole('Zdjęcie wykonane: ${palmPhoto.path}',
+              tag: 'PHOTO');
+        } catch (photoError) {
+          _loggingService.logToConsole('Błąd zdjęcia: $photoError',
+              tag: 'PHOTO_ERROR');
+        }
+      }
 
-    if (!mounted) return;
+      // Bezpieczne zamknięcie kamery przed analizą
+      await _safeDisposeCamera();
 
-    await _initializeCamera();
+      setState(() {
+        _detectionStatus = 'Przesyłanie do starożytnych archiwów...';
+      });
+
+      // Analiza dłoni za pomocą PalmDetectionService
+      final palmData = await _palmDetectionService.analyzePalm(
+        handType: _targetHand,
+        userName: widget.userName,
+      );
+
+      _loggingService.logToConsole('Analiza zakończona pomyślnie',
+          tag: 'ANALYSIS');
+
+      // Zapisanie wyników
+      await _loggingService.saveAnalysisToFile(palmData);
+      await _loggingService.saveDetectionLogsToFile(widget.userName);
+
+      if (mounted) {
+        _navigateToResults(palmData);
+      }
+    } catch (e) {
+      _loggingService.logToConsole('Błąd analizy: $e', tag: 'ANALYSIS_ERROR');
+
+      if (mounted) {
+        setState(() {
+          _detectionStatus =
+              'Zakłócenia w przepływie energii - spróbuj ponownie';
+          _isAnalyzing = false;
+          _hasCompletedScan = false;
+        });
+
+        _showErrorDialog(e.toString());
+        _restartScanning();
+      }
+    }
   }
 
-  // UI Dialog methods
-  void _showMaxAttemptsDialog() {
+  void _navigateToResults(PalmAnalysis palmData) {
+    if (!mounted) return;
+
+    _loggingService.logToConsole('Nawigacja do wyników', tag: 'NAVIGATE');
+
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            PalmAnalysisResultScreen(
+          userName: widget.userName,
+          userGender: widget.userGender,
+          palmData: palmData,
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 1500),
+      ),
+    );
+  }
+
+  void _forceCompleteScan() {
+    if (_hasCompletedScan) return;
+
+    if (_goodChecks >= (_requiredGoodChecks ~/ 2)) {
+      _loggingService.logToConsole(
+          'Force complete - warunki częściowo spełnione',
+          tag: 'FORCE');
+      _performPalmAnalysis();
+    } else {
+      _loggingService.logToConsole('Force complete - warunki NIE spełnione',
+          tag: 'FORCE');
+      _showScanFailureDialog();
+    }
+  }
+
+  void _showScanFailureDialog() {
+    if (!mounted || _hasCompletedScan) return;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.deepPurple.shade900,
+        backgroundColor: Colors.black87,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: AppColors.cyan.withOpacity(0.5), width: 1),
         ),
         title: Text(
-          'Zbyt wiele prób',
+          'Energia się rozproszyła',
           style: GoogleFonts.cinzelDecorative(
-            color: Colors.white,
+            color: AppColors.cyan,
             fontSize: 20,
           ),
+          textAlign: TextAlign.center,
         ),
-        content: const Text(
-          'Energie są dzisiaj niespokojne. Spróbuj ponownie za chwilę lub w lepszym oświetleniu.',
-          style: TextStyle(color: Colors.white70, fontSize: 16),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.auto_awesome_outlined,
+              color: Colors.orange,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Mistyczne moce nie mogły się skupić. Znajdź spokojne miejsce z dobrym światłem i spróbuj ponownie.',
+              style: GoogleFonts.cinzelDecorative(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -530,9 +605,9 @@ class _PalmScanScreenState extends State<PalmScanScreen>
               Navigator.of(context).pop();
               Navigator.of(context).pop();
             },
-            child: const Text(
-              'Wyjdź',
-              style: TextStyle(color: Colors.grey),
+            child: Text(
+              'Zaniechaj rytuału',
+              style: GoogleFonts.cinzelDecorative(color: Colors.grey),
             ),
           ),
           ElevatedButton(
@@ -541,13 +616,18 @@ class _PalmScanScreenState extends State<PalmScanScreen>
               _restartScanning();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.cyan,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
-            child: const Text('Spróbuj ponownie'),
+            child: Text(
+              'Przywołaj energię',
+              style: GoogleFonts.cinzelDecorative(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -556,7 +636,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
 
   void _showErrorDialog(String error) {
     if (!mounted) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -595,28 +675,31 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     );
   }
 
-  // Lifecycle methods
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (widget.testMode || _hasCompletedScan) return;
+  Future<void> _restartScanning() async {
+    _cancelAllTimers();
+    await _safeDisposeCamera();
 
-    switch (state) {
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
-        _loggingService.logToConsole('App paused/detached - disposing camera', tag: 'LIFECYCLE');
-        _safeDisposeCamera();
-        break;
-      case AppLifecycleState.resumed:
-        _loggingService.logToConsole('App resumed', tag: 'LIFECYCLE');
-        if (_isCameraDisposed && !_hasCompletedScan && mounted) {
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) _initializeCamera();
-          });
-        }
-        break;
-      default:
-        break;
-    }
+    if (!mounted) return;
+
+    setState(() {
+      _hasCompletedScan = false;
+      _isAnalyzing = false;
+      _isCameraInitialized = false;
+      _scanAttempts = 0;
+      _goodChecks = 0;
+      _palmDetected = false;
+      _detectionStatus = 'Wzywam mistyczną energię...';
+    });
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!mounted) return;
+
+    await _initializeCamera();
+    if (!mounted) return;
+
+    _startPalmDetection();
+    _startForceCloseTimer();
   }
 
   @override
@@ -628,17 +711,15 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     WidgetsBinding.instance.removeObserver(this);
     _cancelAllTimers();
 
-    // Dispose animations
     try {
       _pulseController.dispose();
       _orbController.dispose();
       _runeController.dispose();
       _feedbackController.dispose();
     } catch (e) {
-      _loggingService.logToConsole('Błąd dispose animacji: $e', tag: 'ERROR');
+      print('Błąd dispose animacji: $e');
     }
 
-    // Dispose camera
     _safeDisposeCamera();
 
     _loggingService.logToConsole('DISPOSE - ZAKOŃCZONE', tag: 'DISPOSE');
@@ -652,14 +733,28 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       body: Stack(
         children: [
           _buildMysticalBackground(),
-          
-          if (_isCameraInitialized) 
-            _buildCameraPreview(),
-          
-          _buildOverlayUI(),
-          
-          if (widget.testMode)
-            _buildTestModeOverlay(),
+          if (_isCameraInitialized)
+            AnimatedBuilder(
+              animation: _orbAnimation,
+              builder: (context, child) {
+                return CustomPaint(
+                  painter: MysticalBackgroundPainter(_orbAnimation.value),
+                  size: Size.infinite,
+                );
+              },
+            ),
+          if (_isCameraInitialized &&
+              _cameraController != null &&
+              !widget.testMode)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(0),
+                child: CameraPreview(_cameraController!),
+              ),
+            )
+          else
+            _buildLoadingScreen(),
+          _buildMysticalOverlay(),
         ],
       ),
     );
@@ -672,363 +767,716 @@ class _PalmScanScreenState extends State<PalmScanScreen>
           center: Alignment.center,
           radius: 1.5,
           colors: [
-            Color(0xFF1A0033),
+            Color(0xFF0D1B2A),
+            Color(0xFF1B263B),
             Color(0xFF000000),
           ],
         ),
       ),
-      child: AnimatedBuilder(
-        animation: _orbAnimation,
-        builder: (context, child) {
-          return CustomPaint(
-            painter: MysticalBackgroundPainter(_orbAnimation.value),
-            size: Size.infinite,
-          );
-        },
+    );
+  }
+
+  Widget _buildLoadingScreen() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: RadialGradient(
+          center: Alignment.center,
+          radius: 1.2,
+          colors: [
+            Color(0xFF0D1B2A),
+            Color(0xFF1B263B),
+            Color(0xFF000000),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (widget.testMode) ...[
+              AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _pulseAnimation.value,
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.cyan.withOpacity(0.7),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.cyan.withOpacity(0.3),
+                            blurRadius: 20,
+                            spreadRadius: 5,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.video_camera_front,
+                        size: 60,
+                        color: AppColors.cyan,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 32),
+              Text(
+                'RYTUAŁ TESTOWY',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 24,
+                  color: AppColors.cyan,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 2,
+                ),
+              ),
+            ] else ...[
+              AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _pulseAnimation.value,
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.cyan,
+                          width: 3,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.cyan.withOpacity(0.5),
+                            blurRadius: 25,
+                            spreadRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: const CircularProgressIndicator(
+                        color: AppColors.cyan,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Wzywam mistyczną energię...',
+                style: GoogleFonts.cinzelDecorative(
+                  color: Colors.white70,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildCameraPreview() {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      return const SizedBox.shrink();
-    }
-
-    return Positioned.fill(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(0),
-        child: CameraPreview(_cameraController!),
-      ),
-    );
-  }
-
-  Widget _buildOverlayUI() {
+  Widget _buildMysticalOverlay() {
     return SafeArea(
       child: Column(
         children: [
-          _buildHeader(),
-          Expanded(child: _buildScanningArea()),
-          _buildStatusArea(),
-          _buildControlButtons(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            constraints: const BoxConstraints(
-              minWidth: 44, // Minimum 44x44 px
-              minHeight: 44,
-            ),
-            child: IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-              iconSize: 24,
-            ),
-          ),
+          _buildTopMysticalPanel(),
           Expanded(
-            child: Text(
-              'Mistyczne Skanowanie',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 24, // 24-32pt dla nagłówków
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-              textAlign: TextAlign.center,
+            child: Center(
+              child: _buildScanningFrame(),
             ),
           ),
-          const SizedBox(width: 44), // Balance for back button
+          _buildBottomMysticalPanel(),
         ],
       ),
     );
   }
 
-  Widget _buildScanningArea() {
-    return Center(
-      child: Stack(
-        alignment: Alignment.center,
+  Widget _buildTopMysticalPanel() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withOpacity(0.85),
+            Colors.black.withOpacity(0.6),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.cyan.withOpacity(0.4),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.cyan.withOpacity(0.15),
+            blurRadius: 12,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Column(
         children: [
-          // Mystical scanning circle
-          AnimatedBuilder(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Back button
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.cyan.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                  iconSize: 20,
+                ),
+              ),
+              // Title
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedBuilder(
+                      animation: _runeAnimation,
+                      builder: (context, child) {
+                        return Transform.rotate(
+                          angle: _runeAnimation.value * 2 * math.pi,
+                          child: Icon(
+                            Icons.auto_awesome,
+                            color: AppColors.cyan,
+                            size: 24,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'MISTYCZNY RYTUAŁ',
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 18,
+                        color: AppColors.cyan,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    AnimatedBuilder(
+                      animation: _runeAnimation,
+                      builder: (context, child) {
+                        return Transform.rotate(
+                          angle: -_runeAnimation.value * 2 * math.pi,
+                          child: Icon(
+                            Icons.auto_awesome,
+                            color: AppColors.cyan,
+                            size: 24,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              // Spacer for balance
+              const SizedBox(width: 44),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Drogi${widget.userGender == 'female' ? 'a' : (widget.userGender == 'other' || widget.userGender == 'inna' || widget.userGender == 'neutral') ? '/a' : ''} ${widget.userName}',
+            style: GoogleFonts.cinzelDecorative(
+              fontSize: 16,
+              color: Colors.white,
+              fontWeight: FontWeight.w400,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _getHandInstruction(),
+            style: GoogleFonts.cinzelDecorative(
+              fontSize: 14,
+              color: AppColors.cyan.withOpacity(0.8),
+              fontWeight: FontWeight.w300,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScanningFrame() {
+    return AnimatedBuilder(
+      animation: _feedbackAnimation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _palmDetected ? _feedbackAnimation.value : 1.0,
+          child: AnimatedBuilder(
             animation: _pulseAnimation,
             builder: (context, child) {
-              return Transform.scale(
-                scale: _pulseAnimation.value,
-                child: Container(
-                  width: 280,
-                  height: 280,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: _palmDetected ? Colors.green : Colors.amber,
-                      width: 3,
+              return Container(
+                width: 300,
+                height: 220,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: _palmDetected
+                        ? Colors.green.withOpacity(0.9)
+                        : AppColors.cyan.withOpacity(0.7),
+                    width: 3,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (_palmDetected ? Colors.green : AppColors.cyan)
+                          .withOpacity(0.3 * _pulseAnimation.value),
+                      blurRadius: 25,
+                      spreadRadius: 8,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (_palmDetected ? Colors.green : Colors.amber).withOpacity(0.5),
-                        blurRadius: 20,
-                        spreadRadius: 5,
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    _buildMysticalCorners(),
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 64,
+                            height: 64,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: _palmDetected
+                                    ? Colors.green
+                                    : AppColors.cyan,
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (_palmDetected
+                                          ? Colors.green
+                                          : AppColors.cyan)
+                                      .withOpacity(0.3),
+                                  blurRadius: 12,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              _palmDetected
+                                  ? Icons.check_circle_outline
+                                  : Icons.pan_tool_outlined,
+                              color:
+                                  _palmDetected ? Colors.green : AppColors.cyan,
+                              size: 32,
+                              semanticLabel: _palmDetected
+                                  ? 'Dłoń wykryta'
+                                  : 'Umieść dłoń w ramce',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            _palmDetected
+                                ? 'ENERGIA WYKRYTA'
+                                : 'POKAŻ ${_getTargetHandName().toUpperCase()} DŁOŃ',
+                            style: GoogleFonts.cinzelDecorative(
+                              color:
+                                  _palmDetected ? Colors.green : AppColors.cyan,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.8,
+                              height: 1.2,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          if (_palmDetected && _goodChecks > 0) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                color: Colors.green.withOpacity(0.15),
+                                border: Border.all(
+                                  color: Colors.green.withOpacity(0.6),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                '$_goodChecks / $_requiredGoodChecks',
+                                style: GoogleFonts.cinzelDecorative(
+                                  color: Colors.green,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                semanticsLabel:
+                                    'Postęp: $_goodChecks z $_requiredGoodChecks sprawdzeń',
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMysticalCorners() {
+    return Stack(
+      children: [
+        Positioned(
+          top: 5,
+          left: 5,
+          child: AnimatedBuilder(
+            animation: _runeAnimation,
+            builder: (context, child) {
+              return Transform.rotate(
+                angle: _runeAnimation.value * math.pi / 6,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.cyan.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: AppColors.cyan.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.star_border,
+                    color: AppColors.cyan,
+                    size: 16,
                   ),
                 ),
               );
             },
           ),
-          
-          // Hand guide
-          AnimatedBuilder(
-            animation: _feedbackAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: 0.8 + (0.2 * _feedbackAnimation.value),
-                child: Icon(
-                  Icons.pan_tool,
-                  size: 100,
-                  color: _palmDetected 
-                    ? Colors.green.withOpacity(0.8)
-                    : Colors.white.withOpacity(0.6),
-                ),
-              );
-            },
-          ),
-          
-          // Runes rotation
-          AnimatedBuilder(
+        ),
+        Positioned(
+          top: 5,
+          right: 5,
+          child: AnimatedBuilder(
             animation: _runeAnimation,
             builder: (context, child) {
               return Transform.rotate(
-                angle: _runeAnimation.value,
-                child: CustomPaint(
-                  painter: RunesPainter(),
-                  size: const Size(320, 320),
+                angle: -_runeAnimation.value * math.pi / 6,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.cyan.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: AppColors.cyan.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.star_border,
+                    color: AppColors.cyan,
+                    size: 16,
+                  ),
                 ),
               );
             },
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusArea() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Column(
-        children: [
-          // Status text
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.7),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.amber.withOpacity(0.3)),
-            ),
-            child: Text(
-              _detectionStatus,
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 16, // 16-18pt dla tekstu głównego
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Progress indicators
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildProgressIndicator(
-                'Światło',
-                _lightLevel,
-                _lightLevel >= _minLightLevel,
-              ),
-              _buildProgressIndicator(
-                'Pozycja',
-                _palmDetected ? 1.0 : 0.0,
-                _palmDetected,
-              ),
-              _buildProgressIndicator(
-                'Stabilność',
-                _goodChecks / _requiredGoodChecks,
-                _goodChecks >= _requiredGoodChecks,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressIndicator(String label, double value, bool isGood) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.white70,
+        ),
+        Positioned(
+          bottom: 5,
+          left: 5,
+          child: AnimatedBuilder(
+            animation: _runeAnimation,
+            builder: (context, child) {
+              return Transform.rotate(
+                angle: _runeAnimation.value * math.pi / 8,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.cyan.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: AppColors.cyan.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.star_border,
+                    color: AppColors.cyan,
+                    size: 16,
+                  ),
+                ),
+              );
+            },
           ),
         ),
-        const SizedBox(height: 4),
-        CircularProgressIndicator(
-          value: value.clamp(0.0, 1.0),
-          backgroundColor: Colors.grey.withOpacity(0.3),
-          valueColor: AlwaysStoppedAnimation<Color>(
-            isGood ? Colors.green : Colors.orange,
+        Positioned(
+          bottom: 5,
+          right: 5,
+          child: AnimatedBuilder(
+            animation: _runeAnimation,
+            builder: (context, child) {
+              return Transform.rotate(
+                angle: -_runeAnimation.value * math.pi / 8,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.cyan.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: AppColors.cyan.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.star_border,
+                    color: AppColors.cyan,
+                    size: 16,
+                  ),
+                ),
+              );
+            },
           ),
-          strokeWidth: 3,
         ),
       ],
     );
   }
 
-  Widget _buildControlButtons() {
+  Widget _buildBottomMysticalPanel() {
     return Container(
-      padding: const EdgeInsets.all(24),
-      child: Row(
-        children: [
-          // Cancel button
-          Expanded(
-            child: Container(
-              height: 48, // Optimal button height
-              margin: const EdgeInsets.only(right: 8),
-              child: OutlinedButton(
-                onPressed: _isAnalyzingWithAI ? null : () => Navigator.of(context).pop(),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: const Text(
-                  'Anuluj',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-            ),
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withOpacity(0.4),
+            Colors.black.withOpacity(0.8),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(
+          color: AppColors.cyan.withOpacity(0.3),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.cyan.withOpacity(0.2),
+            blurRadius: 15,
+            spreadRadius: 2,
           ),
-          
-          // Manual capture (for testing)
-          if (widget.testMode)
-            Expanded(
-              child: Container(
-                height: 48,
-                margin: const EdgeInsets.only(left: 8),
-                child: ElevatedButton(
-                  onPressed: _isAnalyzingWithAI ? null : _capturePalmData,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text(
-                    'Testuj',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
-    );
-  }
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(5, (index) {
+              return AnimatedBuilder(
+                animation: _orbAnimation,
+                builder: (context, child) {
+                  final delay = index * 0.2;
+                  final animValue = (_orbAnimation.value + delay) % 1.0;
+                  final scale = 0.8 + (0.2 * math.sin(animValue * 2 * math.pi));
+                  final opacity =
+                      0.3 + (0.3 * math.sin(animValue * 2 * math.pi));
 
-  Widget _buildTestModeOverlay() {
-    return Positioned(
-      top: 100,
-      right: 16,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.8),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Text(
-          'TEST MODE',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
+                  return Transform.scale(
+                    scale: scale.clamp(0.5, 1.2),
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color:
+                            AppColors.cyan.withOpacity(opacity.clamp(0.1, 0.8)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.cyan.withOpacity(0.2),
+                            blurRadius: 4,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            }),
           ),
-        ),
+          const SizedBox(height: 20),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: _palmDetected
+                  ? Colors.green.withOpacity(0.12)
+                  : Colors.black.withOpacity(0.7),
+              border: Border.all(
+                color: _palmDetected
+                    ? Colors.green.withOpacity(0.4)
+                    : AppColors.cyan.withOpacity(0.4),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              _detectionStatus,
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 16,
+                color: _palmDetected
+                    ? Colors.green.withOpacity(0.95)
+                    : Colors.white,
+                fontWeight: FontWeight.w400,
+                height: 1.4,
+                letterSpacing: 0.3,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedBuilder(
+                animation: _runeAnimation,
+                builder: (context, child) {
+                  return Transform.rotate(
+                    angle: _runeAnimation.value * 2 * math.pi,
+                    child: Icon(
+                      Icons.fiber_manual_record,
+                      color: AppColors.cyan.withOpacity(0.6),
+                      size: 8,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 16),
+              Icon(
+                Icons.remove,
+                color: AppColors.cyan.withOpacity(0.4),
+                size: 20,
+              ),
+              const SizedBox(width: 16),
+              AnimatedBuilder(
+                animation: _runeAnimation,
+                builder: (context, child) {
+                  return Transform.rotate(
+                    angle: -_runeAnimation.value * 2 * math.pi,
+                    child: Icon(
+                      Icons.fiber_manual_record,
+                      color: AppColors.cyan.withOpacity(0.6),
+                      size: 8,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          // Test mode button
+          if (widget.testMode) ...[
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _isAnalyzing ? null : _performPalmAnalysis,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.cyan,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                minimumSize: const Size(double.infinity, 48),
+              ),
+              child: Text(
+                _isAnalyzing ? 'Analizuję...' : 'Testuj Analizę',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 }
 
-// Custom painters for mystical effects
 class MysticalBackgroundPainter extends CustomPainter {
   final double animationValue;
-  
+
   MysticalBackgroundPainter(this.animationValue);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.purple.withOpacity(0.1)
-      ..style = PaintingStyle.fill;
+    if (size.width <= 0 || size.height <= 0) return;
 
-    // Draw floating particles
-    for (int i = 0; i < 20; i++) {
-      final x = (size.width * 0.1) + (size.width * 0.8 * ((i * 0.618) % 1.0));
-      final y = (size.height * 0.1) + (size.height * 0.8 * ((i * 0.382) % 1.0));
-      final radius = 2 + (3 * math.sin(animationValue * 2 * math.pi + i));
-      
-      canvas.drawCircle(
-        Offset(x, y),
-        radius,
-        paint..color = Colors.purple.withOpacity(0.3 + 0.2 * math.sin(animationValue * 2 * math.pi + i)),
-      );
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    try {
+      // Mystical circles
+      for (int i = 0; i < 3; i++) {
+        final centerX = size.width * 0.5;
+        final centerY = size.height * 0.5;
+        final baseRadius = 50.0 + (i * 40.0);
+        final animatedRadius =
+            baseRadius * (1 + 0.1 * math.sin(animationValue * 2 * math.pi + i));
+
+        if (animatedRadius > 0 && animatedRadius < size.width) {
+          paint.color = AppColors.cyan.withOpacity(0.03 - i * 0.005);
+          canvas.drawCircle(Offset(centerX, centerY), animatedRadius, paint);
+        }
+      }
+
+      // Floating particles
+      for (int i = 0; i < 20; i++) {
+        final angle = (animationValue * 2 * math.pi) + (i * 2 * math.pi / 20);
+        final radius = 80.0 + (i % 3) * 30.0;
+        final x = size.width * 0.5 + radius * math.cos(angle);
+        final y = size.height * 0.5 + radius * math.sin(angle);
+
+        if (x >= 0 && x <= size.width && y >= 0 && y <= size.height) {
+          final particleSize =
+              1.0 + math.sin(animationValue * 3 * math.pi + i) * 0.5;
+
+          if (particleSize > 0) {
+            paint.color = AppColors.cyan.withOpacity(0.1);
+            canvas.drawCircle(Offset(x, y), particleSize, paint);
+          }
+        }
+      }
+    } catch (e) {
+      print('Błąd w MysticalBackgroundPainter: $e');
     }
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-class RunesPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.amber.withOpacity(0.3)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 3;
-
-    // Draw mystical symbols around the circle
-    for (int i = 0; i < 8; i++) {
-      final angle = (i * 2 * math.pi) / 8;
-      final x = center.dx + radius * math.cos(angle);
-      final y = center.dy + radius * math.sin(angle);
-      
-      // Simple rune-like symbols
-      canvas.drawLine(
-        Offset(x - 10, y - 10),
-        Offset(x + 10, y + 10),
-        paint,
-      );
-      canvas.drawLine(
-        Offset(x - 10, y + 10),
-        Offset(x + 10, y - 10),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -17,24 +17,24 @@ class AppColors {
 
 class AppTextStyles {
   static TextStyle get welcomeTitle => GoogleFonts.cinzelDecorative(
-    fontSize: 32,
-    fontWeight: FontWeight.w400,
-    color: Colors.white,
-    letterSpacing: 1.5,
-    height: 1.2,
-  );
+        fontSize: 32,
+        fontWeight: FontWeight.w400,
+        color: Colors.white,
+        letterSpacing: 1.5,
+        height: 1.2,
+      );
 
   static TextStyle get welcomeSubtitle => GoogleFonts.cinzelDecorative(
-    fontSize: 18,
-    fontWeight: FontWeight.w300,
-    color: const Color(0xFFB0B8C1),
-    letterSpacing: 0.8,
-  );
+        fontSize: 18,
+        fontWeight: FontWeight.w300,
+        color: const Color(0xFFB0B8C1),
+        letterSpacing: 0.8,
+      );
 
   static TextStyle get buttonText => GoogleFonts.cinzelDecorative(
-    fontSize: 16,
-    fontWeight: FontWeight.w500,
-    color: Colors.white,
-    letterSpacing: 0.5,
-  );
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        color: Colors.white,
+        letterSpacing: 0.5,
+      );
 }
