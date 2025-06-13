@@ -1,5 +1,5 @@
 // lib/screens/palm_scan_screen.dart
-// Naprawiony ekran skanowania bez AI dependency
+// NAPRAWIONA WERSJA z debugowaniem i poprawnymi importami
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,7 +11,10 @@ import '../utils/constants.dart';
 import '../services/palm_detection_service.dart';
 import '../services/logging_service.dart';
 import '../models/palm_analysis.dart';
-import 'palm_analysis_result_screen.dart';
+// ZMIEŃ IMPORT - używaj istniejącego pliku lub stwórz nowy
+import 'palm_analysis_result_screen.dart'; // Jeśli istnieje
+// LUB tymczasowo użyj prostego ekranu testowego:
+// import '../screens/simple_result_screen.dart';
 
 class PalmScanScreen extends StatefulWidget {
   final String userName;
@@ -53,7 +56,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   // ===== WYKRYWANIE =====
   int _scanAttempts = 0;
   int _goodChecks = 0;
-  final int _requiredGoodChecks = 5;
+  final int _requiredGoodChecks = 3; // Zmniejszono dla szybszego testowania
   bool _palmDetected = false;
 
   // ===== ANIMACJE =====
@@ -73,14 +76,17 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   @override
   void initState() {
     super.initState();
+    print('🚀 PalmScanScreen initState - userName: ${widget.userName}');
     WidgetsBinding.instance.addObserver(this);
     _initializeAnimations();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_isDisposing) {
         if (widget.testMode) {
+          print('🧪 Tryb testowy - inicjalizacja');
           _initializeTestMode();
         } else {
+          print('📷 Tryb kamery - inicjalizacja');
           _initializeCamera();
         }
       }
@@ -124,13 +130,17 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       _feedbackAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
         CurvedAnimation(parent: _feedbackController, curve: Curves.elasticOut),
       );
+
+      print('✅ Animacje zainicjalizowane');
     } catch (e) {
-      print('Błąd inicjalizacji animacji: $e');
+      print('❌ Błąd inicjalizacji animacji: $e');
     }
   }
 
   void _initializeTestMode() {
     if (_isDisposing || _hasCompletedScan) return;
+
+    print('🧪 Test mode initialized');
     setState(() {
       _isCameraInitialized = true;
       _detectionStatus = _getHandInstruction();
@@ -138,20 +148,18 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     _startPalmDetection();
   }
 
+  // [RESZTA METOD POZOSTAJE BEZ ZMIAN...]
   String _getHandInstruction() {
     print(
         'DEBUG: userGender = ${widget.userGender}, dominantHand = ${widget.dominantHand}');
 
-    // Obsługa różnych płci zgodnie z wymaganiami
     if (widget.userGender == 'other' ||
         widget.userGender == 'inna' ||
         widget.userGender == 'neutral') {
-      // Dla płci "inna" lub "neutral" - używaj dominującej dłoni
       final dominantHand = widget.dominantHand?.toLowerCase() ?? 'right';
       final handName = dominantHand == 'left' ? 'lewą' : 'prawą';
       return 'Przygotuj $handName dłoń - dominującą energię';
     } else {
-      // Dla binarnych płci - tradycyjne podejście
       final handType = widget.userGender == 'female' ? 'lewą' : 'prawą';
       final energyType = widget.userGender == 'female' ? 'kobiecą' : 'męską';
       return 'Przygotuj $handType dłoń - $energyType energię';
@@ -159,7 +167,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   }
 
   String get _targetHand {
-    // Określenie docelowej dłoni
     if (widget.userGender == 'other' ||
         widget.userGender == 'inna' ||
         widget.userGender == 'neutral') {
@@ -178,13 +185,12 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     return widget.userGender == 'female' ? 'lewą' : 'prawą';
   }
 
-  // ===== MIKROINTERAKCJE =====
   void _triggerHapticFeedback() {
     try {
       HapticFeedback.selectionClick();
       _feedbackController.forward().then((_) => _feedbackController.reverse());
     } catch (e) {
-      print('Błąd haptic feedback: $e');
+      print('❌ Błąd haptic feedback: $e');
     }
   }
 
@@ -193,7 +199,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       HapticFeedback.mediumImpact();
       _feedbackController.forward().then((_) => _feedbackController.reverse());
     } catch (e) {
-      print('Błąd success feedback: $e');
+      print('❌ Błąd success feedback: $e');
     }
   }
 
@@ -201,17 +207,16 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     try {
       HapticFeedback.heavyImpact();
     } catch (e) {
-      print('Błąd error feedback: $e');
+      print('❌ Błąd error feedback: $e');
     }
   }
 
-  // ===== INICJALIZACJA KAMERY =====
   Future<void> _initializeCamera() async {
     if (_isDisposing || _hasCompletedScan || _isCameraLocked) return;
 
     try {
       _isCameraLocked = true;
-      _loggingService.logCameraActivity('Inicjalizacja kamery - START');
+      print('📷 Inicjalizacja kamery...');
 
       await _safeDisposeCamera();
       if (_isDisposing || _hasCompletedScan) return;
@@ -247,11 +252,11 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         _detectionStatus = _getHandInstruction();
       });
 
-      _loggingService.logCameraActivity('Kamera zainicjalizowana POMYŚLNIE');
+      print('✅ Kamera zainicjalizowana');
       _startPalmDetection();
       _startForceCloseTimer();
     } catch (e) {
-      _loggingService.logToConsole('Camera Error: $e', tag: 'ERROR');
+      print('❌ Camera Error: $e');
       if (mounted && !_isDisposing) {
         setState(() {
           _detectionStatus = 'Błąd kamery - przywołaj energię ponownie';
@@ -266,19 +271,18 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   Future<void> _safeDisposeCamera() async {
     if (_cameraController != null) {
       try {
-        _loggingService.logCameraActivity('Dispose kamery - START');
+        print('🗑️ Dispose kamery...');
         final controller = _cameraController;
         _cameraController = null;
         _isCameraInitialized = false;
         await controller?.dispose();
-        _loggingService.logCameraActivity('Dispose kamery - ZAKOŃCZONE');
+        print('✅ Kamera disposed');
       } catch (e) {
-        _loggingService.logToConsole('Błąd dispose kamery: $e', tag: 'ERROR');
+        print('❌ Błąd dispose kamery: $e');
       }
     }
   }
 
-  // ===== LIFECYCLE =====
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (widget.testMode || _hasCompletedScan) return;
@@ -311,10 +315,8 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     }
   }
 
-  // ===== ZARZĄDZANIE TIMERAMI =====
   void _cancelAllTimers() {
-    _loggingService.logToConsole('Anulowanie wszystkich timerów',
-        tag: 'TIMERS');
+    print('⏹️ Anulowanie timerów');
     _detectionTimer?.cancel();
     _forceCloseTimer?.cancel();
     _detectionTimer = null;
@@ -327,8 +329,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     _forceCloseTimer?.cancel();
     _forceCloseTimer = Timer(const Duration(seconds: 30), () {
       if (!_hasCompletedScan && mounted) {
-        _loggingService.logToConsole('TIMEOUT: Automatyczne zamknięcie',
-            tag: 'TIMEOUT');
+        print('⏰ TIMEOUT: Automatyczne zakończenie');
         _forceCompleteScan();
       }
     });
@@ -337,7 +338,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   void _startPalmDetection() {
     if (_hasCompletedScan || _isDisposing) return;
 
-    _loggingService.logToConsole('START wykrywania dłoni', tag: 'DETECTION');
+    print('🔍 START wykrywania dłoni');
 
     _detectionTimer?.cancel();
     _detectionTimer =
@@ -356,16 +357,13 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       _scanAttempts++;
       _checkPalmPosition();
 
-      if (_scanAttempts % 5 == 0) {
-        _loggingService.logToConsole(
-          'Skanowanie - próba $_scanAttempts, dobre sprawdzenia: $_goodChecks/$_requiredGoodChecks',
-          tag: 'DETECTION',
-        );
+      if (_scanAttempts % 3 == 0) {
+        print(
+            '🔍 Skanowanie - próba $_scanAttempts, dobre: $_goodChecks/$_requiredGoodChecks');
       }
     });
   }
 
-  // ===== WYKRYWANIE POZYCJI DŁONI =====
   Future<void> _checkPalmPosition() async {
     if (!mounted || _isDisposing || _hasCompletedScan || _isAnalyzing) {
       return;
@@ -375,9 +373,12 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       bool conditionsGood = false;
 
       if (widget.testMode) {
+        // W trybie testowym zwiększ szanse sukcesu z czasem
         final random = math.Random();
-        double successChance = math.min(0.9, _scanAttempts / 10.0);
+        double successChance = math.min(0.95, (_scanAttempts / 5.0) + 0.3);
         conditionsGood = random.nextDouble() < successChance;
+        print(
+            '🧪 Test: attempt $_scanAttempts, chance: ${(successChance * 100).toInt()}%, result: $conditionsGood');
       } else {
         double baseChance = math.min(0.85, _scanAttempts / 8.0);
         conditionsGood = math.Random().nextDouble() < baseChance;
@@ -385,6 +386,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
 
       if (conditionsGood) {
         _goodChecks++;
+        print('✅ DOBRE WARUNKI: $_goodChecks/$_requiredGoodChecks');
 
         setState(() {
           _palmDetected = true;
@@ -399,16 +401,10 @@ class _PalmScanScreenState extends State<PalmScanScreen>
           }
         });
 
-        _loggingService.logToConsole(
-            'DOBRE WARUNKI: $_goodChecks/$_requiredGoodChecks',
-            tag: 'DETECTION');
-
         if (_goodChecks >= _requiredGoodChecks &&
             !_isAnalyzing &&
             !_hasCompletedScan) {
-          _loggingService.logToConsole(
-              'WSZYSTKIE WARUNKI SPEŁNIONE - WYKONUJĘ ANALIZĘ!',
-              tag: 'CAPTURE');
+          print('🎯 WSZYSTKIE WARUNKI SPEŁNIONE - WYKONUJĘ ANALIZĘ!');
           _cancelAllTimers();
 
           Future.delayed(const Duration(milliseconds: 1500), () {
@@ -419,8 +415,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         }
       } else {
         if (_goodChecks > 0) {
-          _loggingService.logToConsole('WARUNKI ZŁAMANE - RESET',
-              tag: 'DETECTION');
+          print('❌ WARUNKI ZŁAMANE - RESET');
         }
         _goodChecks = 0;
 
@@ -431,8 +426,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         _triggerErrorFeedback();
       }
     } catch (e) {
-      _loggingService.logToConsole('Błąd sprawdzania pozycji: $e',
-          tag: 'ERROR');
+      print('❌ Błąd sprawdzania pozycji: $e');
       _goodChecks = 0;
       setState(() {
         _palmDetected = false;
@@ -453,16 +447,13 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     return messages[_scanAttempts % messages.length];
   }
 
-  // ===== ANALIZA DŁONI =====
   Future<void> _performPalmAnalysis() async {
     if (_hasCompletedScan || _isDisposing || _isAnalyzing) {
-      _loggingService.logToConsole('Analiza przerwana - już w toku',
-          tag: 'ANALYSIS');
+      print('⚠️ Analiza przerwana - już w toku');
       return;
     }
 
-    _loggingService.logToConsole('=== ROZPOCZYNAM ANALIZĘ ===',
-        tag: 'ANALYSIS');
+    print('🔮 === ROZPOCZYNAM ANALIZĘ ===');
     _cancelAllTimers();
 
     setState(() {
@@ -472,15 +463,13 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     });
 
     try {
-      // Wykonanie zdjęcia (opcjonalnie, dla przyszłych wersji)
+      // Wykonanie zdjęcia (opcjonalnie)
       if (_cameraController != null && _cameraController!.value.isInitialized) {
         try {
           final XFile palmPhoto = await _cameraController!.takePicture();
-          _loggingService.logToConsole('Zdjęcie wykonane: ${palmPhoto.path}',
-              tag: 'PHOTO');
+          print('📸 Zdjęcie wykonane: ${palmPhoto.path}');
         } catch (photoError) {
-          _loggingService.logToConsole('Błąd zdjęcia: $photoError',
-              tag: 'PHOTO_ERROR');
+          print('❌ Błąd zdjęcia: $photoError');
         }
       }
 
@@ -491,26 +480,34 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         _detectionStatus = 'Przesyłanie do starożytnych archiwów...';
       });
 
+      // Symulacja analizy
+      await Future.delayed(const Duration(seconds: 2));
+
       // Analiza dłoni za pomocą PalmDetectionService
+      print('🔮 Wykonuję analizę za pomocą PalmDetectionService...');
       final palmData = await _palmDetectionService.analyzePalm(
         handType: _targetHand,
         userName: widget.userName,
       );
 
-      _loggingService.logToConsole('Analiza zakończona pomyślnie',
-          tag: 'ANALYSIS');
+      print('✅ Analiza zakończona pomyślnie');
+      print(
+          '📊 Dane dłoni: ${palmData.handShape.elementType}, ${palmData.handShape.form}');
 
       // Zapisanie wyników
       await _loggingService.saveAnalysisToFile(palmData);
       await _loggingService.saveDetectionLogsToFile(widget.userName);
 
-      if (mounted) {
+      if (mounted && !_isDisposing) {
+        print('🚀 Nawigacja do wyników...');
         _navigateToResults(palmData);
+      } else {
+        print('⚠️ Widget nie jest mounted - pomijam nawigację');
       }
     } catch (e) {
-      _loggingService.logToConsole('Błąd analizy: $e', tag: 'ANALYSIS_ERROR');
+      print('❌ Błąd analizy: $e');
 
-      if (mounted) {
+      if (mounted && !_isDisposing) {
         setState(() {
           _detectionStatus =
               'Zakłócenia w przepływie energii - spróbuj ponownie';
@@ -519,28 +516,164 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         });
 
         _showErrorDialog(e.toString());
-        _restartScanning();
       }
     }
   }
 
   void _navigateToResults(PalmAnalysis palmData) {
-    if (!mounted) return;
+    if (!mounted || _isDisposing) {
+      print('⚠️ Nie można nawigować - widget nie jest mounted');
+      return;
+    }
 
-    _loggingService.logToConsole('Nawigacja do wyników', tag: 'NAVIGATE');
+    print('🚀 Nawigacja do wyników dla: ${palmData.userName}');
+
+    try {
+      // DEBUGOWANIE NAWIGACJI
+      print('🔍 Próba nawigacji do PalmAnalysisResultScreen...');
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) {
+            print('🏗️ Buduję PalmAnalysisResultScreen...');
+            return PalmAnalysisResultScreen(
+              userName: widget.userName,
+              userGender: widget.userGender,
+              palmData: palmData,
+            );
+          },
+        ),
+      ).then((_) {
+        print('✅ Nawigacja zakończona pomyślnie');
+      }).catchError((error) {
+        print('❌ Błąd nawigacji: $error');
+        // FALLBACK - nawiguj do prostego ekranu
+        _navigateToFallbackScreen(palmData);
+      });
+    } catch (e) {
+      print('❌ Błąd w navigateToResults: $e');
+      _navigateToFallbackScreen(palmData);
+    }
+  }
+
+  void _navigateToFallbackScreen(PalmAnalysis palmData) {
+    print('🔄 Nawigacja do fallback screen...');
 
     Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            PalmAnalysisResultScreen(
-          userName: widget.userName,
-          userGender: widget.userGender,
-          palmData: palmData,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            title: Text(
+              'Wyniki Wróżby',
+              style: GoogleFonts.cinzelDecorative(
+                color: Colors.white,
+                fontSize: 20,
+              ),
+            ),
+          ),
+          body: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Drogi/a ${widget.userName}!',
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 24,
+                    color: AppColors.cyan,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Oto co odkryły starożytne znaki w Twojej ${palmData.handType == 'left' ? 'lewej' : 'prawej'} dłoni:',
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildSimpleResultItem(
+                    'Element duszy', palmData.handShape.elementType),
+                _buildSimpleResultItem('Forma dłoni', palmData.handShape.form),
+                _buildSimpleResultItem(
+                    'Linia życia', palmData.lines.lifeLine.dlugosc),
+                _buildSimpleResultItem(
+                    'Linia serca', palmData.lines.heartLine.dlugosc),
+                _buildSimpleResultItem(
+                    'Linia głowy', palmData.lines.headLine.dlugosc),
+                const Spacer(),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context)
+                        .popUntil((route) => route.isFirst),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.cyan,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      'Powrót do Menu',
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 18,
+                        color: Colors.black,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 1500),
+      ),
+    );
+  }
+
+  Widget _buildSimpleResultItem(String title, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            margin: const EdgeInsets.only(top: 8),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.cyan,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 16,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 14,
+                    color: AppColors.cyan.withOpacity(0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -549,13 +682,10 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     if (_hasCompletedScan) return;
 
     if (_goodChecks >= (_requiredGoodChecks ~/ 2)) {
-      _loggingService.logToConsole(
-          'Force complete - warunki częściowo spełnione',
-          tag: 'FORCE');
+      print('🎯 Force complete - warunki częściowo spełnione');
       _performPalmAnalysis();
     } else {
-      _loggingService.logToConsole('Force complete - warunki NIE spełnione',
-          tag: 'FORCE');
+      print('❌ Force complete - warunki NIE spełnione');
       _showScanFailureDialog();
     }
   }
@@ -704,7 +834,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
 
   @override
   void dispose() {
-    _loggingService.logToConsole('DISPOSE - START', tag: 'DISPOSE');
+    print('🗑️ DISPOSE - START');
     _isDisposing = true;
     _hasCompletedScan = true;
 
@@ -716,13 +846,14 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       _orbController.dispose();
       _runeController.dispose();
       _feedbackController.dispose();
+      print('✅ Animacje disposed');
     } catch (e) {
-      print('Błąd dispose animacji: $e');
+      print('❌ Błąd dispose animacji: $e');
     }
 
     _safeDisposeCamera();
 
-    _loggingService.logToConsole('DISPOSE - ZAKOŃCZONE', tag: 'DISPOSE');
+    print('✅ DISPOSE - ZAKOŃCZONE');
     super.dispose();
   }
 
@@ -834,6 +965,15 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                   letterSpacing: 2,
                 ),
               ),
+              const SizedBox(height: 16),
+              Text(
+                'Symulacja wykrywania dłoni',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 16,
+                  color: Colors.white70,
+                  letterSpacing: 1,
+                ),
+              ),
             ] else ...[
               AnimatedBuilder(
                 animation: _pulseAnimation,
@@ -940,7 +1080,10 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                   ),
                 ),
                 child: IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () {
+                    print('🔙 Powrót do poprzedniego ekranu');
+                    Navigator.of(context).pop();
+                  },
                   icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
                   iconSize: 20,
                 ),
@@ -1405,7 +1548,12 @@ class _PalmScanScreenState extends State<PalmScanScreen>
           if (widget.testMode) ...[
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _isAnalyzing ? null : _performPalmAnalysis,
+              onPressed: _isAnalyzing
+                  ? null
+                  : () {
+                      print('🧪 RĘCZNE WYWOŁANIE ANALIZY - TEST MODE');
+                      _performPalmAnalysis();
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.cyan,
                 foregroundColor: Colors.black,
@@ -1473,7 +1621,7 @@ class MysticalBackgroundPainter extends CustomPainter {
         }
       }
     } catch (e) {
-      print('Błąd w MysticalBackgroundPainter: $e');
+      print('❌ Błąd w MysticalBackgroundPainter: $e');
     }
   }
 

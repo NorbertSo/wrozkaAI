@@ -1,3 +1,6 @@
+// lib/screens/palm_intro_screen.dart
+// Naprawiony ekran intro z przekazywaniem dominującej dłoni
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
@@ -8,11 +11,15 @@ import 'palm_scan_screen.dart';
 class PalmIntroScreen extends StatefulWidget {
   final String userName;
   final String userGender;
+  final String? dominantHand;
+  final DateTime? birthDate;
 
   const PalmIntroScreen({
     super.key,
     required this.userName,
     required this.userGender,
+    this.dominantHand,
+    this.birthDate,
   });
 
   @override
@@ -164,24 +171,25 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
                               return Transform.scale(
                                 scale: _textAnimation.value,
                                 child: Container(
-                                  padding: const EdgeInsets.all(20),
+                                  width: 120,
+                                  height: 120,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
+                                    gradient: RadialGradient(
+                                      colors: [
+                                        AppColors.cyan.withOpacity(0.3),
+                                        AppColors.cyan.withOpacity(0.1),
+                                        Colors.transparent,
+                                      ],
+                                    ),
                                     border: Border.all(
                                       color: AppColors.cyan.withOpacity(0.5),
                                       width: 2,
                                     ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.cyan.withOpacity(0.3),
-                                        blurRadius: 20,
-                                        spreadRadius: 5,
-                                      ),
-                                    ],
                                   ),
                                   child: Icon(
-                                    Icons.pan_tool_outlined,
-                                    size: 64,
+                                    Icons.auto_awesome,
+                                    size: 60,
                                     color: AppColors.cyan,
                                   ),
                                 ),
@@ -189,30 +197,24 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
                             },
                           ),
 
-                          const SizedBox(height: 60),
+                          const SizedBox(height: 40),
 
-                          // Główny tekst
+                          // Tekst spersonalizowany
                           AnimatedBuilder(
                             animation: _textAnimation,
                             builder: (context, child) {
                               return Opacity(
                                 opacity: _textAnimation.value,
-                                child: Transform.translate(
-                                  offset: Offset(
-                                    0,
-                                    50 * (1 - _textAnimation.value),
+                                child: Text(
+                                  _personalizedMessage,
+                                  style: GoogleFonts.cinzelDecorative(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w300,
+                                    color: Colors.white,
+                                    height: 1.6,
+                                    letterSpacing: 0.3,
                                   ),
-                                  child: Text(
-                                    _personalizedMessage,
-                                    style: GoogleFonts.cinzelDecorative(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w300,
-                                      color: Colors.white,
-                                      height: 1.6,
-                                      letterSpacing: 0.3,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
+                                  textAlign: TextAlign.center,
                                 ),
                               );
                             },
@@ -293,14 +295,17 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
   }
 
   void _startRitual() {
-    // Dodaj efekt drgania/vibracji
-    // HapticFeedback.mediumImpact();
+    print(
+        'DEBUG PalmIntro: userGender = ${widget.userGender}, dominantHand = ${widget.dominantHand}');
 
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => PalmScanScreen(
           userName: widget.userName,
           userGender: widget.userGender,
+          dominantHand: widget.dominantHand,
+          birthDate: widget.birthDate,
+          testMode: true, // Ustaw na false dla rzeczywistej kamery
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
@@ -367,7 +372,7 @@ class MysticParticlesPainter extends CustomPainter {
         Offset(x, y),
         radius,
         paint
-          ..color = AppColors.lightCyan.withOpacity(
+          ..color = AppColors.cyan.withOpacity(
             0.15 + (0.25 * math.cos(animationValue * 2.5 * math.pi + i)),
           ),
       );
