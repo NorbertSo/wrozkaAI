@@ -12,6 +12,89 @@ class PalmDetectionService {
 
   final math.Random _random = math.Random();
   Map<String, dynamic>? _palmTemplate;
+  
+  // ✅ POPRAWKA: Flaga do symulacji rzeczywistego wykrywania
+  bool _lastDetectionSuccessful = false;
+
+  // ✅ POPRAWKA: Metoda walidacji wykrywania dłoni
+  Future<bool> validatePalmDetection({
+    required String handType,
+    required String userName,
+    bool isTestMode = false,
+  }) async {
+    print('🔍 WALIDACJA WYKRYWANIA DŁONI:');
+    print('   - Użytkownik: $userName');
+    print('   - Typ ręki: $handType');
+    print('   - Tryb testowy: $isTestMode');
+
+    if (isTestMode) {
+      // W trybie testowym zawsze sukces
+      _lastDetectionSuccessful = true;
+      print('✅ WYKRYWANIE (TEST): Sukces - tryb testowy');
+      return true;
+    }
+
+    // Symulacja rzeczywistego wykrywania (50% szans na sukces)
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    final detectionSuccess = _random.nextDouble() > 0.5;
+    _lastDetectionSuccessful = detectionSuccess;
+
+    if (detectionSuccess) {
+      print('✅ WYKRYWANIE: Dłoń została pomyślnie wykryta i przeanalizowana');
+    } else {
+      print('❌ WYKRYWANIE: Nie udało się wykryć dłoni w obrazie');
+    }
+
+    return detectionSuccess;
+  }
+
+  // ✅ POPRAWKA: Główna metoda analizy z walidacją
+  Future<PalmAnalysis?> analyzePalm({
+    required String handType,
+    required String userName,
+    bool isTestMode = false,
+  }) async {
+    print('🔮 ROZPOCZYNAM ANALIZĘ DŁONI...');
+    
+    // KROK 1: Walidacja wykrywania dłoni
+    final detectionValid = await validatePalmDetection(
+      handType: handType,
+      userName: userName,
+      isTestMode: isTestMode,
+    );
+
+    if (!detectionValid) {
+      print('❌ ANALIZA PRZERWANA: Nie wykryto dłoni w obrazie');
+      return null; // ✅ Zwróć null jeśli nie wykryto dłoni
+    }
+
+    // KROK 2: Załaduj szablon danych
+    await _loadPalmTemplate();
+
+    // KROK 3: Symulacja czasu analizy
+    print('⏳ Analizuję cechy dłoni...');
+    await Future.delayed(const Duration(seconds: 2));
+
+    // KROK 4: Generowanie analizy
+    final analysis = PalmAnalysis(
+      handType: handType,
+      handShape: _generateHandShape(),
+      fingers: _generateFingers(),
+      lines: _generatePalmLines(),
+      mounts: _generateMounts(),
+      skin: _generateSkinCharacteristics(),
+      paznokcie: _generateNails(),
+      analysisDate: DateTime.now(),
+      userName: userName,
+    );
+
+    print('✅ ANALIZA ZAKOŃCZONA POMYŚLNIE');
+    return analysis;
+  }
+
+  // Getter do sprawdzania ostatniego stanu wykrywania
+  bool get lastDetectionWasSuccessful => _lastDetectionSuccessful;
 
   // Załaduj szablon danych z assets
   Future<void> _loadPalmTemplate() async {
@@ -26,29 +109,6 @@ class PalmDetectionService {
         _palmTemplate = _getDefaultTemplate();
       }
     }
-  }
-
-  // Główna metoda analizy dłoni
-  Future<PalmAnalysis> analyzePalm({
-    required String handType,
-    required String userName,
-  }) async {
-    await _loadPalmTemplate();
-
-    // Symulacja czasu analizy
-    await Future.delayed(const Duration(seconds: 2));
-
-    return PalmAnalysis(
-      handType: handType,
-      handShape: _generateHandShape(),
-      fingers: _generateFingers(),
-      lines: _generatePalmLines(),
-      mounts: _generateMounts(),
-      skin: _generateSkinCharacteristics(),
-      paznokcie: _generateNails(),
-      analysisDate: DateTime.now(),
-      userName: userName,
-    );
   }
 
   // Generowanie losowych, ale realistycznych danych na podstawie szablonu

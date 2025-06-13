@@ -295,17 +295,16 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
   }
 
   void _startRitual() {
-    print(
-        'DEBUG PalmIntro: userGender = ${widget.userGender}, dominantHand = ${widget.dominantHand}');
+    print('🚀 START RITUAL: userGender = ${widget.userGender}, dominantHand = ${widget.dominantHand}');
 
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => PalmScanScreen(
           userName: widget.userName,
           userGender: widget.userGender,
-          dominantHand: widget.dominantHand,
-          birthDate: widget.birthDate,
-          testMode: true, // Ustaw na false dla rzeczywistej kamery
+          dominantHand: widget.dominantHand, // ✅ Przekazywanie dominantHand
+          birthDate: widget.birthDate,       // ✅ Przekazywanie birthDate
+          testMode: false, // ✅ POPRAWKA: Wyłączenie trybu testowego - prawdziwa kamera!
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
@@ -338,44 +337,56 @@ class MysticParticlesPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+
     final paint = Paint()
       ..color = AppColors.cyan.withOpacity(0.3)
       ..style = PaintingStyle.fill;
 
-    // Rysowanie cząsteczek w różnych miejscach
-    for (int i = 0; i < 20; i++) {
-      final x = (size.width * 0.1) + (i * size.width * 0.04);
-      final y = size.height * 0.3 +
-          (50 * math.sin((animationValue * 2 * math.pi) + i * 0.5));
+    try {
+      // Rysowanie cząsteczek w różnych miejscach
+      for (int i = 0; i < 20; i++) {
+        final x = (size.width * 0.1) + (i * size.width * 0.04);
+        final y = size.height * 0.3 +
+            (50 * math.sin((animationValue * 2 * math.pi) + i * 0.5));
 
-      final radius = 1.5 + (math.sin(animationValue * 4 * math.pi + i) * 0.8);
+        final radius = 1.5 + (math.sin(animationValue * 4 * math.pi + i) * 0.8);
 
-      canvas.drawCircle(
-        Offset(x, y),
-        radius,
-        paint
-          ..color = AppColors.cyan.withOpacity(
-            0.2 + (0.3 * math.sin(animationValue * 3 * math.pi + i)),
-          ),
-      );
-    }
+        // ✅ POPRAWKA: Zabezpieczenie przed ujemnymi wartościami opacity
+        final opacityValue = 0.2 + (0.3 * math.sin(animationValue * 3 * math.pi + i));
+        final safeOpacity = opacityValue.clamp(0.0, 1.0); // ✅ CLAMP!
 
-    // Dodatkowe cząsteczki po prawej stronie
-    for (int i = 0; i < 15; i++) {
-      final x = size.width * 0.7 + (i * size.width * 0.02);
-      final y = size.height * 0.6 +
-          (30 * math.cos((animationValue * 1.5 * math.pi) + i * 0.8));
+        if (x >= -10 && x <= size.width + 10 && y >= -10 && y <= size.height + 10) {
+          canvas.drawCircle(
+            Offset(x, y),
+            radius.abs(), // ✅ Zabezpieczenie przed ujemnymi promieniami
+            paint..color = AppColors.cyan.withOpacity(safeOpacity),
+          );
+        }
+      }
 
-      final radius = 1.0 + (math.cos(animationValue * 3 * math.pi + i) * 0.5);
+      // Dodatkowe cząsteczki po prawej stronie
+      for (int i = 0; i < 15; i++) {
+        final x = size.width * 0.7 + (i * size.width * 0.02);
+        final y = size.height * 0.6 +
+            (30 * math.cos((animationValue * 1.5 * math.pi) + i * 0.8));
 
-      canvas.drawCircle(
-        Offset(x, y),
-        radius,
-        paint
-          ..color = AppColors.cyan.withOpacity(
-            0.15 + (0.25 * math.cos(animationValue * 2.5 * math.pi + i)),
-          ),
-      );
+        final radius = 1.0 + (math.cos(animationValue * 3 * math.pi + i) * 0.5);
+
+        // ✅ POPRAWKA: Zabezpieczenie przed ujemnymi wartościami opacity
+        final opacityValue = 0.15 + (0.25 * math.cos(animationValue * 2.5 * math.pi + i));
+        final safeOpacity = opacityValue.clamp(0.0, 1.0); // ✅ CLAMP!
+
+        if (x >= -10 && x <= size.width + 10 && y >= -10 && y <= size.height + 10) {
+          canvas.drawCircle(
+            Offset(x, y),
+            radius.abs(), // ✅ Zabezpieczenie przed ujemnymi promieniami
+            paint..color = AppColors.cyan.withOpacity(safeOpacity),
+          );
+        }
+      }
+    } catch (e) {
+      print('❌ Błąd w MysticParticlesPainter: $e');
     }
   }
 

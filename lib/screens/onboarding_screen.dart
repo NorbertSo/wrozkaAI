@@ -766,7 +766,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       );
 
       // Wyświetl dane w konsoli
-      print('Dane użytkownika: $userData');
+      print('✅ Dane użytkownika: $userData');
+      print('🔍 DEBUG: dominantHand = ${userData.dominantHand}');
 
       // Przejście do następnego ekranu po animacji
       Future.delayed(const Duration(milliseconds: 1000), () {
@@ -776,6 +777,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 PalmIntroScreen(
               userName: userData.name,
               userGender: userData.genderForMessages,
+              // ✅ POPRAWKA: Przekazywanie wszystkich danych
+              dominantHand: userData.dominantHand,
+              birthDate: userData.birthDate,
             ),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
