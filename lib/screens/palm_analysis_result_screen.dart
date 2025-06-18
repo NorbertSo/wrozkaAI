@@ -14,19 +14,18 @@ class PalmAnalysisResultScreen extends StatefulWidget {
   final String userName;
   final String userGender;
   final PalmAnalysis? palmData; // Opcjonalne - dla kompatybilności
-  final PalmAnalysisResult? analysisResult; // NOWE POLE
+  final PalmAnalysisResult? analysisResult; // Opcjonalne
 
   const PalmAnalysisResultScreen({
     super.key,
     required this.userName,
     required this.userGender,
     this.palmData,
-    this.analysisResult, // NOWE
+    this.analysisResult,
   });
 
   @override
-  State<PalmAnalysisResultScreen> createState() =>
-      _PalmAnalysisResultScreenState();
+  State<PalmAnalysisResultScreen> createState() => _PalmAnalysisResultScreenState();
 }
 
 class _PalmAnalysisResultScreenState extends State<PalmAnalysisResultScreen>
@@ -103,23 +102,105 @@ class _PalmAnalysisResultScreenState extends State<PalmAnalysisResultScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.analysisResult != null) return _buildTextAnalysisScreen();
-
-    if (widget.palmData != null) {
-      return Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            _buildMysticalBackground(),
-            _buildContent(),
-          ],
-        ),
-      );
+    // ✅ POPRAWKA: Sprawdź czy mamy jakiekolwiek dane
+    if (widget.analysisResult != null) {
+      return _buildTextAnalysisScreen();
     }
 
-    return _buildErrorScreen();
+    if (widget.palmData != null) {
+      return _buildOldFormatScreen();
+    }
+
+    // ✅ POPRAWKA: Fallback gdy brak danych
+    return _buildNoDataScreen();
   }
 
+  Widget _buildNoDataScreen() {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          _buildMysticalBackground(),
+          SafeArea(
+            child: Center(
+              child: Container(
+                margin: const EdgeInsets.all(32),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.orange.withOpacity(0.2),
+                      Colors.black.withOpacity(0.8),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.orange.withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_outlined,
+                      color: Colors.orange,
+                      size: 64,
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Brak Danych Analizy',
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 24,
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Nie otrzymano żadnych danych z analizy dłoni.\nSpróbuj ponownie wykonać skanowanie.',
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 16,
+                        color: Colors.white70,
+                        height: 1.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 30),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 24),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Wróć do Głównego Ekranu',
+                          style: GoogleFonts.cinzelDecorative(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ POPRAWKA: Bezpieczna wersja _buildTextAnalysisScreen
   Widget _buildTextAnalysisScreen() {
     return Scaffold(
       backgroundColor: Colors.black,
@@ -200,7 +281,14 @@ class _PalmAnalysisResultScreenState extends State<PalmAnalysisResultScreen>
     );
   }
 
-  Widget _buildScrollableText() {
+  // 🔧 POPRAWKA: lib/screens/palm_analysis_result_screen.dart
+// Problem: Null check operator used on a null value (linia 224)
+
+// Znajdź metodę _buildScrollableText() i zamień na:
+
+Widget _buildScrollableText() {
+  // ✅ POPRAWKA: Sprawdź czy analysisResult nie jest null
+  if (widget.analysisResult?.analysisText == null) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
@@ -219,19 +307,71 @@ class _PalmAnalysisResultScreenState extends State<PalmAnalysisResultScreen>
           width: 1,
         ),
       ),
-      child: SingleChildScrollView(
-        child: Text(
-          widget.analysisResult!.analysisText,
-          style: GoogleFonts.cinzelDecorative(
-            fontSize: 16,
-            color: Colors.white,
-            fontWeight: FontWeight.w300,
-            height: 1.6,
-          ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: Colors.orange,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Brak danych analizy',
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 18,
+                color: Colors.orange,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Nie udało się wygenerować wróżby',
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 14,
+                color: Colors.white70,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
   }
+
+  // ✅ POPRAWKA: Bezpieczne używanie analysisText
+  return Container(
+    margin: const EdgeInsets.symmetric(horizontal: 16),
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.black.withOpacity(0.8),
+          Colors.black.withOpacity(0.6),
+        ],
+      ),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: AppColors.cyan.withOpacity(0.3),
+        width: 1,
+      ),
+    ),
+    child: SingleChildScrollView(
+      child: Text(
+        widget.analysisResult!.analysisText, // Teraz bezpieczne
+        style: GoogleFonts.cinzelDecorative(
+          fontSize: 16,
+          color: Colors.white,
+          fontWeight: FontWeight.w300,
+          height: 1.6,
+        ),
+      ),
+    ),
+  );
+}
 
   Widget _buildErrorScreen() {
     return Scaffold(

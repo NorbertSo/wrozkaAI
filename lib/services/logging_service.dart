@@ -8,6 +8,9 @@ class LoggingService {
   factory LoggingService() => _instance;
   LoggingService._internal();
 
+  // ✅ DODAJ FLAGĘ DEBUG
+  static const bool _enableDetailedLogging = false; // Ustaw na false w produkcji
+
   // Logowanie do konsoli z timestampem
   void logToConsole(String message, {String? tag}) {
     final timestamp = DateTime.now().toIso8601String();
@@ -63,27 +66,35 @@ class LoggingService {
       );
 
       logToConsole('Analiza zapisana: ${file.path}', tag: 'FILE');
-      logToConsole('=== PEŁNA ANALIZA DŁONI ===', tag: 'ANALYSIS');
-      logToConsole('Użytkownik: ${analysis.userName}', tag: 'ANALYSIS');
-      logToConsole('Typ ręki: ${analysis.handType}', tag: 'ANALYSIS');
-      logToConsole('Data analizy: ${analysis.analysisDate}', tag: 'ANALYSIS');
-      logToConsole('', tag: 'ANALYSIS');
+      
+      // ✅ POPRAWKA: Logowanie szczegółów tylko w trybie debug
+      if (_enableDetailedLogging) {
+        logToConsole('=== PEŁNA ANALIZA DŁONI ===', tag: 'ANALYSIS');
+        logToConsole('Użytkownik: ${analysis.userName}', tag: 'ANALYSIS');
+        logToConsole('Typ ręki: ${analysis.handType}', tag: 'ANALYSIS');
+        logToConsole('Data analizy: ${analysis.analysisDate}', tag: 'ANALYSIS');
+        logToConsole('', tag: 'ANALYSIS');
 
-      _logHandShapeDetails(analysis.handShape);
-      _logFingersDetails(analysis.fingers);
-      _logLinesDetails(analysis.lines);
-      _logMountsDetails(analysis.mounts);
-      _logSkinDetails(analysis.skin, analysis.paznokcie);
+        _logHandShapeDetails(analysis.handShape);
+        _logFingersDetails(analysis.fingers);
+        _logLinesDetails(analysis.lines);
+        _logMountsDetails(analysis.mounts);
+        _logSkinDetails(analysis.skin, analysis.paznokcie);
 
-      logToConsole('=== PROMPT DLA AI ===', tag: 'AI-PROMPT');
-      logToConsole(analysis.toAIPrompt(), tag: 'AI-PROMPT');
-      logToConsole('==================', tag: 'AI-PROMPT');
+        logToConsole('=== PROMPT DLA AI ===', tag: 'AI-PROMPT');
+        logToConsole(analysis.toAIPrompt(), tag: 'AI-PROMPT');
+        logToConsole('==================', tag: 'AI-PROMPT');
+      } else {
+        // W trybie produkcyjnym tylko podstawowe info
+        logToConsole('Analiza dłoni zapisana pomyślnie', tag: 'ANALYSIS');
+      }
     } catch (e) {
       logToConsole('Błąd zapisywania analizy: $e', tag: 'ERROR');
     }
   }
 
   void _logHandShapeDetails(HandShape handShape) {
+    if (!_enableDetailedLogging) return;
     logToConsole('--- KSZTAŁT DŁONI ---', tag: 'ANALYSIS');
     logToConsole('Rozmiar: ${handShape.size}', tag: 'ANALYSIS');
     logToConsole('Forma: ${handShape.form}', tag: 'ANALYSIS');
@@ -91,6 +102,7 @@ class LoggingService {
   }
 
   void _logFingersDetails(Fingers fingers) {
+    if (!_enableDetailedLogging) return;
     logToConsole('--- PALCE ---', tag: 'ANALYSIS');
     logToConsole('Długość: ${fingers.length}', tag: 'ANALYSIS');
     logToConsole('Elastyczność: ${fingers.flexibility}', tag: 'ANALYSIS');
@@ -106,6 +118,7 @@ class LoggingService {
   }
 
   void _logLinesDetails(PalmLines lines) {
+    if (!_enableDetailedLogging) return;
     logToConsole('--- LINIE DŁONI ---', tag: 'ANALYSIS');
     logToConsole(
       'Linia życia: ${lines.lifeLine.dlugosc}, ${lines.lifeLine.ksztalt}',
@@ -129,6 +142,7 @@ class LoggingService {
   }
 
   void _logMountsDetails(Mounts mounts) {
+    if (!_enableDetailedLogging) return;
     logToConsole('--- WZGÓRKI ---', tag: 'ANALYSIS');
     logToConsole('Jowisza: ${mounts.mountOfJupiter}', tag: 'ANALYSIS');
     logToConsole('Saturna: ${mounts.mountOfSaturne}', tag: 'ANALYSIS');
@@ -141,6 +155,7 @@ class LoggingService {
   }
 
   void _logSkinDetails(SkinCharacteristics skin, Nails nails) {
+    if (!_enableDetailedLogging) return;
     logToConsole('--- SKÓRA I PAZNOKCIE ---', tag: 'ANALYSIS');
     logToConsole('Tekstura skóry: ${skin.tekstura}', tag: 'ANALYSIS');
     logToConsole('Wilgotność: ${skin.wilgotnosc}', tag: 'ANALYSIS');

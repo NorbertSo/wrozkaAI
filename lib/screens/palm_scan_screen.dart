@@ -1308,6 +1308,257 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       ),
     );
   }
+
+  void _navigateToResults(PalmAnalysis palmData) {
+    if (!mounted || _isDisposing) {
+      print('⚠️ Nie można nawigować - widget nie jest mounted');
+      return;
+    }
+    
+    print('🚀 Nawigacja do wyników dla: ${widget.userName}');
+    
+    try {
+      // ✅ POPRAWKA: Sprawdź czy palmData nie jest null
+      if (palmData == null) {
+        print('❌ BŁĄD: palmData jest null');
+        _showErrorDialog('Brak danych analizy');
+        return;
+      }
+
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => 
+              PalmAnalysisResultScreen(
+            userName: widget.userName,
+            userGender: widget.userGender,
+            palmData: palmData, // ✅ Przekaż palmData
+            // analysisResult: null, // Na razie nie używamy analysisResult
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.0, 0.3),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
+                ),
+                child: child,
+              ),
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 1000),
+        ),
+      );
+    } catch (e) {
+      print('❌ Błąd nawigacji do wyników: $e');
+      // Fallback - pokaż dialog z podstawowymi informacjami
+      _showResultsDialog(palmData);
+    }
+  }
+
+  void _showResultsDialog(PalmAnalysis? palmData) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black87,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: AppColors.cyan.withOpacity(0.5), width: 1),
+        ),
+        title: Text(
+          'Analiza Zakończona',
+          style: GoogleFonts.cinzelDecorative(
+            color: AppColors.cyan,
+            fontSize: 20,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.auto_awesome,
+              color: AppColors.cyan,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            // ✅ POPRAWKA: Sprawdź czy palmData nie jest null
+            if (palmData != null) ...[
+              Text(
+                'Analiza Twojej ${palmData.handType == 'left' ? 'lewej' : 'prawej'} dłoni została zakończona pomyślnie.',
+                style: GoogleFonts.cinzelDecorative(
+                  color: Colors.white70,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Typ dłoni: ${palmData.handShape.elementType}\nForma: ${palmData.handShape.form}',
+                style: GoogleFonts.cinzelDecorative(
+                  color: AppColors.cyan,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ] else ...[
+              Text(
+                'Analiza została wykonana, ale wystąpił problem z danymi.',
+                style: GoogleFonts.cinzelDecorative(
+                  color: Colors.white70,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Zamknij dialog
+              Navigator.of(context).popUntil((route) => route.isFirst); // Wróć do głównego ekranu
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.cyan,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              'Zakończ',
+              style: GoogleFonts.cinzelDecorative(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _restartScanning() {
+    if (_isDisposing || _hasCompletedScan) return;
+    
+    print('🔄 Restart skanowania');
+    
+    setState(() {
+      _hasCompletedScan = false;
+      _isAnalyzing = false;
+      _scanAttempts = 0;
+      _goodChecks = 0;
+      _palmDetected = false;
+      _detectionStatus = _getHandInstruction();
+    });
+    
+    _cancelAllTimers();
+    
+    if (widget.testMode) {
+      _initializeTestMode();
+    } else {
+      _initializeCamera();
+    }
+  }
+
+  void _showErrorDialog(String error) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black87,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.red.withOpacity(0.5), width: 1),
+        ),
+        title: Text(
+          'Błąd Analizy',
+          style: GoogleFonts.cinzelDecorative(
+            color: Colors.red,
+            fontSize: 20,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: Colors.red,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Wystąpił błąd podczas analizy dłoni:\n\n$error',
+              style: GoogleFonts.cinzelDecorative(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: Text(
+              'Anuluj',
+              style: GoogleFonts.cinzelDecorative(color: Colors.grey),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _restartScanning();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              'Spróbuj ponownie',
+              style: GoogleFonts.cinzelDecorative(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _forceCompleteScan() {
+    if (_hasCompletedScan || _isDisposing) return;
+    
+    print('⏰ TIMEOUT: Wymuszone zakończenie skanowania');
+    
+    setState(() {
+      _detectionStatus = 'Czas skanowania upłynął - wykonuję analizę...';
+      _hasCompletedScan = true;
+    });
+    
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      if (mounted && !_isDisposing) {
+        _performPalmAnalysis();
+      }
+    });
+  }
 }
 
 // Custom painter dla mistycznego tła
