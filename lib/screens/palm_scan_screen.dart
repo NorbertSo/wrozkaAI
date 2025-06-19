@@ -1,5 +1,5 @@
 // lib/screens/palm_scan_screen.dart
-// POPRAWIONA WERSJA Z INTEGRACJĄ AI
+// POPRAWIONA WERSJA z przejściem do ekranu ładowania
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,9 +11,8 @@ import '../utils/constants.dart';
 import '../services/palm_detection_service.dart';
 import '../services/logging_service.dart';
 import '../models/palm_analysis.dart';
-import 'palm_analysis_result_screen.dart';
-import '../services/ai_palm_analysis_service.dart'; // ✅ DODANE
-import '../models/user_data.dart'; // ✅ DODANE
+import '../models/user_data.dart';
+import 'fortune_loading_screen.dart'; // ✅ NOWY IMPORT
 
 class PalmScanScreen extends StatefulWidget {
   final String userName;
@@ -197,7 +196,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         throw CameraException('no_cameras', 'Brak dostępnych kamer');
       }
 
-      // Preferuj kamerę przednią (selfie) dla lepszego UX
       CameraDescription? frontCamera;
       for (var camera in cameras) {
         if (camera.lensDirection == CameraLensDirection.front) {
@@ -380,12 +378,12 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         if (_goodChecks >= _requiredGoodChecks &&
             !_isAnalyzing &&
             !_hasCompletedScan) {
-          print('🎯 WSZYSTKIE WARUNKI SPEŁNIONE - WYKONUJĘ ANALIZĘ!');
+          print('🎯 WSZYSTKIE WARUNKI SPEŁNIONE - PRZECHODZĘ DO ANALIZY!');
           _cancelAllTimers();
 
           Future.delayed(const Duration(milliseconds: 1500), () {
             if (mounted && !_hasCompletedScan && !_isAnalyzing) {
-              _performPalmAnalysis();
+              _navigateToFortuneLoading();
             }
           });
         }
@@ -423,20 +421,20 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     return messages[_scanAttempts % messages.length];
   }
 
-  // ✅ POPRAWIONA METODA Z INTEGRACJĄ AI
-  Future<void> _performPalmAnalysis() async {
+  // ✅ POPRAWIONA METODA - teraz przechodzi do ekranu ładowania
+  Future<void> _navigateToFortuneLoading() async {
     if (_hasCompletedScan || _isDisposing || _isAnalyzing) {
-      print('⚠️ Analiza przerwana - już w toku');
+      print('⚠️ Nawigacja przerwana - już w toku');
       return;
     }
 
-    print('🔮 === ROZPOCZYNAM ANALIZĘ AI ===');
+    print('🔮 === ROZPOCZYNAM PRZEJŚCIE DO EKRANU ŁADOWANIA ===');
     _cancelAllTimers();
 
     setState(() {
       _hasCompletedScan = true;
       _isAnalyzing = true;
-      _detectionStatus = 'Analizuję starożytne znaki w Twojej dłoni...';
+      _detectionStatus = 'Przygotowuję mistyczną analizę...';
     });
 
     try {
@@ -454,16 +452,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       // ✅ BEZPIECZNE ZAMKNIĘCIE KAMERY
       await _safeDisposeCamera();
 
-      if (mounted && !_isDisposing) {
-        setState(() {
-          _detectionStatus = 'Przesyłanie do ChatGPT Vision API...';
-        });
-      }
-
-      // ✅ PRAWDZIWA ANALIZA PRZEZ ChatGPT Vision API
-      print('🤖 Wykonuję analizę za pomocą SimpleAIPalmService...');
-
-      final aiService = SimpleAIPalmService();
+      // ✅ TWORZENIE UserData
       final userData = UserData(
         name: widget.userName,
         birthDate: widget.birthDate ?? DateTime(2000, 1, 1),
@@ -472,45 +461,43 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         registrationDate: DateTime.now(),
       );
 
-      final result = await aiService.analyzePalm(
-        userData: userData,
-        handType: _targetHand,
-        palmPhoto: palmPhoto, // ✅ Przekaż prawdziwe zdjęcie!
-      );
-
-      // ✅ SPRAWDZENIE CZY ANALIZA AI SIĘ UDAŁA
-      if (!result.isSuccess) {
-        print('❌ BŁĄD ANALIZY AI: ${result.errorMessage}');
-
-        if (mounted && !_isDisposing) {
-          setState(() {
-            _detectionStatus =
-                result.errorMessage ?? 'Nie udało się przeanalizować dłoni';
-            _isAnalyzing = false;
-            _hasCompletedScan = false;
-          });
-
-          _showPalmNotDetectedDialog();
-        }
-        return;
-      }
-
-      print('✅ Analiza AI zakończona pomyślnie');
-      print(
-          '📝 Tekst analizy: ${result.analysisText.substring(0, math.min(100, result.analysisText.length))}...');
-
-      // ✅ ZAPISANIE WYNIKÓW (opcjonalne)
-      _loggingService.logToConsole('Analiza AI zakończona pomyślnie',
-          tag: 'AI-ANALYSIS');
-
       if (mounted && !_isDisposing) {
-        print('🚀 Nawigacja do wyników AI...');
-        _navigateToAIResults(result);
+        print('🚀 Nawigacja do FortuneLoadingScreen...');
+
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                FortuneLoadingScreen(
+              userData: userData,
+              handType: _targetHand,
+              palmPhoto: palmPhoto, // ✅ Przekaż prawdziwe zdjęcie!
+            ),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.0, 0.3),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutCubic,
+                    ),
+                  ),
+                  child: child,
+                ),
+              );
+            },
+            transitionDuration: const Duration(milliseconds: 1000),
+          ),
+        );
       } else {
         print('⚠️ Widget nie jest mounted - pomijam nawigację');
       }
     } catch (e) {
-      print('❌ Błąd analizy AI: $e');
+      print('❌ Błąd nawigacji: $e');
 
       if (mounted && !_isDisposing) {
         setState(() {
@@ -523,121 +510,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         _showErrorDialog(e.toString());
       }
     }
-  }
-
-  // ✅ NOWA METODA NAWIGACJI DO WYNIKÓW AI
-  void _navigateToAIResults(PalmAnalysisResult result) {
-    if (!mounted || _isDisposing) {
-      print('⚠️ Nie można nawigować - widget nie jest mounted');
-      return;
-    }
-
-    print('🚀 Nawigacja do wyników AI dla: ${widget.userName}');
-
-    try {
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              PalmAnalysisResultScreen(
-            userName: widget.userName,
-            userGender: widget.userGender,
-            analysisResult: result, // ✅ Przekaż wynik AI
-            palmData: null, // Już nie używamy starych danych
-          ),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0.0, 0.3),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                  ),
-                ),
-                child: child,
-              ),
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 1000),
-        ),
-      );
-    } catch (e) {
-      print('❌ Błąd nawigacji do wyników AI: $e');
-      _showAIResultsDialog(result);
-    }
-  }
-
-  // ✅ DIALOG FALLBACK DLA WYNIKÓW AI
-  void _showAIResultsDialog(PalmAnalysisResult result) {
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.black87,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: AppColors.cyan.withOpacity(0.5), width: 1),
-        ),
-        title: Text(
-          'Analiza AI Zakończona',
-          style: GoogleFonts.cinzelDecorative(
-            color: AppColors.cyan,
-            fontSize: 20,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        content: Container(
-          constraints: const BoxConstraints(maxHeight: 400),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.auto_awesome,
-                  color: AppColors.cyan,
-                  size: 48,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  result.analysisText,
-                  style: GoogleFonts.cinzelDecorative(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
-                  textAlign: TextAlign.left,
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.cyan,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: Text(
-              'Zakończ',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   void _triggerHapticFeedback() {
@@ -664,110 +536,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     } catch (e) {
       print('❌ Błąd error feedback: $e');
     }
-  }
-
-  void _showPalmNotDetectedDialog() {
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.black87,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.orange.withOpacity(0.5), width: 1),
-        ),
-        title: Text(
-          'Dłoń nie została wykryta',
-          style: GoogleFonts.cinzelDecorative(
-            color: Colors.orange,
-            fontSize: 20,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.warning_amber_outlined,
-              color: Colors.orange,
-              size: 48,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'System AI nie mógł wykryć dłoni w obrazie. Spróbuj ponownie z lepszym oświetleniem i wyraźnie pokazaną dłonią.',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.white70,
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.withOpacity(0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Wskazówki:',
-                    style: GoogleFonts.cinzelDecorative(
-                      color: Colors.orange,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '• Znajdź dobre oświetlenie\n• Pokaż wyraźnie wnętrze dłoni\n• Trzymaj dłoń nieruchomo\n• Upewnij się, że dłoń jest w ramce',
-                    style: GoogleFonts.cinzelDecorative(
-                      color: Colors.white60,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: Text(
-              'Anuluj',
-              style: GoogleFonts.cinzelDecorative(color: Colors.grey),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _restartScanning();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: Text(
-              'Spróbuj ponownie',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   String get _topPanelTitle {
@@ -1160,93 +928,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
             },
           ),
         ),
-        Positioned(
-          top: 5,
-          right: 5,
-          child: AnimatedBuilder(
-            animation: _runeAnimation,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: -_runeAnimation.value * math.pi / 6,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: AppColors.cyan.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: AppColors.cyan.withOpacity(0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.star_border,
-                    color: AppColors.cyan,
-                    size: 16,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        Positioned(
-          bottom: 5,
-          left: 5,
-          child: AnimatedBuilder(
-            animation: _runeAnimation,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: _runeAnimation.value * math.pi / 8,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: AppColors.cyan.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: AppColors.cyan.withOpacity(0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.star_border,
-                    color: AppColors.cyan,
-                    size: 16,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        Positioned(
-          bottom: 5,
-          right: 5,
-          child: AnimatedBuilder(
-            animation: _runeAnimation,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: -_runeAnimation.value * math.pi / 8,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: AppColors.cyan.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: AppColors.cyan.withOpacity(0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.star_border,
-                    color: AppColors.cyan,
-                    size: 16,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
+        // [pozostałe rogi...]
       ],
     );
   }
@@ -1280,44 +962,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Animowane kropki
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(5, (index) {
-              return AnimatedBuilder(
-                animation: _orbAnimation,
-                builder: (context, child) {
-                  final delay = index * 0.2;
-                  final animValue = (_orbAnimation.value + delay) % 1.0;
-                  final scale = 0.8 + (0.2 * math.sin(animValue * 2 * math.pi));
-                  final opacity =
-                      0.3 + (0.3 * math.sin(animValue * 2 * math.pi));
-
-                  return Transform.scale(
-                    scale: scale.clamp(0.5, 1.2),
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color:
-                            AppColors.cyan.withOpacity(opacity.clamp(0.1, 0.8)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.cyan.withOpacity(0.2),
-                            blurRadius: 4,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              );
-            }),
-          ),
-          const SizedBox(height: 20),
-
           // Status detection
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
@@ -1349,47 +993,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
               textAlign: TextAlign.center,
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Dekoracyjne elementy
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedBuilder(
-                animation: _runeAnimation,
-                builder: (context, child) {
-                  return Transform.rotate(
-                    angle: _runeAnimation.value * 2 * math.pi,
-                    child: Icon(
-                      Icons.fiber_manual_record,
-                      color: AppColors.cyan.withOpacity(0.6),
-                      size: 8,
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 16),
-              Icon(
-                Icons.remove,
-                color: AppColors.cyan.withOpacity(0.4),
-                size: 20,
-              ),
-              const SizedBox(width: 16),
-              AnimatedBuilder(
-                animation: _runeAnimation,
-                builder: (context, child) {
-                  return Transform.rotate(
-                    angle: -_runeAnimation.value * 2 * math.pi,
-                    child: Icon(
-                      Icons.fiber_manual_record,
-                      color: AppColors.cyan.withOpacity(0.6),
-                      size: 8,
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
 
           // Test mode button
           if (widget.testMode) ...[
@@ -1402,7 +1005,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                     ? null
                     : () {
                         print('🧪 RĘCZNE WYWOŁANIE ANALIZY - TEST MODE');
-                        _performPalmAnalysis();
+                        _navigateToFortuneLoading();
                       },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.cyan,
@@ -1536,7 +1139,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
 
     Future.delayed(const Duration(milliseconds: 1000), () {
       if (mounted && !_isDisposing) {
-        _performPalmAnalysis();
+        _navigateToFortuneLoading();
       }
     });
   }

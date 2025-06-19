@@ -1,5 +1,5 @@
 // lib/screens/welcome_screen.dart
-// ZASTĄP CAŁĄ ZAWARTOŚĆ TEGO PLIKU:
+// Zaktualizowany - teraz prowadzi do onboardingu, a potem do menu
 
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
@@ -170,7 +170,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 40),
                           child: MysticButton(
-                            text: 'Zajrzyj w swoje przeznaczenie',
+                            text: 'Rozpocznij swoją podróż',
                             onPressed: () {
                               Navigator.of(context).push(
                                 PageRouteBuilder(

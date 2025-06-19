@@ -1,9 +1,12 @@
+// lib/screens/onboarding_screen.dart
+// Zaktualizowany - po uzupełnieniu danych prowadzi do menu głównego
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import '../utils/constants.dart';
 import '../models/user_data.dart';
-import 'palm_intro_screen.dart';
+import 'main_menu_screen.dart'; // ✅ ZMIENIONY IMPORT
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -298,7 +301,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                         elevation: 0,
                                       ),
                                       child: Text(
-                                        'Kontynuuj',
+                                        'Wejdź do Świata Wróż',
                                         style: GoogleFonts.cinzelDecorative(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w500,
@@ -677,47 +680,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     );
   }
 
-  Widget _buildContinueButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _handleContinue,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-            side: BorderSide(color: AppColors.cyan.withOpacity(0.8), width: 2),
-          ),
-          elevation: 0,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.cyan.withOpacity(0.3),
-                blurRadius: 20,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              'Kontynuuj',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-                color: Colors.white,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -769,15 +731,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       print('✅ Dane użytkownika: $userData');
       print('🔍 DEBUG: dominantHand = ${userData.dominantHand}');
 
-      // Przejście do następnego ekranu po animacji
+      // ✅ ZMIENIONA NAWIGACJA - do menu głównego zamiast palm intro
       Future.delayed(const Duration(milliseconds: 1000), () {
-        Navigator.of(context).push(
+        Navigator.of(context).pushReplacement(
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
-                PalmIntroScreen(
+                MainMenuScreen(
               userName: userData.name,
               userGender: userData.genderForMessages,
-              // ✅ POPRAWKA: Przekazywanie wszystkich danych
               dominantHand: userData.dominantHand,
               birthDate: userData.birthDate,
             ),

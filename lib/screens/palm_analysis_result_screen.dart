@@ -1,5 +1,5 @@
 // lib/screens/palm_analysis_result_screen.dart
-// Ekran wyników analizy dłoni
+// Zaktualizowany ekran wyników z przyciskiem do menu głównego
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +9,8 @@ import '../utils/constants.dart';
 import '../models/palm_analysis.dart';
 import '../services/logging_service.dart';
 import '../services/ai_palm_analysis_service.dart';
+import '../services/fortune_history_service.dart'; // ✅ POPRAWIONY IMPORT
+import 'main_menu_screen.dart';
 
 class PalmAnalysisResultScreen extends StatefulWidget {
   final String userName;
@@ -31,6 +33,7 @@ class PalmAnalysisResultScreen extends StatefulWidget {
 class _PalmAnalysisResultScreenState extends State<PalmAnalysisResultScreen>
     with TickerProviderStateMixin {
   final LoggingService _loggingService = LoggingService();
+  final FortuneHistoryService _historyService = FortuneHistoryService(); // ✅ DODANE
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
@@ -47,8 +50,38 @@ class _PalmAnalysisResultScreenState extends State<PalmAnalysisResultScreen>
     super.initState();
     _initializeAnimations();
     _startAnimations();
+    _saveFortuneToHistory(); // ✅ DODANE
     _loggingService.logToConsole('Wyświetlenie wyników analizy',
         tag: 'RESULTS');
+  }
+
+  // ✅ POPRAWIONA METODA - zapisz wróżbę do historii
+  Future<void> _saveFortuneToHistory() async {
+    try {
+      // ✅ Sprawdź czy mamy wyniki z AI
+      if (widget.analysisResult != null && widget.analysisResult!.isSuccess) {
+        await _historyService.saveFortuneFromAnalysis(
+          widget.analysisResult!,
+          widget.userName,
+          widget.userGender,
+        );
+        print('✅ Wróżba zapisana do historii');
+      } else if (widget.palmData != null) {
+        // ✅ Fallback dla starszego formatu
+        await _historyService.saveFortuneFromAnalysis(
+          {
+            'isSuccess': true,
+            'analysisText': 'Wróżba z dłoni z ${DateTime.now().day}.${DateTime.now().month}.${DateTime.now().year}',
+            'handType': widget.palmData!.handType,
+          },
+          widget.userName,
+          widget.userGender,
+        );
+        print('✅ Stara wróżba zapisana do historii');
+      }
+    } catch (e) {
+      print('❌ Błąd zapisywania do historii: $e');
+    }
   }
 
   void _initializeAnimations() {
@@ -171,7 +204,7 @@ class _PalmAnalysisResultScreenState extends State<PalmAnalysisResultScreen>
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                        onPressed: () => _navigateToMainMenu(),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange,
                           padding: const EdgeInsets.symmetric(
@@ -181,7 +214,7 @@ class _PalmAnalysisResultScreenState extends State<PalmAnalysisResultScreen>
                           ),
                         ),
                         child: Text(
-                          'Wróć do Głównego Ekranu',
+                          'Wróć do Świata Wróż',
                           style: GoogleFonts.cinzelDecorative(
                             color: Colors.black,
                             fontWeight: FontWeight.w600,
@@ -281,14 +314,61 @@ class _PalmAnalysisResultScreenState extends State<PalmAnalysisResultScreen>
     );
   }
 
-  // 🔧 POPRAWKA: lib/screens/palm_analysis_result_screen.dart
-// Problem: Null check operator used on a null value (linia 224)
+  Widget _buildScrollableText() {
+    // ✅ POPRAWKA: Sprawdź czy analysisResult nie jest null
+    if (widget.analysisResult?.analysisText == null) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.black.withOpacity(0.8),
+              Colors.black.withOpacity(0.6),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.cyan.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                color: Colors.orange,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Brak danych analizy',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 18,
+                  color: Colors.orange,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Nie udało się wygenerować wróżby',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 14,
+                  color: Colors.white70,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
-// Znajdź metodę _buildScrollableText() i zamień na:
-
-Widget _buildScrollableText() {
-  // ✅ POPRAWKA: Sprawdź czy analysisResult nie jest null
-  if (widget.analysisResult?.analysisText == null) {
+    // ✅ POPRAWKA: Bezpieczne używanie analysisText
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
@@ -307,136 +387,16 @@ Widget _buildScrollableText() {
           width: 1,
         ),
       ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              color: Colors.orange,
-              size: 48,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Brak danych analizy',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 18,
-                color: Colors.orange,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Nie udało się wygenerować wróżby',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 14,
-                color: Colors.white70,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ✅ POPRAWKA: Bezpieczne używanie analysisText
-  return Container(
-    margin: const EdgeInsets.symmetric(horizontal: 16),
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.black.withOpacity(0.8),
-          Colors.black.withOpacity(0.6),
-        ],
-      ),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(
-        color: AppColors.cyan.withOpacity(0.3),
-        width: 1,
-      ),
-    ),
-    child: SingleChildScrollView(
-      child: Text(
-        widget.analysisResult!.analysisText, // Teraz bezpieczne
-        style: GoogleFonts.cinzelDecorative(
-          fontSize: 16,
-          color: Colors.white,
-          fontWeight: FontWeight.w300,
-          height: 1.6,
-        ),
-      ),
-    ),
-  );
-}
-
-  Widget _buildErrorScreen() {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          _buildMysticalBackground(),
-          SafeArea(
-            child: Center(
-              child: Container(
-                margin: const EdgeInsets.all(32),
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.red.withOpacity(0.2),
-                      Colors.black.withOpacity(0.8),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.red.withOpacity(0.5),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      color: Colors.red,
-                      size: 64,
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      widget.analysisResult!.errorMessage ?? 'Wystąpił błąd',
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 16,
-                        color: Colors.white,
-                        height: 1.5,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 30),
-                    ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.cyan,
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 12, horizontal: 24),
-                      ),
-                      child: Text(
-                        'Spróbuj ponownie',
-                        style: GoogleFonts.cinzelDecorative(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+      child: SingleChildScrollView(
+        child: Text(
+          widget.analysisResult!.analysisText, // Teraz bezpieczne
+          style: GoogleFonts.cinzelDecorative(
+            fontSize: 16,
+            color: Colors.white,
+            fontWeight: FontWeight.w300,
+            height: 1.6,
           ),
-        ],
+        ),
       ),
     );
   }
@@ -594,6 +554,7 @@ Widget _buildScrollableText() {
     );
   }
 
+  // ✅ ZAKTUALIZOWANA METODA Z PRZYCISKIEM DO MENU
   Widget _buildActionButtons() {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -622,10 +583,9 @@ Widget _buildScrollableText() {
               height: 48,
               margin: const EdgeInsets.only(left: 8),
               child: ElevatedButton.icon(
-                onPressed: () =>
-                    Navigator.of(context).popUntil((route) => route.isFirst),
-                icon: const Icon(Icons.home, size: 20),
-                label: const Text('Powrót'),
+                onPressed: () => _navigateToMainMenu(),
+                icon: const Icon(Icons.auto_awesome, size: 20),
+                label: const Text('Świat Wróż'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.cyan,
                   foregroundColor: Colors.black,
@@ -638,6 +598,39 @@ Widget _buildScrollableText() {
           ),
         ],
       ),
+    );
+  }
+
+  // ✅ NOWA METODA NAWIGACJI DO MENU GŁÓWNEGO
+  void _navigateToMainMenu() {
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => MainMenuScreen(
+          userName: widget.userName,
+          userGender: widget.userGender,
+          dominantHand: null, // TODO: Przekaż rzeczywiste dane jeśli dostępne
+          birthDate: null,   // TODO: Przekaż rzeczywiste dane jeśli dostępne
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(-0.3, 0.0),
+                end: Offset.zero,
+              ).animate(
+                CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                ),
+              ),
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+      ),
+      (route) => false, // Usuń wszystkie poprzednie ekrany
     );
   }
 
