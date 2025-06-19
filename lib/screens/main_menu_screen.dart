@@ -1,6 +1,3 @@
-// lib/screens/main_menu_screen.dart
-// Główne menu aplikacji AI Wróżka
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,9 +5,9 @@ import 'package:lottie/lottie.dart';
 import 'dart:math' as math;
 import '../utils/constants.dart';
 import '../models/user_data.dart';
-import '../services/fortune_history_service.dart'; // ✅ POPRAWIONY IMPORT
+import '../services/fortune_history_service.dart';
 import 'palm_intro_screen.dart';
-import 'fortune_history_screen.dart'; // ✅ POPRAWIONY IMPORT
+import 'fortune_history_screen.dart';
 import 'user_data_screen.dart';
 
 class MainMenuScreen extends StatefulWidget {
@@ -33,11 +30,8 @@ class MainMenuScreen extends StatefulWidget {
 
 class _MainMenuScreenState extends State<MainMenuScreen>
     with TickerProviderStateMixin {
-  // ===== SERWISY =====
-  final FortuneHistoryService _historyService =
-      FortuneHistoryService(); // ✅ DODANE
+  final FortuneHistoryService _historyService = FortuneHistoryService();
 
-  // ===== ANIMACJE =====
   late AnimationController _fadeController;
   late AnimationController _floatingController;
   late AnimationController _pulseController;
@@ -48,16 +42,15 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   late Animation<double> _pulseAnimation;
   late Animation<double> _starAnimation;
 
-  // ===== STAN MENU =====
   int _selectedIndex = -1;
-  int _fortuneCount = 0; // ✅ DODANE - licznik wróżb
+  int _fortuneCount = 0;
 
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
     _startAnimations();
-    _loadFortuneCount(); // ✅ DODANE
+    _loadFortuneCount();
   }
 
   void _initializeAnimations() {
@@ -106,7 +99,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     });
   }
 
-  // ✅ DODANA METODA - ładowanie liczby wróżb
   Future<void> _loadFortuneCount() async {
     try {
       final count = await _historyService.getFortuneCount();
@@ -116,7 +108,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         });
       }
     } catch (e) {
-      print('❌ Błąd ładowania liczby wróżb: $e');
+      debugPrint('Błąd ładowania liczby wróżb: $e');
     }
   }
 
@@ -145,7 +137,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   Widget _buildAnimatedBackground() {
     return Stack(
       children: [
-        // Gradient tło
         Container(
           decoration: const BoxDecoration(
             gradient: RadialGradient(
@@ -159,8 +150,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             ),
           ),
         ),
-
-        // Animowane tło z gwiazdami
         SizedBox.expand(
           child: Lottie.asset(
             'assets/animations/star_bg.json',
@@ -169,8 +158,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             height: double.infinity,
           ),
         ),
-
-        // Mystical particles
         AnimatedBuilder(
           animation: _starAnimation,
           builder: (context, child) {
@@ -243,7 +230,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             ),
             child: Column(
               children: [
-                // Mystical icon
                 AnimatedBuilder(
                   animation: _pulseAnimation,
                   builder: (context, child) {
@@ -275,10 +261,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                     );
                   },
                 ),
-
                 const SizedBox(height: 20),
-
-                // Welcome text
                 Text(
                   'Witaj w Świecie Wróż',
                   style: GoogleFonts.cinzelDecorative(
@@ -289,9 +272,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   ),
                   textAlign: TextAlign.center,
                 ),
-
                 const SizedBox(height: 8),
-
                 Text(
                   '${widget.userGender == 'female' ? 'a' : (widget.userGender == 'other' ? '/a' : '')} ${widget.userName}',
                   style: GoogleFonts.cinzelDecorative(
@@ -301,9 +282,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   ),
                   textAlign: TextAlign.center,
                 ),
-
                 const SizedBox(height: 12),
-
                 Text(
                   'Co chcesz dziś odkryć?',
                   style: GoogleFonts.cinzelDecorative(
@@ -354,9 +333,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             : 'Historia Twoich wróżb',
         icon: Icons.history_outlined,
         color: Colors.green,
-        isAvailable: true, // ✅ ZMIENIONE na true
-        badge: _fortuneCount > 0 ? _fortuneCount.toString() : null, // ✅ DODANE
-        onTap: () => _navigateToFortuneHistory(), // ✅ ZMIENIONE
+        isAvailable: true,
+        badge: _fortuneCount > 0 ? _fortuneCount.toString() : null,
+        onTap: () => _navigateToFortuneHistory(),
       ),
     ];
 
@@ -430,7 +409,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           ),
           child: Row(
             children: [
-              // Icon container
               Container(
                 width: 60,
                 height: 60,
@@ -459,10 +437,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   color: option.isAvailable ? option.color : Colors.grey,
                 ),
               ),
-
               const SizedBox(width: 16),
-
-              // Text content
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -485,9 +460,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                         if (!option.isAvailable)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: Colors.orange.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(12),
@@ -501,6 +474,27 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                               style: GoogleFonts.cinzelDecorative(
                                 fontSize: 10,
                                 color: Colors.orange,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        if (option.badge != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: option.color.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: option.color.withOpacity(0.4),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              option.badge!,
+                              style: GoogleFonts.cinzelDecorative(
+                                fontSize: 10,
+                                color: option.color,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -521,8 +515,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   ],
                 ),
               ),
-
-              // Arrow icon
               Icon(
                 Icons.arrow_forward_ios,
                 size: 16,
@@ -533,7 +525,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             ],
           ),
         ),
-      );
+      ),
+    );
   }
 
   Widget _buildMysticFooter() {
@@ -557,7 +550,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
       ),
       child: Column(
         children: [
-          // Decorative stars
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: List.generate(5, (index) {
@@ -578,9 +570,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               );
             }),
           ),
-
           const SizedBox(height: 16),
-
           Text(
             'Mistyczne moce zawsze z Tobą',
             style: GoogleFonts.cinzelDecorative(
@@ -591,9 +581,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             ),
             textAlign: TextAlign.center,
           ),
-
           const SizedBox(height: 8),
-
           Text(
             'Wersja 1.0.0 • AI Wróżka',
             style: GoogleFonts.cinzelDecorative(
@@ -608,47 +596,38 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     );
   }
 
-  // ✅ DODANA METODA - nawigacja do historii wróżb
   void _navigateToFortuneHistory() {
     HapticFeedback.mediumImpact();
-
     Navigator.of(context)
         .push(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            FortuneHistoryScreen(
-          userName: widget.userName,
-          userGender: widget.userGender,
-        ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.3, 0.0),
-                end: Offset.zero,
-              ).animate(
-                CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                ),
-              ),
-              child: child,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                FortuneHistoryScreen(
+              userName: widget.userName,
+              userGender: widget.userGender,
             ),
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 800),
-      ),
-    )
-        .then((_) {
-      // Odśwież licznik po powrocie
-      _loadFortuneCount();
-    });
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.3, 0.0),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(
+                      parent: animation, curve: Curves.easeOutCubic)),
+                  child: child,
+                ),
+              );
+            },
+            transitionDuration: const Duration(milliseconds: 800),
+          ),
+        )
+        .then((_) => _loadFortuneCount());
   }
 
   void _navigateToPalmScan() {
     HapticFeedback.mediumImpact();
-
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -665,12 +644,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               position: Tween<Offset>(
                 begin: const Offset(0.0, 0.3),
                 end: Offset.zero,
-              ).animate(
-                CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                ),
-              ),
+              ).animate(CurvedAnimation(
+                  parent: animation, curve: Curves.easeOutCubic)),
               child: child,
             ),
           );
@@ -681,9 +656,10 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   }
 
   void _navigateToUserData() {
+    HapticFeedback.mediumImpact();
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UserDataScreen(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => UserDataScreen(
           userData: UserData(
             name: widget.userName,
             birthDate: widget.birthDate ?? DateTime(2000, 1, 1),
@@ -691,14 +667,35 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             dominantHand: widget.dominantHand ?? 'right',
             registrationDate: DateTime.now(),
           ),
+          onUserDataChanged: (newUserData) {
+            if (newUserData != null) {
+              debugPrint(
+                  'Dane użytkownika zaktualizowane: ${newUserData.name}');
+            } else {
+              debugPrint('Dane użytkownika usunięte');
+            }
+          },
         ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(1.0, 0.0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                  parent: animation, curve: Curves.easeOutCubic)),
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 600),
       ),
     );
   }
 
   void _showComingSoon(String featureName) {
     HapticFeedback.lightImpact();
-
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -715,10 +712,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               ],
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.orange.withOpacity(0.5),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.orange.withOpacity(0.2),
@@ -730,11 +724,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.auto_awesome,
-                color: Colors.orange,
-                size: 48,
-              ),
+              Icon(Icons.auto_awesome, color: Colors.orange, size: 48),
               const SizedBox(height: 16),
               Text(
                 '$featureName - Wkrótce',
@@ -765,8 +755,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                     backgroundColor: Colors.orange,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
+                        borderRadius: BorderRadius.circular(25)),
                   ),
                   child: Text(
                     'Rozumiem',
@@ -786,14 +775,13 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   }
 }
 
-// Model dla opcji menu
 class MenuOption {
   final String title;
   final String subtitle;
   final IconData icon;
   final Color color;
   final bool isAvailable;
-  final String? badge; // ✅ DODANE
+  final String? badge;
   final VoidCallback onTap;
 
   MenuOption({
@@ -802,12 +790,11 @@ class MenuOption {
     required this.icon,
     required this.color,
     required this.isAvailable,
-    this.badge, // ✅ DODANE
+    this.badge,
     required this.onTap,
   });
 }
 
-// Custom painter dla tła menu
 class MenuBackgroundPainter extends CustomPainter {
   final double animationValue;
 
@@ -820,7 +807,6 @@ class MenuBackgroundPainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
 
     try {
-      // Floating mystical orbs
       for (int i = 0; i < 15; i++) {
         final angle = (animationValue * math.pi) + (i * 2 * math.pi / 15);
         final radius = 60.0 + (i % 3) * 25.0;
@@ -828,12 +814,12 @@ class MenuBackgroundPainter extends CustomPainter {
         final centerY = size.height * (0.2 + (i % 5) * 0.15);
 
         final x = centerX + radius * math.cos(angle * 0.5);
-        final y = centerY + radius * math.sin(angle * 0.3);
+        final posY = centerY + radius * math.sin(angle * 0.3);
 
         if (x >= -20 &&
             x <= size.width + 20 &&
-            y >= -20 &&
-            y <= size.height + 20) {
+            posY >= -20 &&
+            posY <= size.height + 20) {
           final orbSize =
               1.5 + math.sin(animationValue * 2 * math.pi + i) * 0.8;
           final opacity =
@@ -841,19 +827,17 @@ class MenuBackgroundPainter extends CustomPainter {
 
           if (orbSize > 0) {
             paint.color = AppColors.cyan.withOpacity(opacity.clamp(0.02, 0.15));
-            canvas.drawCircle(Offset(x, y), orbSize.abs(), paint);
+            canvas.drawCircle(Offset(x, posY), orbSize.abs(), paint);
           }
         }
       }
 
-      // Subtle corner decorations
       final cornerPaint = Paint()
         ..color = AppColors.cyan.withOpacity(0.1)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1;
 
       if (size.width > 100 && size.height > 100) {
-        // Top left decoration
         canvas.drawArc(
           Rect.fromLTWH(20, 20, 30, 30),
           -math.pi,
@@ -862,7 +846,6 @@ class MenuBackgroundPainter extends CustomPainter {
           cornerPaint,
         );
 
-        // Bottom right decoration
         canvas.drawArc(
           Rect.fromLTWH(size.width - 50, size.height - 50, 30, 30),
           0,
@@ -872,7 +855,7 @@ class MenuBackgroundPainter extends CustomPainter {
         );
       }
     } catch (e) {
-      print('❌ Błąd w MenuBackgroundPainter: $e');
+      debugPrint('Błąd w MenuBackgroundPainter: $e');
     }
   }
 

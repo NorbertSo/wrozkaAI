@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../utils/constants.dart';
 
 class MagicHandWidget extends StatefulWidget {
   const MagicHandWidget({super.key});
@@ -45,12 +44,14 @@ class _MagicHandWidgetState extends State<MagicHandWidget>
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.purple.withOpacity(_animation.value * 0.5),
+                color: Colors.purple
+                    .withAlpha((_animation.value * 0.5 * 255).toInt()),
                 blurRadius: 30,
                 spreadRadius: 5,
               ),
               BoxShadow(
-                color: Colors.cyan.withOpacity(_animation.value * 0.3),
+                color: Colors.cyan
+                    .withAlpha((_animation.value * 0.3 * 255).toInt()),
                 blurRadius: 20,
                 spreadRadius: 2,
               ),
