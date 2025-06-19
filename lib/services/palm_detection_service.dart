@@ -1,3 +1,6 @@
+// lib/services/palm_detection_service.dart
+// POPRAWIONA WERSJA - spójne wykrywanie dłoni
+
 import 'dart:math' as math;
 import 'dart:convert';
 import 'package:camera/camera.dart';
@@ -12,61 +15,126 @@ class PalmDetectionService {
 
   final math.Random _random = math.Random();
   Map<String, dynamic>? _palmTemplate;
-  
-  // ✅ POPRAWKA: Flaga do symulacji rzeczywistego wykrywania
-  bool _lastDetectionSuccessful = false;
 
-  // ✅ POPRAWKA: Metoda walidacji wykrywania dłoni
+  // ✅ POPRAWKA: Przechowywanie stanu wykrywania przez całą sesję
+  bool _currentSessionDetectionState = false;
+  int _sessionAttempts = 0;
+  String? _currentUserName;
+  String? _currentHandType;
+
+  // Reset sesji dla nowego użytkownika
+  void startNewDetectionSession(String userName, String handType) {
+    print('🔄 NOWA SESJA WYKRYWANIA:');
+    print('   - Użytkownik: $userName');
+    print('   - Typ ręki: $handType');
+
+    _currentUserName = userName;
+    _currentHandType = handType;
+    _sessionAttempts = 0;
+    _currentSessionDetectionState = false;
+  }
+
+  // ✅ POPRAWKA: Spójne wykrywanie podczas skanowania
   Future<bool> validatePalmDetection({
     required String handType,
     required String userName,
     bool isTestMode = false,
   }) async {
-    print('🔍 WALIDACJA WYKRYWANIA DŁONI:');
+    // Sprawdź czy to ta sama sesja
+    if (_currentUserName != userName || _currentHandType != handType) {
+      startNewDetectionSession(userName, handType);
+    }
+
+    _sessionAttempts++;
+
+    print('🔍 WALIDACJA WYKRYWANIA DŁONI (próba $_sessionAttempts):');
     print('   - Użytkownik: $userName');
     print('   - Typ ręki: $handType');
     print('   - Tryb testowy: $isTestMode');
+    print('   - Stan sesji: $_currentSessionDetectionState');
 
     if (isTestMode) {
-      // W trybie testowym zawsze sukces
-      _lastDetectionSuccessful = true;
-      print('✅ WYKRYWANIE (TEST): Sukces - tryb testowy');
-      return true;
+      // W trybie testowym zawsze sukces po kilku próbach
+      if (_sessionAttempts >= 3) {
+        _currentSessionDetectionState = true;
+        print(
+            '✅ WYKRYWANIE (TEST): Sukces - tryb testowy, próba $_sessionAttempts');
+        return true;
+      } else {
+        print(
+            '⏳ WYKRYWANIE (TEST): Zbieranie danych, próba $_sessionAttempts/3');
+        return false;
+      }
     }
 
-    // Symulacja rzeczywistego wykrywania (50% szans na sukces)
+    // ✅ POPRAWKA: Progresywne wykrywanie - szanse rosną z czasem
+    double baseSuccessChance = 0.3; // 30% na start
+    double progressiveBonus =
+        (_sessionAttempts - 1) * 0.15; // +15% za każdą próbę
+    double maxChance = 0.85; // Maksymalnie 85%
+
+    double finalChance =
+        math.min(maxChance, baseSuccessChance + progressiveBonus);
+
+    // Jeśli już wykryliśmy w tej sesji, utrzymaj wysoki sukces
+    if (_currentSessionDetectionState) {
+      finalChance = math.max(finalChance, 0.8); // Min 80% jeśli już wykryto
+    }
+
     await Future.delayed(const Duration(milliseconds: 500));
-    
-    final detectionSuccess = _random.nextDouble() > 0.5;
-    _lastDetectionSuccessful = detectionSuccess;
+
+    final detectionSuccess = _random.nextDouble() < finalChance;
 
     if (detectionSuccess) {
-      print('✅ WYKRYWANIE: Dłoń została pomyślnie wykryta i przeanalizowana');
+      _currentSessionDetectionState = true;
+      print(
+          '✅ WYKRYWANIE: Dłoń wykryta (szansa: ${(finalChance * 100).toInt()}%, próba: $_sessionAttempts)');
     } else {
-      print('❌ WYKRYWANIE: Nie udało się wykryć dłoni w obrazie');
+      print(
+          '❌ WYKRYWANIE: Nie wykryto dłoni (szansa: ${(finalChance * 100).toInt()}%, próba: $_sessionAttempts)');
     }
 
     return detectionSuccess;
   }
 
-  // ✅ POPRAWKA: Główna metoda analizy z walidacją
+  // ✅ POPRAWKA: Główna metoda analizy - używa stanu z sesji wykrywania
   Future<PalmAnalysis?> analyzePalm({
     required String handType,
     required String userName,
     bool isTestMode = false,
   }) async {
-    print('🔮 ROZPOCZYNAM ANALIZĘ DŁONI...');
-    
-    // KROK 1: Walidacja wykrywania dłoni
-    final detectionValid = await validatePalmDetection(
-      handType: handType,
-      userName: userName,
-      isTestMode: isTestMode,
-    );
+    print('🔮 ROZPOCZYNAM FINALNĄ ANALIZĘ DŁONI...');
+    print('   - Stan sesji wykrywania: $_currentSessionDetectionState');
+    print('   - Liczba prób w sesji: $_sessionAttempts');
 
-    if (!detectionValid) {
-      print('❌ ANALIZA PRZERWANA: Nie wykryto dłoni w obrazie');
-      return null; // ✅ Zwróć null jeśli nie wykryto dłoni
+    // ✅ POPRAWKA: Użyj stanu z sesji wykrywania zamiast nowej losowej walidacji
+    bool finalDetectionResult;
+
+    if (isTestMode) {
+      // W trybie testowym zawsze sukces
+      finalDetectionResult = true;
+      print('✅ FINALNA ANALIZA (TEST): Wymuszony sukces');
+    } else {
+      // Sprawdź czy mieliśmy już sukces w sesji
+      if (_currentSessionDetectionState && _sessionAttempts >= 3) {
+        // Jeśli już wykrywaliśmy i było dość prób, bardzo wysoka szansa sukcesu
+        finalDetectionResult = _random.nextDouble() < 0.9; // 90% sukcesu
+        print(
+            '✅ FINALNA ANALIZA: Bazując na sesji - wykryto wcześniej (90% szans)');
+      } else if (_sessionAttempts >= 5) {
+        // Jeśli było dużo prób, daj szansę
+        finalDetectionResult = _random.nextDouble() < 0.7; // 70% sukcesu
+        print('✅ FINALNA ANALIZA: Dużo prób - umiarkowana szansa (70%)');
+      } else {
+        // Niska szansa jeśli mało prób i nie było wykrywania
+        finalDetectionResult = _random.nextDouble() < 0.4; // 40% sukcesu
+        print('❌ FINALNA ANALIZA: Mało prób - niska szansa (40%)');
+      }
+    }
+
+    if (!finalDetectionResult) {
+      print('❌ FINALNA ANALIZA: Nie wykryto dłoni w końcowej analizie');
+      return null;
     }
 
     // KROK 2: Załaduj szablon danych
@@ -89,14 +157,27 @@ class PalmDetectionService {
       userName: userName,
     );
 
-    print('✅ ANALIZA ZAKOŃCZONA POMYŚLNIE');
+    print('✅ FINALNA ANALIZA ZAKOŃCZONA POMYŚLNIE');
+    print('   - Typ ręki: ${analysis.handType}');
+    print('   - Element dłoni: ${analysis.handShape.elementType}');
+
     return analysis;
   }
 
-  // Getter do sprawdzania ostatniego stanu wykrywania
-  bool get lastDetectionWasSuccessful => _lastDetectionSuccessful;
+  // Getter do sprawdzania stanu sesji
+  bool get currentSessionDetectionState => _currentSessionDetectionState;
+  int get sessionAttempts => _sessionAttempts;
 
-  // Załaduj szablon danych z assets
+  // Resetuj stan (np. przy zmianie użytkownika)
+  void resetDetectionState() {
+    print('🔄 Reset stanu wykrywania');
+    _currentSessionDetectionState = false;
+    _sessionAttempts = 0;
+    _currentUserName = null;
+    _currentHandType = null;
+  }
+
+  // Reszta metod pozostaje bez zmian...
   Future<void> _loadPalmTemplate() async {
     if (_palmTemplate == null) {
       try {
@@ -111,7 +192,6 @@ class PalmDetectionService {
     }
   }
 
-  // Generowanie losowych, ale realistycznych danych na podstawie szablonu
   HandShape _generateHandShape() {
     return HandShape(
       size: _getRandomFromList(_palmTemplate!['hand_shape']['size']),
@@ -282,13 +362,11 @@ class PalmDetectionService {
     );
   }
 
-  // Funkcja pomocnicza do losowania z listy
   String _getRandomFromList(List<dynamic> list) {
     if (list.isEmpty) return 'nieznane';
     return list[_random.nextInt(list.length)].toString();
   }
 
-  // Domyślny szablon w przypadku błędu ładowania
   Map<String, dynamic> _getDefaultTemplate() {
     return {
       'hand_shape': {
@@ -372,34 +450,28 @@ class PalmDetectionService {
     };
   }
 
-  // Symulacja wykrywania dłoni w obrazie (w przyszłości można zastąpić prawdziwym ML)
-  Future<bool> detectHandInImage(/* XFile image */) async {
-    // Symulacja czasu przetwarzania
+  // Pozostałe metody pomocnicze...
+  Future<bool> detectHandInImage() async {
     await Future.delayed(const Duration(milliseconds: 800));
-
-    // Zwróć losowy wynik z większą szansą na sukces
-    return _random.nextDouble() > 0.3;
+    return _currentSessionDetectionState;
   }
 
-  // Symulacja określania typu ręki (lewa/prawa)
-  Future<String> determineHandType(/* XFile image */) async {
+  Future<String> determineHandType() async {
     await Future.delayed(const Duration(milliseconds: 300));
-    return _random.nextBool() ? 'left' : 'right';
+    return _currentHandType ?? (_random.nextBool() ? 'left' : 'right');
   }
 
-  // Ocena jakości oświetlenia
-  double evaluateLighting(/* XFile image */) {
-    // Symulacja oceny oświetlenia
+  double evaluateLighting() {
     return 0.3 + (_random.nextDouble() * 0.7);
   }
 
-  // Sprawdzanie pozycji dłoni w ramce
-  Map<String, dynamic> checkHandPosition(/* XFile image */) {
-    final random = _random.nextDouble();
-
-    if (random > 0.8) {
+  Map<String, dynamic> checkHandPosition() {
+    if (_currentSessionDetectionState) {
       return {'isCorrect': true, 'message': 'Pozycja prawidłowa'};
-    } else if (random > 0.6) {
+    }
+
+    final random = _random.nextDouble();
+    if (random > 0.6) {
       return {'isCorrect': false, 'message': 'Przybliż dłoń do kamery'};
     } else if (random > 0.4) {
       return {'isCorrect': false, 'message': 'Oddal dłoń od kamery'};
@@ -410,17 +482,15 @@ class PalmDetectionService {
     }
   }
 
-  // Sprawdzanie stabilności dłoni
-  bool checkHandStability(/* Lista ostatnich pozycji */) {
-    // Symulacja sprawdzania stabilności
-    return _random.nextDouble() > 0.4;
+  bool checkHandStability() {
+    return _currentSessionDetectionState || _random.nextDouble() > 0.4;
   }
 
   Future<bool> checkSkinColor(CameraController controller) async {
     try {
       print('🔍 Sprawdzam kolor skóry...');
-      final random = math.Random();
-      bool hasSkinColor = random.nextDouble() > 0.4;
+      bool hasSkinColor =
+          _currentSessionDetectionState || _random.nextDouble() > 0.4;
       print('🎨 Kolor skóry wykryty: $hasSkinColor');
       return hasSkinColor;
     } catch (e) {
@@ -432,8 +502,8 @@ class PalmDetectionService {
   Future<bool> checkPalmPosition(CameraController controller) async {
     try {
       print('📍 Sprawdzam pozycję dłoni...');
-      final random = math.Random();
-      bool isCentered = random.nextDouble() > 0.3;
+      bool isCentered =
+          _currentSessionDetectionState || _random.nextDouble() > 0.3;
       print('🎯 Dłoń wycentrowana: $isCentered');
       return isCentered;
     } catch (e) {

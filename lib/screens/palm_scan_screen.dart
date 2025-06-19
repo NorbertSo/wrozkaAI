@@ -1,5 +1,5 @@
 // lib/screens/palm_scan_screen.dart
-// NAPRAWIONA WERSJA - rozwiązuje problemy z kamerą i nakładającymi się efektami
+// POPRAWIONA WERSJA Z INTEGRACJĄ AI
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,10 +10,10 @@ import 'dart:math' as math;
 import '../utils/constants.dart';
 import '../services/palm_detection_service.dart';
 import '../services/logging_service.dart';
-import '../services/ai_palm_analysis_service.dart'; // Add this import
 import '../models/palm_analysis.dart';
 import 'palm_analysis_result_screen.dart';
-import '../models/user_data.dart'; // DODAJ TEN IMPORT
+import '../services/ai_palm_analysis_service.dart'; // ✅ DODANE
+import '../models/user_data.dart'; // ✅ DODANE
 
 class PalmScanScreen extends StatefulWidget {
   final String userName;
@@ -143,16 +143,13 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     print('🧪 Test mode initialized');
     setState(() {
       _isCameraInitialized = true;
-      _showCamera = false; // W trybie testowym nie pokazuj kamery
+      _showCamera = false;
       _detectionStatus = _getHandInstruction();
     });
     _startPalmDetection();
   }
 
   String _getHandInstruction() {
-    print(
-        'DEBUG: userGender = ${widget.userGender}, dominantHand = ${widget.dominantHand}');
-
     if (widget.userGender == 'other' ||
         widget.userGender == 'inna' ||
         widget.userGender == 'neutral') {
@@ -185,32 +182,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     return widget.userGender == 'female' ? 'lewą' : 'prawą';
   }
 
-  void _triggerHapticFeedback() {
-    try {
-      HapticFeedback.selectionClick();
-      _feedbackController.forward().then((_) => _feedbackController.reverse());
-    } catch (e) {
-      print('❌ Błąd haptic feedback: $e');
-    }
-  }
-
-  void _triggerSuccessFeedback() {
-    try {
-      HapticFeedback.mediumImpact();
-      _feedbackController.forward().then((_) => _feedbackController.reverse());
-    } catch (e) {
-      print('❌ Błąd success feedback: $e');
-    }
-  }
-
-  void _triggerErrorFeedback() {
-    try {
-      HapticFeedback.heavyImpact();
-    } catch (e) {
-      print('❌ Błąd error feedback: $e');
-    }
-  }
-
   Future<void> _initializeCamera() async {
     if (_isDisposing || _hasCompletedScan || _isCameraLocked) return;
 
@@ -237,8 +208,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
 
       _cameraController = CameraController(
         frontCamera ?? cameras[0],
-        ResolutionPreset
-            .medium, // Zmniejsz rozdzielczość dla lepszej wydajności
+        ResolutionPreset.high,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
@@ -286,8 +256,15 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         print('🗑️ Dispose kamery...');
         final controller = _cameraController;
         _cameraController = null;
-        _isCameraInitialized = false;
-        _showCamera = false;
+
+        if (mounted) {
+          setState(() {
+            _isCameraInitialized = false;
+            _showCamera = false;
+          });
+        }
+
+        await Future.delayed(const Duration(milliseconds: 100));
         await controller?.dispose();
         print('✅ Kamera disposed');
       } catch (e) {
@@ -377,21 +354,13 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     }
 
     try {
-      bool conditionsGood = false;
+      final detectionResult = await _palmDetectionService.validatePalmDetection(
+        handType: _targetHand,
+        userName: widget.userName,
+        isTestMode: widget.testMode,
+      );
 
-      if (widget.testMode) {
-        // W trybie testowym zwiększ szanse sukcesu z czasem
-        final random = math.Random();
-        double successChance = math.min(0.95, (_scanAttempts / 5.0) + 0.3);
-        conditionsGood = random.nextDouble() < successChance;
-        print(
-            '🧪 Test: attempt $_scanAttempts, chance: ${(successChance * 100).toInt()}%, result: $conditionsGood');
-      } else {
-        double baseChance = math.min(0.85, _scanAttempts / 8.0);
-        conditionsGood = math.Random().nextDouble() < baseChance;
-      }
-
-      if (conditionsGood) {
+      if (detectionResult) {
         _goodChecks++;
         print('✅ DOBRE WARUNKI: $_goodChecks/$_requiredGoodChecks');
 
@@ -454,13 +423,14 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     return messages[_scanAttempts % messages.length];
   }
 
+  // ✅ POPRAWIONA METODA Z INTEGRACJĄ AI
   Future<void> _performPalmAnalysis() async {
     if (_hasCompletedScan || _isDisposing || _isAnalyzing) {
       print('⚠️ Analiza przerwana - już w toku');
       return;
     }
 
-    print('🔮 === ROZPOCZYNAM ANALIZĘ ===');
+    print('🔮 === ROZPOCZYNAM ANALIZĘ AI ===');
     _cancelAllTimers();
 
     setState(() {
@@ -470,73 +440,229 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     });
 
     try {
-      // Wykonanie zdjęcia (opcjonalnie)
+      // ✅ WYKONANIE ZDJĘCIA PRZED ZAMKNIĘCIEM KAMERY
+      XFile? palmPhoto;
       if (_cameraController != null && _cameraController!.value.isInitialized) {
         try {
-          final XFile palmPhoto = await _cameraController!.takePicture();
+          palmPhoto = await _cameraController!.takePicture();
           print('📸 Zdjęcie wykonane: ${palmPhoto.path}');
         } catch (photoError) {
           print('❌ Błąd zdjęcia: $photoError');
         }
       }
 
-      // Bezpieczne zamknięcie kamery przed analizą
+      // ✅ BEZPIECZNE ZAMKNIĘCIE KAMERY
       await _safeDisposeCamera();
 
-      setState(() {
-        _detectionStatus = 'Przesyłanie do starożytnych archiwów...';
-      });
+      if (mounted && !_isDisposing) {
+        setState(() {
+          _detectionStatus = 'Przesyłanie do ChatGPT Vision API...';
+        });
+      }
 
-      // ✅ POPRAWKA: Analiza z walidacją wykrywania
-      print('🔮 Wykonuję analizę za pomocą PalmDetectionService...');
-      final palmData = await _palmDetectionService.analyzePalm(
-        handType: _targetHand,
-        userName: widget.userName,
-        isTestMode: widget.testMode, // Przekaż informację o trybie testowym
+      // ✅ PRAWDZIWA ANALIZA PRZEZ ChatGPT Vision API
+      print('🤖 Wykonuję analizę za pomocą SimpleAIPalmService...');
+
+      final aiService = SimpleAIPalmService();
+      final userData = UserData(
+        name: widget.userName,
+        birthDate: widget.birthDate ?? DateTime(2000, 1, 1),
+        gender: widget.userGender,
+        dominantHand: widget.dominantHand ?? 'right',
+        registrationDate: DateTime.now(),
       );
 
-      // ✅ POPRAWKA: Sprawdzenie czy analiza się udała
-      if (palmData == null) {
-        print('❌ BRAK WYKRYWANIA: Dłoń nie została wykryta');
-        
+      final result = await aiService.analyzePalm(
+        userData: userData,
+        handType: _targetHand,
+        palmPhoto: palmPhoto, // ✅ Przekaż prawdziwe zdjęcie!
+      );
+
+      // ✅ SPRAWDZENIE CZY ANALIZA AI SIĘ UDAŁA
+      if (!result.isSuccess) {
+        print('❌ BŁĄD ANALIZY AI: ${result.errorMessage}');
+
         if (mounted && !_isDisposing) {
           setState(() {
-            _detectionStatus = 'Nie udało się wykryć dłoni w obrazie';
+            _detectionStatus =
+                result.errorMessage ?? 'Nie udało się przeanalizować dłoni';
             _isAnalyzing = false;
             _hasCompletedScan = false;
           });
 
-          // Pokaż dialog z informacją o braku wykrywania
           _showPalmNotDetectedDialog();
         }
         return;
       }
 
-      print('✅ Analiza zakończona pomyślnie');
-      print('📊 Dane dłoni: ${palmData.handShape.elementType}, ${palmData.handShape.form}');
+      print('✅ Analiza AI zakończona pomyślnie');
+      print(
+          '📝 Tekst analizy: ${result.analysisText.substring(0, math.min(100, result.analysisText.length))}...');
 
-      // Zapisanie wyników
-      await _loggingService.saveAnalysisToFile(palmData);
-      await _loggingService.saveDetectionLogsToFile(widget.userName);
+      // ✅ ZAPISANIE WYNIKÓW (opcjonalne)
+      _loggingService.logToConsole('Analiza AI zakończona pomyślnie',
+          tag: 'AI-ANALYSIS');
 
       if (mounted && !_isDisposing) {
-        print('🚀 Nawigacja do wyników...');
-        _navigateToResults(palmData);
+        print('🚀 Nawigacja do wyników AI...');
+        _navigateToAIResults(result);
       } else {
         print('⚠️ Widget nie jest mounted - pomijam nawigację');
       }
     } catch (e) {
-      print('❌ Błąd analizy: $e');
+      print('❌ Błąd analizy AI: $e');
 
       if (mounted && !_isDisposing) {
         setState(() {
-          _detectionStatus = 'Zakłócenia w przepływie energii - spróbuj ponownie';
+          _detectionStatus =
+              'Zakłócenia w przepływie energii - spróbuj ponownie';
           _isAnalyzing = false;
           _hasCompletedScan = false;
         });
 
         _showErrorDialog(e.toString());
       }
+    }
+  }
+
+  // ✅ NOWA METODA NAWIGACJI DO WYNIKÓW AI
+  void _navigateToAIResults(PalmAnalysisResult result) {
+    if (!mounted || _isDisposing) {
+      print('⚠️ Nie można nawigować - widget nie jest mounted');
+      return;
+    }
+
+    print('🚀 Nawigacja do wyników AI dla: ${widget.userName}');
+
+    try {
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              PalmAnalysisResultScreen(
+            userName: widget.userName,
+            userGender: widget.userGender,
+            analysisResult: result, // ✅ Przekaż wynik AI
+            palmData: null, // Już nie używamy starych danych
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.0, 0.3),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
+                ),
+                child: child,
+              ),
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 1000),
+        ),
+      );
+    } catch (e) {
+      print('❌ Błąd nawigacji do wyników AI: $e');
+      _showAIResultsDialog(result);
+    }
+  }
+
+  // ✅ DIALOG FALLBACK DLA WYNIKÓW AI
+  void _showAIResultsDialog(PalmAnalysisResult result) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black87,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: AppColors.cyan.withOpacity(0.5), width: 1),
+        ),
+        title: Text(
+          'Analiza AI Zakończona',
+          style: GoogleFonts.cinzelDecorative(
+            color: AppColors.cyan,
+            fontSize: 20,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Container(
+          constraints: const BoxConstraints(maxHeight: 400),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.auto_awesome,
+                  color: AppColors.cyan,
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  result.analysisText,
+                  style: GoogleFonts.cinzelDecorative(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.left,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.cyan,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              'Zakończ',
+              style: GoogleFonts.cinzelDecorative(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _triggerHapticFeedback() {
+    try {
+      HapticFeedback.selectionClick();
+      _feedbackController.forward().then((_) => _feedbackController.reverse());
+    } catch (e) {
+      print('❌ Błąd haptic feedback: $e');
+    }
+  }
+
+  void _triggerSuccessFeedback() {
+    try {
+      HapticFeedback.mediumImpact();
+      _feedbackController.forward().then((_) => _feedbackController.reverse());
+    } catch (e) {
+      print('❌ Błąd success feedback: $e');
+    }
+  }
+
+  void _triggerErrorFeedback() {
+    try {
+      HapticFeedback.heavyImpact();
+    } catch (e) {
+      print('❌ Błąd error feedback: $e');
     }
   }
 
@@ -613,7 +739,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              Navigator.of(context).pop(); // Wróć do poprzedniego ekranu
+              Navigator.of(context).pop();
             },
             child: Text(
               'Anuluj',
@@ -679,16 +805,13 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Tło mistyczne
           _buildMysticalBackground(),
-
-          // Podgląd kamery (tylko gdy jest aktywna i nie w trybie testowym)
           if (_showCamera &&
               _cameraController != null &&
-              _cameraController!.value.isInitialized)
+              _cameraController!.value.isInitialized &&
+              !_isDisposing &&
+              !_hasCompletedScan)
             _buildCameraPreview(),
-
-          // Nakładka mistyczna
           _buildMysticalOverlay(),
         ],
       ),
@@ -780,7 +903,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         children: [
           Row(
             children: [
-              // Back button
               Container(
                 width: 44,
                 height: 44,
@@ -800,8 +922,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                   iconSize: 20,
                 ),
               ),
-              
-              // ✅ POPRAWKA: Flexible zamiast Expanded z MainAxisSize.min
               Flexible(
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -854,8 +974,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                   ),
                 ),
               ),
-              
-              // Spacer for balance
               const SizedBox(width: 44),
             ],
           ),
@@ -1309,148 +1427,11 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     );
   }
 
-  void _navigateToResults(PalmAnalysis palmData) {
-    if (!mounted || _isDisposing) {
-      print('⚠️ Nie można nawigować - widget nie jest mounted');
-      return;
-    }
-    
-    print('🚀 Nawigacja do wyników dla: ${widget.userName}');
-    
-    try {
-      // ✅ POPRAWKA: Sprawdź czy palmData nie jest null
-      if (palmData == null) {
-        print('❌ BŁĄD: palmData jest null');
-        _showErrorDialog('Brak danych analizy');
-        return;
-      }
-
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => 
-              PalmAnalysisResultScreen(
-            userName: widget.userName,
-            userGender: widget.userGender,
-            palmData: palmData, // ✅ Przekaż palmData
-            // analysisResult: null, // Na razie nie używamy analysisResult
-          ),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: animation,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0.0, 0.3),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                  ),
-                ),
-                child: child,
-              ),
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 1000),
-        ),
-      );
-    } catch (e) {
-      print('❌ Błąd nawigacji do wyników: $e');
-      // Fallback - pokaż dialog z podstawowymi informacjami
-      _showResultsDialog(palmData);
-    }
-  }
-
-  void _showResultsDialog(PalmAnalysis? palmData) {
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.black87,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: AppColors.cyan.withOpacity(0.5), width: 1),
-        ),
-        title: Text(
-          'Analiza Zakończona',
-          style: GoogleFonts.cinzelDecorative(
-            color: AppColors.cyan,
-            fontSize: 20,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.auto_awesome,
-              color: AppColors.cyan,
-              size: 48,
-            ),
-            const SizedBox(height: 16),
-            // ✅ POPRAWKA: Sprawdź czy palmData nie jest null
-            if (palmData != null) ...[
-              Text(
-                'Analiza Twojej ${palmData.handType == 'left' ? 'lewej' : 'prawej'} dłoni została zakończona pomyślnie.',
-                style: GoogleFonts.cinzelDecorative(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Typ dłoni: ${palmData.handShape.elementType}\nForma: ${palmData.handShape.form}',
-                style: GoogleFonts.cinzelDecorative(
-                  color: AppColors.cyan,
-                  fontSize: 12,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ] else ...[
-              Text(
-                'Analiza została wykonana, ale wystąpił problem z danymi.',
-                style: GoogleFonts.cinzelDecorative(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Zamknij dialog
-              Navigator.of(context).popUntil((route) => route.isFirst); // Wróć do głównego ekranu
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.cyan,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: Text(
-              'Zakończ',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _restartScanning() {
     if (_isDisposing || _hasCompletedScan) return;
-    
+
     print('🔄 Restart skanowania');
-    
+
     setState(() {
       _hasCompletedScan = false;
       _isAnalyzing = false;
@@ -1459,9 +1440,9 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       _palmDetected = false;
       _detectionStatus = _getHandInstruction();
     });
-    
+
     _cancelAllTimers();
-    
+
     if (widget.testMode) {
       _initializeTestMode();
     } else {
@@ -1545,14 +1526,14 @@ class _PalmScanScreenState extends State<PalmScanScreen>
 
   void _forceCompleteScan() {
     if (_hasCompletedScan || _isDisposing) return;
-    
+
     print('⏰ TIMEOUT: Wymuszone zakończenie skanowania');
-    
+
     setState(() {
       _detectionStatus = 'Czas skanowania upłynął - wykonuję analizę...';
       _hasCompletedScan = true;
     });
-    
+
     Future.delayed(const Duration(milliseconds: 1000), () {
       if (mounted && !_isDisposing) {
         _performPalmAnalysis();
@@ -1583,10 +1564,9 @@ class MysticalBackgroundPainter extends CustomPainter {
             baseRadius * (1 + 0.1 * math.sin(animationValue * 2 * math.pi + i));
 
         if (animatedRadius > 0 && animatedRadius < size.width) {
-          // ✅ POPRAWKA: Zabezpieczenie opacity
           final opacityValue = 0.03 - i * 0.005;
           final safeOpacity = opacityValue.clamp(0.0, 1.0);
-          
+
           paint.color = AppColors.cyan.withOpacity(safeOpacity);
           canvas.drawCircle(Offset(centerX, centerY), animatedRadius, paint);
         }
@@ -1599,12 +1579,14 @@ class MysticalBackgroundPainter extends CustomPainter {
         final x = size.width * 0.5 + radius * math.cos(angle);
         final y = size.height * 0.5 + radius * math.sin(angle);
 
-        if (x >= -10 && x <= size.width + 10 && y >= -10 && y <= size.height + 10) {
+        if (x >= -10 &&
+            x <= size.width + 10 &&
+            y >= -10 &&
+            y <= size.height + 10) {
           final particleSize =
               1.0 + math.sin(animationValue * 3 * math.pi + i) * 0.5;
 
           if (particleSize > 0) {
-            // ✅ POPRAWKA: Stała, bezpieczna wartość opacity
             paint.color = AppColors.cyan.withOpacity(0.1);
             canvas.drawCircle(Offset(x, y), particleSize.abs(), paint);
           }
