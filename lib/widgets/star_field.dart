@@ -91,7 +91,8 @@ class StarFieldPainter extends CustomPainter {
     for (final star in stars) {
       final opacity =
           (math.sin(animationValue * 2 * math.pi * star.speed) + 1) / 2;
-      paint.color = Colors.white.withOpacity(star.opacity * opacity);
+      paint.color =
+          Colors.white.withAlpha((star.opacity * opacity * 255).toInt());
 
       canvas.drawCircle(
         Offset(star.x * size.width, star.y * size.height),

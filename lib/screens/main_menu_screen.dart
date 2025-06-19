@@ -8,9 +8,10 @@ import 'package:lottie/lottie.dart';
 import 'dart:math' as math;
 import '../utils/constants.dart';
 import '../models/user_data.dart';
-import '../services/fortune_history_service.dart'; // ✅ DODANE
+import '../services/fortune_history_service.dart'; // ✅ POPRAWIONY IMPORT
 import 'palm_intro_screen.dart';
-import 'fortune_history_screen.dart'; // ✅ DODANE
+import 'fortune_history_screen.dart'; // ✅ POPRAWIONY IMPORT
+import 'user_data_screen.dart';
 
 class MainMenuScreen extends StatefulWidget {
   final String userName;
@@ -292,7 +293,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 const SizedBox(height: 8),
 
                 Text(
-                  'Drogi${widget.userGender == 'female' ? 'a' : (widget.userGender == 'other' ? '/a' : '')} ${widget.userName}',
+                  '${widget.userGender == 'female' ? 'a' : (widget.userGender == 'other' ? '/a' : '')} ${widget.userName}',
                   style: GoogleFonts.cinzelDecorative(
                     fontSize: 18,
                     color: Colors.white,
@@ -343,8 +344,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         subtitle: 'Zarządzaj profilem',
         icon: Icons.person_outline,
         color: Colors.orange,
-        isAvailable: false,
-        onTap: () => _showComingSoon('Profil'),
+        isAvailable: true,
+        onTap: () => _navigateToUserData(),
       ),
       MenuOption(
         title: 'Moje Wróżby',
@@ -532,8 +533,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildMysticFooter() {
@@ -676,6 +676,22 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           );
         },
         transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
+  }
+
+  void _navigateToUserData() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => UserDataScreen(
+          userData: UserData(
+            name: widget.userName,
+            birthDate: widget.birthDate ?? DateTime(2000, 1, 1),
+            gender: widget.userGender,
+            dominantHand: widget.dominantHand ?? 'right',
+            registrationDate: DateTime.now(),
+          ),
+        ),
       ),
     );
   }

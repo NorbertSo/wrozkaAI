@@ -93,7 +93,7 @@ class HandPainter extends CustomPainter {
 
   void _drawHand(Canvas canvas, Size size, Offset center) {
     final paint = Paint()
-      ..color = AppColors.cyan.withOpacity(0.6)
+      ..color = AppColors.cyan.withAlpha((0.6 * 255).toInt())
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0 * pulseValue
       ..strokeCap = StrokeCap.round;
@@ -145,7 +145,7 @@ class HandPainter extends CustomPainter {
 
   void _drawSymbols(Canvas canvas, Size size, Offset center) {
     final symbolPaint = Paint()
-      ..color = AppColors.cyan.withOpacity(0.8)
+      ..color = AppColors.cyan.withAlpha((0.8 * 255).toInt())
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
