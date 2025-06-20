@@ -1,5 +1,5 @@
 // lib/screens/palm_scan_screen.dart
-// POPRAWIONA WERSJA z przejściem do ekranu ładowania
+// POPRAWIONA WERSJA z przejściem do ekranu ładowania + wybór kamery + latarka
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,7 +12,7 @@ import '../services/palm_detection_service.dart';
 import '../services/logging_service.dart';
 import '../models/palm_analysis.dart';
 import '../models/user_data.dart';
-import 'fortune_loading_screen.dart'; // ✅ NOWY IMPORT
+import 'fortune_loading_screen.dart';
 
 class PalmScanScreen extends StatefulWidget {
   final String userName;
@@ -41,6 +41,12 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   bool _isCameraInitialized = false;
   String _detectionStatus = 'Inicjalizacja mistycznej energii...';
   bool _showCamera = false;
+
+  // ===== NOWE: KONTROLA KAMERY I LATARKI =====
+  List<CameraDescription> _availableCameras = [];
+  int _selectedCameraIndex = 0;
+  bool _isFlashEnabled = false;
+  bool _hasFlash = false;
 
   // ===== FLAGI ZABEZPIECZAJĄCE =====
   bool _isDisposing = false;
@@ -196,16 +202,23 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         throw CameraException('no_cameras', 'Brak dostępnych kamer');
       }
 
-      CameraDescription? frontCamera;
-      for (var camera in cameras) {
-        if (camera.lensDirection == CameraLensDirection.front) {
-          frontCamera = camera;
+      // ZAPISZ DOSTĘPNE KAMERY
+      _availableCameras = cameras;
+
+      // ZNAJDŹ KAMERĘ TYLNĄ JAKO DOMYŚLNĄ
+      _selectedCameraIndex = 0;
+      for (int i = 0; i < cameras.length; i++) {
+        if (cameras[i].lensDirection == CameraLensDirection.back) {
+          _selectedCameraIndex = i;
           break;
         }
       }
 
+      final selectedCamera = cameras[_selectedCameraIndex];
+      print('🎯 Wybrana kamera: ${selectedCamera.lensDirection}');
+
       _cameraController = CameraController(
-        frontCamera ?? cameras[0],
+        selectedCamera,
         ResolutionPreset.high,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
@@ -225,13 +238,16 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         return;
       }
 
+      // SPRAWDŹ DOSTĘPNOŚĆ FLASHA
+      _hasFlash = selectedCamera.lensDirection == CameraLensDirection.back;
+
       setState(() {
         _isCameraInitialized = true;
         _showCamera = true;
         _detectionStatus = _getHandInstruction();
       });
 
-      print('✅ Kamera zainicjalizowana');
+      print('✅ Kamera zainicjalizowana - Flash dostępny: $_hasFlash');
       _startPalmDetection();
       _startForceCloseTimer();
     } catch (e) {
@@ -248,10 +264,65 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     }
   }
 
+  Future<void> _switchCamera() async {
+    if (_availableCameras.length < 2 || _isCameraLocked) return;
+
+    try {
+      HapticFeedback.lightImpact();
+
+      setState(() {
+        _selectedCameraIndex =
+            (_selectedCameraIndex + 1) % _availableCameras.length;
+        _isFlashEnabled = false; // Wyłącz flash przy przełączaniu
+      });
+
+      print('🔄 Przełączanie kamery...');
+      await _initializeCamera();
+    } catch (e) {
+      print('❌ Błąd przełączania kamery: $e');
+    }
+  }
+
+  Future<void> _toggleFlash() async {
+    if (!_hasFlash ||
+        _cameraController == null ||
+        !_cameraController!.value.isInitialized) {
+      return;
+    }
+
+    try {
+      HapticFeedback.lightImpact();
+
+      final newFlashState = !_isFlashEnabled;
+
+      await _cameraController!
+          .setFlashMode(newFlashState ? FlashMode.torch : FlashMode.off);
+
+      setState(() {
+        _isFlashEnabled = newFlashState;
+      });
+
+      print('💡 Flash ${newFlashState ? 'włączony' : 'wyłączony'}');
+    } catch (e) {
+      print('❌ Błąd flash: $e');
+    }
+  }
+
   Future<void> _safeDisposeCamera() async {
     if (_cameraController != null) {
       try {
         print('🗑️ Dispose kamery...');
+
+        // WYŁĄCZ FLASH PRZED ZAMKNIĘCIEM
+        if (_isFlashEnabled && _hasFlash) {
+          try {
+            await _cameraController!.setFlashMode(FlashMode.off);
+            _isFlashEnabled = false;
+          } catch (e) {
+            print('⚠️ Błąd wyłączania flash: $e');
+          }
+        }
+
         final controller = _cameraController;
         _cameraController = null;
 
@@ -278,6 +349,10 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
+        // WYŁĄCZ FLASH PRZY PAUZOWANIU APP
+        if (_isFlashEnabled) {
+          _toggleFlash();
+        }
         _pauseAllOperations();
         break;
       case AppLifecycleState.resumed:
@@ -421,7 +496,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     return messages[_scanAttempts % messages.length];
   }
 
-  // ✅ POPRAWIONA METODA - teraz przechodzi do ekranu ładowania
   Future<void> _navigateToFortuneLoading() async {
     if (_hasCompletedScan || _isDisposing || _isAnalyzing) {
       print('⚠️ Nawigacja przerwana - już w toku');
@@ -438,7 +512,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     });
 
     try {
-      // ✅ WYKONANIE ZDJĘCIA PRZED ZAMKNIĘCIEM KAMERY
+      // WYKONANIE ZDJĘCIA PRZED ZAMKNIĘCIEM KAMERY
       XFile? palmPhoto;
       if (_cameraController != null && _cameraController!.value.isInitialized) {
         try {
@@ -449,10 +523,10 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         }
       }
 
-      // ✅ BEZPIECZNE ZAMKNIĘCIE KAMERY
+      // BEZPIECZNE ZAMKNIĘCIE KAMERY
       await _safeDisposeCamera();
 
-      // ✅ TWORZENIE UserData
+      // TWORZENIE UserData
       final userData = UserData(
         name: widget.userName,
         birthDate: widget.birthDate ?? DateTime(2000, 1, 1),
@@ -470,7 +544,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                 FortuneLoadingScreen(
               userData: userData,
               handType: _targetHand,
-              palmPhoto: palmPhoto, // ✅ Przekaż prawdziwe zdjęcie!
+              palmPhoto: palmPhoto,
             ),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
@@ -690,6 +764,55 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                   iconSize: 20,
                 ),
               ),
+              // PRZYCISKI KAMERY I LATARKI
+              if (_availableCameras.length > 1)
+                Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.cyan.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: IconButton(
+                    onPressed: _switchCamera,
+                    icon:
+                        const Icon(Icons.flip_camera_ios, color: Colors.white),
+                    iconSize: 20,
+                    tooltip: 'Przełącz kamerę',
+                  ),
+                ),
+              if (_hasFlash)
+                Container(
+                  margin: const EdgeInsets.only(left: 8),
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: _isFlashEnabled
+                          ? AppColors.cyan
+                          : AppColors.cyan.withOpacity(0.3),
+                      width: 1,
+                    ),
+                    color: _isFlashEnabled
+                        ? AppColors.cyan.withOpacity(0.2)
+                        : null,
+                  ),
+                  child: IconButton(
+                    onPressed: _toggleFlash,
+                    icon: Icon(
+                      _isFlashEnabled ? Icons.flash_on : Icons.flash_off,
+                      color: _isFlashEnabled ? AppColors.cyan : Colors.white,
+                    ),
+                    iconSize: 20,
+                    tooltip:
+                        _isFlashEnabled ? 'Wyłącz latarkę' : 'Włącz latarkę',
+                  ),
+                ),
               Flexible(
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -928,7 +1051,93 @@ class _PalmScanScreenState extends State<PalmScanScreen>
             },
           ),
         ),
-        // [pozostałe rogi...]
+        Positioned(
+          top: 5,
+          right: 5,
+          child: AnimatedBuilder(
+            animation: _runeAnimation,
+            builder: (context, child) {
+              return Transform.rotate(
+                angle: -_runeAnimation.value * math.pi / 6,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.cyan.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: AppColors.cyan.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.star_border,
+                    color: AppColors.cyan,
+                    size: 16,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        Positioned(
+          bottom: 5,
+          left: 5,
+          child: AnimatedBuilder(
+            animation: _runeAnimation,
+            builder: (context, child) {
+              return Transform.rotate(
+                angle: _runeAnimation.value * math.pi / 4,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.cyan.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: AppColors.cyan.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.star_border,
+                    color: AppColors.cyan,
+                    size: 16,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        Positioned(
+          bottom: 5,
+          right: 5,
+          child: AnimatedBuilder(
+            animation: _runeAnimation,
+            builder: (context, child) {
+              return Transform.rotate(
+                angle: -_runeAnimation.value * math.pi / 4,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.cyan.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: AppColors.cyan.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.star_border,
+                    color: AppColors.cyan,
+                    size: 16,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ],
     );
   }
