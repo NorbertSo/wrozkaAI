@@ -1,6 +1,11 @@
+// lib/models/user_data.dart
+// Zaktualizowany model z miejscem i godziną urodzenia
+
 class UserData {
   final String name;
   final DateTime birthDate;
+  final String? birthTime; // Opcjonalna godzina urodzenia (HH:mm format)
+  final String? birthPlace; // Miejsce urodzenia
   final String gender; // 'male', 'female', 'other'
   final String dominantHand; // 'left', 'right'
   final DateTime registrationDate;
@@ -8,6 +13,8 @@ class UserData {
   UserData({
     required this.name,
     required this.birthDate,
+    this.birthTime,
+    this.birthPlace,
     required this.gender,
     required this.dominantHand,
     required this.registrationDate,
@@ -17,6 +24,8 @@ class UserData {
     return {
       'name': name,
       'birthDate': birthDate.toIso8601String(),
+      'birthTime': birthTime,
+      'birthPlace': birthPlace,
       'gender': gender,
       'dominantHand': dominantHand,
       'registrationDate': registrationDate.toIso8601String(),
@@ -27,6 +36,8 @@ class UserData {
     return UserData(
       name: json['name'],
       birthDate: DateTime.parse(json['birthDate']),
+      birthTime: json['birthTime'],
+      birthPlace: json['birthPlace'],
       gender: json['gender'],
       dominantHand: json['dominantHand'],
       registrationDate: DateTime.parse(json['registrationDate']),
@@ -44,7 +55,7 @@ class UserData {
     return age;
   }
 
-  // Zwróć znak zodiaku
+  // Zwróć znak zodiaku - POPRAWIONE ZAKRESY
   String get zodiacSign {
     final month = birthDate.month;
     final day = birthDate.day;
@@ -83,6 +94,8 @@ class UserData {
   UserData copyWith({
     String? name,
     DateTime? birthDate,
+    String? birthTime,
+    String? birthPlace,
     String? gender,
     String? dominantHand,
     DateTime? registrationDate,
@@ -90,15 +103,38 @@ class UserData {
     return UserData(
       name: name ?? this.name,
       birthDate: birthDate ?? this.birthDate,
+      birthTime: birthTime ?? this.birthTime,
+      birthPlace: birthPlace ?? this.birthPlace,
       gender: gender ?? this.gender,
       dominantHand: dominantHand ?? this.dominantHand,
       registrationDate: registrationDate ?? this.registrationDate,
     );
   }
 
+  // Sformatowana godzina urodzenia dla UI
+  String get formattedBirthTime {
+    if (birthTime == null) return 'Nie podano';
+    return birthTime!;
+  }
+
+  // Sformatowane miejsce urodzenia dla UI
+  String get formattedBirthPlace {
+    if (birthPlace == null || birthPlace!.isEmpty) return 'Nie podano';
+    return birthPlace!;
+  }
+
+  // Pełne dane do przekazania AI
+  String get fullBirthInfo {
+    final dateStr = '${birthDate.day}.${birthDate.month}.${birthDate.year}';
+    final timeStr = birthTime ?? 'godzina nieznana';
+    final placeStr = birthPlace ?? 'miejsce nieznane';
+
+    return 'Data urodzenia: $dateStr, Godzina: $timeStr, Miejsce: $placeStr';
+  }
+
   @override
   String toString() {
-    return 'UserData(name: $name, age: $age, gender: $gender, dominantHand: $dominantHand, zodiacSign: $zodiacSign)';
+    return 'UserData(name: $name, age: $age, gender: $gender, dominantHand: $dominantHand, zodiacSign: $zodiacSign, birthPlace: $birthPlace, birthTime: $birthTime)';
   }
 
   @override
@@ -107,6 +143,8 @@ class UserData {
     return other is UserData &&
         other.name == name &&
         other.birthDate == birthDate &&
+        other.birthTime == birthTime &&
+        other.birthPlace == birthPlace &&
         other.gender == gender &&
         other.dominantHand == dominantHand;
   }
@@ -115,6 +153,8 @@ class UserData {
   int get hashCode {
     return name.hashCode ^
         birthDate.hashCode ^
+        (birthTime?.hashCode ?? 0) ^
+        (birthPlace?.hashCode ?? 0) ^
         gender.hashCode ^
         dominantHand.hashCode;
   }

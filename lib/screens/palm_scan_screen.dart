@@ -1,16 +1,16 @@
 // lib/screens/palm_scan_screen.dart
-// POPRAWIONA WERSJA z przejściem do ekranu ładowania + wybór kamery + latarka
+// NOWY REDESIGN - z przyciskami kontroli i konturami dłoni
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:camera/camera.dart';
+import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import '../utils/constants.dart';
 import '../services/palm_detection_service.dart';
 import '../services/logging_service.dart';
-import '../models/palm_analysis.dart';
 import '../models/user_data.dart';
 import 'fortune_loading_screen.dart';
 
@@ -39,56 +39,51 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   // ===== STAN KAMERY =====
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
-  String _detectionStatus = 'Inicjalizacja mistycznej energii...';
   bool _showCamera = false;
-
-  // ===== NOWE: KONTROLA KAMERY I LATARKI =====
-  List<CameraDescription> _availableCameras = [];
-  int _selectedCameraIndex = 0;
-  bool _isFlashEnabled = false;
-  bool _hasFlash = false;
+  bool _isFlashOn = false;
+  bool _isFrontCamera = false; // ✅ POPRAWKA: Domyślnie tylna kamera
+  List<CameraDescription> _cameras = [];
 
   // ===== FLAGI ZABEZPIECZAJĄCE =====
   bool _isDisposing = false;
   bool _hasCompletedScan = false;
   bool _isCameraLocked = false;
   bool _isAnalyzing = false;
+  bool _isTakingPhoto = false;
 
   // ===== SERWISY =====
   final PalmDetectionService _palmDetectionService = PalmDetectionService();
   final LoggingService _loggingService = LoggingService();
+  final ImagePicker _imagePicker = ImagePicker();
 
   // ===== WYKRYWANIE =====
-  int _scanAttempts = 0;
-  int _goodChecks = 0;
-  final int _requiredGoodChecks = 3;
   bool _palmDetected = false;
+  String _detectionMessage = '';
+  String _positionStatus = 'neutral'; // 'good', 'bad', 'neutral'
 
   // ===== ANIMACJE =====
   late AnimationController _pulseController;
-  late AnimationController _orbController;
-  late AnimationController _runeController;
+  late AnimationController _contourController;
   late AnimationController _feedbackController;
   late Animation<double> _pulseAnimation;
-  late Animation<double> _orbAnimation;
-  late Animation<double> _runeAnimation;
+  late Animation<double> _contourAnimation;
   late Animation<double> _feedbackAnimation;
 
   // ===== TIMERY =====
   Timer? _detectionTimer;
-  Timer? _forceCloseTimer;
 
   @override
   void initState() {
     super.initState();
-    print('🚀 PalmScanScreen initState - userName: ${widget.userName}');
+    print('🚀 NEW PalmScanScreen initState - userName: ${widget.userName}');
     WidgetsBinding.instance.addObserver(this);
     _initializeAnimations();
+    _initializeDetectionMessage();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_isDisposing) {
         if (widget.testMode) {
-          print('🧪 Tryb testowy - inicjalizacja');
+          print('🧪 Tryb testowy - inicjalizacja bez kamery');
           _initializeTestMode();
         } else {
           print('📷 Tryb kamery - inicjalizacja');
@@ -105,34 +100,25 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         vsync: this,
       )..repeat(reverse: true);
 
-      _orbController = AnimationController(
-        duration: const Duration(milliseconds: 4000),
-        vsync: this,
-      )..repeat();
-
-      _runeController = AnimationController(
-        duration: const Duration(milliseconds: 6000),
+      _contourController = AnimationController(
+        duration: const Duration(milliseconds: 3000),
         vsync: this,
       )..repeat();
 
       _feedbackController = AnimationController(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 400),
         vsync: this,
       );
 
-      _pulseAnimation = Tween<double>(begin: 0.9, end: 1.1).animate(
+      _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
         CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
       );
 
-      _orbAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-        CurvedAnimation(parent: _orbController, curve: Curves.linear),
+      _contourAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _contourController, curve: Curves.linear),
       );
 
-      _runeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-        CurvedAnimation(parent: _runeController, curve: Curves.linear),
-      );
-
-      _feedbackAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
+      _feedbackAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
         CurvedAnimation(parent: _feedbackController, curve: Curves.elasticOut),
       );
 
@@ -142,6 +128,14 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     }
   }
 
+  void _initializeDetectionMessage() {
+    final handType = _getTargetHandName();
+    setState(() {
+      _detectionMessage = 'Pokaż $handType dłoń';
+      _positionStatus = 'neutral';
+    });
+  }
+
   void _initializeTestMode() {
     if (_isDisposing || _hasCompletedScan) return;
 
@@ -149,32 +143,9 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     setState(() {
       _isCameraInitialized = true;
       _showCamera = false;
-      _detectionStatus = _getHandInstruction();
+      _detectionMessage = 'Tryb testowy - ${_getTargetHandName()} dłoń';
     });
-    _startPalmDetection();
-  }
-
-  String _getHandInstruction() {
-    if (widget.userGender == 'other' ||
-        widget.userGender == 'inna' ||
-        widget.userGender == 'neutral') {
-      final dominantHand = widget.dominantHand?.toLowerCase() ?? 'right';
-      final handName = dominantHand == 'left' ? 'lewą' : 'prawą';
-      return 'Przygotuj $handName dłoń - dominującą energię';
-    } else {
-      final handType = widget.userGender == 'female' ? 'lewą' : 'prawą';
-      final energyType = widget.userGender == 'female' ? 'kobiecą' : 'męską';
-      return 'Przygotuj $handType dłoń - $energyType energię';
-    }
-  }
-
-  String get _targetHand {
-    if (widget.userGender == 'other' ||
-        widget.userGender == 'inna' ||
-        widget.userGender == 'neutral') {
-      return widget.dominantHand?.toLowerCase() ?? 'right';
-    }
-    return widget.userGender == 'female' ? 'left' : 'right';
+    _startMockDetection();
   }
 
   String _getTargetHandName() {
@@ -187,6 +158,15 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     return widget.userGender == 'female' ? 'lewą' : 'prawą';
   }
 
+  String get _targetHand {
+    if (widget.userGender == 'other' ||
+        widget.userGender == 'inna' ||
+        widget.userGender == 'neutral') {
+      return widget.dominantHand?.toLowerCase() ?? 'right';
+    }
+    return widget.userGender == 'female' ? 'left' : 'right';
+  }
+
   Future<void> _initializeCamera() async {
     if (_isDisposing || _hasCompletedScan || _isCameraLocked) return;
 
@@ -197,25 +177,28 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       await _safeDisposeCamera();
       if (_isDisposing || _hasCompletedScan) return;
 
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) {
+      _cameras = await availableCameras();
+      if (_cameras.isEmpty) {
         throw CameraException('no_cameras', 'Brak dostępnych kamer');
       }
 
-      // ZAPISZ DOSTĘPNE KAMERY
-      _availableCameras = cameras;
+      // Preferuj kamerę tylną
+      CameraDescription? frontCamera;
+      CameraDescription? backCamera;
 
-      // ZNAJDŹ KAMERĘ TYLNĄ JAKO DOMYŚLNĄ
-      _selectedCameraIndex = 0;
-      for (int i = 0; i < cameras.length; i++) {
-        if (cameras[i].lensDirection == CameraLensDirection.back) {
-          _selectedCameraIndex = i;
-          break;
+      for (var camera in _cameras) {
+        if (camera.lensDirection == CameraLensDirection.front) {
+          frontCamera = camera;
+        } else if (camera.lensDirection == CameraLensDirection.back) {
+          backCamera = camera;
         }
       }
 
-      final selectedCamera = cameras[_selectedCameraIndex];
-      print('🎯 Wybrana kamera: ${selectedCamera.lensDirection}');
+      final selectedCamera = _isFrontCamera
+          ? (frontCamera ?? backCamera ?? _cameras[0])
+          : (backCamera ??
+              frontCamera ??
+              _cameras[0]); // ✅ POPRAWKA: Domyślnie tylna
 
       _cameraController = CameraController(
         selectedCamera,
@@ -238,73 +221,26 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         return;
       }
 
-      // SPRAWDŹ DOSTĘPNOŚĆ FLASHA
-      _hasFlash = selectedCamera.lensDirection == CameraLensDirection.back;
-
       setState(() {
         _isCameraInitialized = true;
         _showCamera = true;
-        _detectionStatus = _getHandInstruction();
       });
 
-      print('✅ Kamera zainicjalizowana - Flash dostępny: $_hasFlash');
-      _startPalmDetection();
-      _startForceCloseTimer();
+      print('✅ Kamera zainicjalizowana');
+      _startMockDetection();
     } catch (e) {
       print('❌ Camera Error: $e');
       if (mounted && !_isDisposing) {
         setState(() {
-          _detectionStatus = 'Błąd kamery - przywołaj energię ponownie';
+          _detectionMessage = 'Błąd kamery - sprawdź uprawnienia';
           _isCameraInitialized = false;
           _showCamera = false;
+          _positionStatus = 'bad';
         });
+        _showCameraErrorDialog();
       }
     } finally {
       _isCameraLocked = false;
-    }
-  }
-
-  Future<void> _switchCamera() async {
-    if (_availableCameras.length < 2 || _isCameraLocked) return;
-
-    try {
-      HapticFeedback.lightImpact();
-
-      setState(() {
-        _selectedCameraIndex =
-            (_selectedCameraIndex + 1) % _availableCameras.length;
-        _isFlashEnabled = false; // Wyłącz flash przy przełączaniu
-      });
-
-      print('🔄 Przełączanie kamery...');
-      await _initializeCamera();
-    } catch (e) {
-      print('❌ Błąd przełączania kamery: $e');
-    }
-  }
-
-  Future<void> _toggleFlash() async {
-    if (!_hasFlash ||
-        _cameraController == null ||
-        !_cameraController!.value.isInitialized) {
-      return;
-    }
-
-    try {
-      HapticFeedback.lightImpact();
-
-      final newFlashState = !_isFlashEnabled;
-
-      await _cameraController!
-          .setFlashMode(newFlashState ? FlashMode.torch : FlashMode.off);
-
-      setState(() {
-        _isFlashEnabled = newFlashState;
-      });
-
-      print('💡 Flash ${newFlashState ? 'włączony' : 'wyłączony'}');
-    } catch (e) {
-      print('❌ Błąd flash: $e');
     }
   }
 
@@ -312,17 +248,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     if (_cameraController != null) {
       try {
         print('🗑️ Dispose kamery...');
-
-        // WYŁĄCZ FLASH PRZED ZAMKNIĘCIEM
-        if (_isFlashEnabled && _hasFlash) {
-          try {
-            await _cameraController!.setFlashMode(FlashMode.off);
-            _isFlashEnabled = false;
-          } catch (e) {
-            print('⚠️ Błąd wyłączania flash: $e');
-          }
-        }
-
         final controller = _cameraController;
         _cameraController = null;
 
@@ -330,6 +255,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
           setState(() {
             _isCameraInitialized = false;
             _showCamera = false;
+            _isFlashOn = false;
           });
         }
 
@@ -342,6 +268,62 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     }
   }
 
+  void _startMockDetection() {
+    if (_hasCompletedScan || _isDisposing) return;
+
+    print('🔍 START mock detection');
+    _detectionTimer?.cancel();
+    _detectionTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (!mounted || _hasCompletedScan || _isDisposing) {
+        timer.cancel();
+        return;
+      }
+      _simulateDetection();
+    });
+  }
+
+  void _simulateDetection() {
+    if (!mounted || _isDisposing || _hasCompletedScan) return;
+
+    final random = math.Random();
+    final detectionChance = random.nextDouble();
+
+    if (detectionChance > 0.7) {
+      // Dobra pozycja
+      setState(() {
+        _palmDetected = true;
+        _positionStatus = 'good';
+        _detectionMessage = 'Doskonała pozycja! ✨';
+      });
+      _triggerSuccessFeedback();
+    } else if (detectionChance > 0.4) {
+      // Średnia pozycja
+      setState(() {
+        _palmDetected = false;
+        _positionStatus = 'neutral';
+        _detectionMessage = _getRandomPositionHint();
+      });
+    } else {
+      // Zła pozycja
+      setState(() {
+        _palmDetected = false;
+        _positionStatus = 'bad';
+        _detectionMessage = 'Brak dłoni w kadre';
+      });
+    }
+  }
+
+  String _getRandomPositionHint() {
+    final hints = [
+      'Wyśrodkuj dłoń w konturze',
+      'Przybliż dłoń do kamery',
+      'Rozłóż palce szerzej',
+      'Trzymaj dłoń nieruchomo',
+      'Popraw oświetlenie',
+    ];
+    return hints[math.Random().nextInt(hints.length)];
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (widget.testMode || _hasCompletedScan) return;
@@ -349,10 +331,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
-        // WYŁĄCZ FLASH PRZY PAUZOWANIU APP
-        if (_isFlashEnabled) {
-          _toggleFlash();
-        }
         _pauseAllOperations();
         break;
       case AppLifecycleState.resumed:
@@ -364,7 +342,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   }
 
   void _pauseAllOperations() {
-    _cancelAllTimers();
+    _detectionTimer?.cancel();
     _safeDisposeCamera();
   }
 
@@ -378,155 +356,119 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     }
   }
 
-  void _cancelAllTimers() {
-    print('⏹️ Anulowanie timerów');
-    _detectionTimer?.cancel();
-    _forceCloseTimer?.cancel();
-    _detectionTimer = null;
-    _forceCloseTimer = null;
-  }
+  // ===== OBSŁUGA PRZYCISKÓW =====
 
-  void _startForceCloseTimer() {
-    if (_hasCompletedScan || _isDisposing) return;
-
-    _forceCloseTimer?.cancel();
-    _forceCloseTimer = Timer(const Duration(seconds: 30), () {
-      if (!_hasCompletedScan && mounted) {
-        print('⏰ TIMEOUT: Automatyczne zakończenie');
-        _forceCompleteScan();
-      }
-    });
-  }
-
-  void _startPalmDetection() {
-    if (_hasCompletedScan || _isDisposing) return;
-
-    print('🔍 START wykrywania dłoni');
-
-    _detectionTimer?.cancel();
-    _detectionTimer =
-        Timer.periodic(const Duration(milliseconds: 1500), (timer) {
-      if (!mounted || _hasCompletedScan || _isDisposing) {
-        timer.cancel();
-        return;
-      }
-
-      _scanAttempts++;
-      _checkPalmPosition();
-
-      if (_scanAttempts % 3 == 0) {
-        print(
-            '🔍 Skanowanie - próba $_scanAttempts, dobre: $_goodChecks/$_requiredGoodChecks');
-      }
-    });
-  }
-
-  Future<void> _checkPalmPosition() async {
-    if (!mounted || _isDisposing || _hasCompletedScan || _isAnalyzing) {
+  Future<void> _toggleFlash() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
       return;
     }
 
     try {
-      final detectionResult = await _palmDetectionService.validatePalmDetection(
-        handType: _targetHand,
-        userName: widget.userName,
-        isTestMode: widget.testMode,
+      setState(() {
+        _isFlashOn = !_isFlashOn;
+      });
+
+      await _cameraController!.setFlashMode(
+        _isFlashOn ? FlashMode.torch : FlashMode.off,
       );
 
-      if (detectionResult) {
-        _goodChecks++;
-        print('✅ DOBRE WARUNKI: $_goodChecks/$_requiredGoodChecks');
-
-        setState(() {
-          _palmDetected = true;
-          int remaining = _requiredGoodChecks - _goodChecks;
-          if (remaining > 0) {
-            _detectionStatus =
-                'Energia się koncentruje... jeszcze $remaining sprawdzeń';
-            _triggerHapticFeedback();
-          } else {
-            _detectionStatus = 'Mistyczne moce są z Tobą! Uwieczniam wizję...';
-            _triggerSuccessFeedback();
-          }
-        });
-
-        if (_goodChecks >= _requiredGoodChecks &&
-            !_isAnalyzing &&
-            !_hasCompletedScan) {
-          print('🎯 WSZYSTKIE WARUNKI SPEŁNIONE - PRZECHODZĘ DO ANALIZY!');
-          _cancelAllTimers();
-
-          Future.delayed(const Duration(milliseconds: 1500), () {
-            if (mounted && !_hasCompletedScan && !_isAnalyzing) {
-              _navigateToFortuneLoading();
-            }
-          });
-        }
-      } else {
-        if (_goodChecks > 0) {
-          print('❌ WARUNKI ZŁAMANE - RESET');
-        }
-        _goodChecks = 0;
-
-        setState(() {
-          _palmDetected = false;
-          _detectionStatus = _getPositioningMessage();
-        });
-        _triggerErrorFeedback();
-      }
+      HapticFeedback.selectionClick();
+      print('💡 Flash ${_isFlashOn ? "ON" : "OFF"}');
     } catch (e) {
-      print('❌ Błąd sprawdzania pozycji: $e');
-      _goodChecks = 0;
+      print('❌ Błąd flash: $e');
       setState(() {
-        _palmDetected = false;
-        _detectionStatus = 'Przeszkoda w energii - spróbuj ponownie';
+        _isFlashOn = false;
       });
     }
   }
 
-  String _getPositioningMessage() {
-    final handType = _getTargetHandName();
-    List<String> messages = [
-      'Umieść $handType dłoń w mistycznym kręgu',
-      'Pokaż wnętrze dłoni - niech energie płyną',
-      'Wycentruj dłoń w portalu wiedzy',
-      'Ustabilizuj aurę - trzymaj spokojnie',
-      'Wpuść światło na linię życia',
-    ];
-    return messages[_scanAttempts % messages.length];
+  Future<void> _switchCamera() async {
+    if (_cameras.length < 2 || _isCameraLocked) return;
+
+    try {
+      setState(() {
+        _isFrontCamera = !_isFrontCamera;
+      });
+
+      await _initializeCamera();
+      HapticFeedback.mediumImpact();
+      print('🔄 Camera switched to ${_isFrontCamera ? "FRONT" : "BACK"}');
+    } catch (e) {
+      print('❌ Błąd przełączania kamery: $e');
+    }
   }
 
-  Future<void> _navigateToFortuneLoading() async {
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        print('📁 Wybrano zdjęcie z galerii: ${pickedFile.path}');
+        HapticFeedback.mediumImpact();
+
+        // Przejdź do analizy
+        await _navigateToFortuneLoading(pickedFile);
+      }
+    } catch (e) {
+      print('❌ Błąd wyboru zdjęcia: $e');
+      _showErrorSnackBar('Nie udało się wybrać zdjęcia');
+    }
+  }
+
+  Future<void> _takePicture() async {
+    if (_isTakingPhoto ||
+        _cameraController == null ||
+        !_cameraController!.value.isInitialized) {
+      return;
+    }
+
+    setState(() {
+      _isTakingPhoto = true;
+    });
+
+    try {
+      print('📸 Robienie zdjęcia...');
+
+      final XFile photo = await _cameraController!.takePicture();
+
+      HapticFeedback.heavyImpact();
+      print('✅ Zdjęcie wykonane: ${photo.path}');
+
+      // Przejdź do analizy
+      await _navigateToFortuneLoading(photo);
+    } catch (e) {
+      print('❌ Błąd wykonywania zdjęcia: $e');
+      _showErrorSnackBar('Nie udało się wykonać zdjęcia');
+    } finally {
+      setState(() {
+        _isTakingPhoto = false;
+      });
+    }
+  }
+
+  Future<void> _navigateToFortuneLoading(XFile photo) async {
     if (_hasCompletedScan || _isDisposing || _isAnalyzing) {
       print('⚠️ Nawigacja przerwana - już w toku');
       return;
     }
 
-    print('🔮 === ROZPOCZYNAM PRZEJŚCIE DO EKRANU ŁADOWANIA ===');
-    _cancelAllTimers();
+    print('🔮 === PRZEJŚCIE DO EKRANU ŁADOWANIA ===');
+    _detectionTimer?.cancel();
 
     setState(() {
       _hasCompletedScan = true;
       _isAnalyzing = true;
-      _detectionStatus = 'Przygotowuję mistyczną analizę...';
+      _detectionMessage = 'Przygotowuję mistyczną analizę...';
     });
 
     try {
-      // WYKONANIE ZDJĘCIA PRZED ZAMKNIĘCIEM KAMERY
-      XFile? palmPhoto;
-      if (_cameraController != null && _cameraController!.value.isInitialized) {
-        try {
-          palmPhoto = await _cameraController!.takePicture();
-          print('📸 Zdjęcie wykonane: ${palmPhoto.path}');
-        } catch (photoError) {
-          print('❌ Błąd zdjęcia: $photoError');
-        }
-      }
-
-      // BEZPIECZNE ZAMKNIĘCIE KAMERY
+      // Bezpieczne zamknięcie kamery
       await _safeDisposeCamera();
 
-      // TWORZENIE UserData
+      // Tworzenie UserData
       final userData = UserData(
         name: widget.userName,
         birthDate: widget.birthDate ?? DateTime(2000, 1, 1),
@@ -544,7 +486,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                 FortuneLoadingScreen(
               userData: userData,
               handType: _targetHand,
-              palmPhoto: palmPhoto,
+              palmPhoto: photo,
             ),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
@@ -567,31 +509,18 @@ class _PalmScanScreenState extends State<PalmScanScreen>
             transitionDuration: const Duration(milliseconds: 1000),
           ),
         );
-      } else {
-        print('⚠️ Widget nie jest mounted - pomijam nawigację');
       }
     } catch (e) {
       print('❌ Błąd nawigacji: $e');
-
       if (mounted && !_isDisposing) {
         setState(() {
-          _detectionStatus =
-              'Zakłócenia w przepływie energii - spróbuj ponownie';
+          _detectionMessage = 'Błąd - spróbuj ponownie';
           _isAnalyzing = false;
           _hasCompletedScan = false;
+          _positionStatus = 'bad';
         });
-
-        _showErrorDialog(e.toString());
+        _showErrorSnackBar('Wystąpił błąd podczas analizy');
       }
-    }
-  }
-
-  void _triggerHapticFeedback() {
-    try {
-      HapticFeedback.selectionClick();
-      _feedbackController.forward().then((_) => _feedbackController.reverse());
-    } catch (e) {
-      print('❌ Błąd haptic feedback: $e');
     }
   }
 
@@ -600,20 +529,95 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       HapticFeedback.mediumImpact();
       _feedbackController.forward().then((_) => _feedbackController.reverse());
     } catch (e) {
-      print('❌ Błąd success feedback: $e');
+      print('❌ Błąd haptic feedback: $e');
     }
   }
 
-  void _triggerErrorFeedback() {
-    try {
-      HapticFeedback.heavyImpact();
-    } catch (e) {
-      print('❌ Błąd error feedback: $e');
-    }
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.cinzelDecorative(color: Colors.white),
+        ),
+        backgroundColor: Colors.red.withOpacity(0.8),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
-  String get _topPanelTitle {
-    return 'Drogi/a ${widget.userName}';
+  void _showCameraErrorDialog() {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A2332),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.red.withOpacity(0.5), width: 1),
+        ),
+        title: Text(
+          'Kamera niedostępna',
+          style: GoogleFonts.cinzelDecorative(
+            color: Colors.red,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.camera_alt_outlined, color: Colors.red, size: 48),
+            const SizedBox(height: 16),
+            Text(
+              'Nie mogę wykonać wróżby z dłoni.\nSprawdź uprawnienia do kamery lub wybierz zdjęcie z galerii.',
+              style: GoogleFonts.cinzelDecorative(
+                color: Colors.white70,
+                fontSize: 14,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: Text(
+              'Wróć',
+              style: GoogleFonts.cinzelDecorative(color: Colors.grey),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _pickImageFromGallery();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.cyan,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              'Wybierz zdjęcie',
+              style: GoogleFonts.cinzelDecorative(
+                color: Colors.black,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -623,12 +627,11 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     _hasCompletedScan = true;
 
     WidgetsBinding.instance.removeObserver(this);
-    _cancelAllTimers();
+    _detectionTimer?.cancel();
 
     try {
       _pulseController.dispose();
-      _orbController.dispose();
-      _runeController.dispose();
+      _contourController.dispose();
       _feedbackController.dispose();
       print('✅ Animacje disposed');
     } catch (e) {
@@ -636,7 +639,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     }
 
     _safeDisposeCamera();
-
     print('✅ DISPOSE - ZAKOŃCZONE');
     super.dispose();
   }
@@ -650,11 +652,9 @@ class _PalmScanScreenState extends State<PalmScanScreen>
           _buildMysticalBackground(),
           if (_showCamera &&
               _cameraController != null &&
-              _cameraController!.value.isInitialized &&
-              !_isDisposing &&
-              !_hasCompletedScan)
+              _cameraController!.value.isInitialized)
             _buildCameraPreview(),
-          _buildMysticalOverlay(),
+          _buildOverlay(),
         ],
       ),
     );
@@ -674,10 +674,10 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         ),
       ),
       child: AnimatedBuilder(
-        animation: _orbAnimation,
+        animation: _contourAnimation,
         builder: (context, child) {
           return CustomPaint(
-            painter: MysticalBackgroundPainter(_orbAnimation.value),
+            painter: ScanBackgroundPainter(_contourAnimation.value),
             size: Size.infinite,
           );
         },
@@ -687,472 +687,293 @@ class _PalmScanScreenState extends State<PalmScanScreen>
 
   Widget _buildCameraPreview() {
     return Positioned.fill(
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(0),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(0),
-          child: CameraPreview(_cameraController!),
-        ),
+      child: ClipRRect(
+        child: CameraPreview(_cameraController!),
       ),
     );
   }
 
-  Widget _buildMysticalOverlay() {
+  Widget _buildOverlay() {
     return SafeArea(
       child: Column(
         children: [
-          _buildTopMysticalPanel(),
+          _buildTopInstructions(),
           Expanded(
-            child: Center(
-              child: _buildScanningFrame(),
-            ),
+            child: _buildCenterFrame(),
           ),
-          _buildBottomMysticalPanel(),
+          _buildBottomControls(),
         ],
       ),
     );
   }
 
-  Widget _buildTopMysticalPanel() {
+  Widget _buildTopInstructions() {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
           colors: [
-            Colors.black.withOpacity(0.85),
+            Colors.black.withOpacity(0.8),
             Colors.black.withOpacity(0.6),
           ],
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.cyan.withOpacity(0.4),
+          color: AppColors.cyan.withOpacity(0.3),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.cyan.withOpacity(0.15),
-            blurRadius: 12,
-            spreadRadius: 1,
-          ),
-        ],
       ),
       child: Column(
         children: [
           Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppColors.cyan.withOpacity(0.3),
-                    width: 1,
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                iconSize: 20,
+              ),
+              Expanded(
+                child: Text(
+                  'SKAN DŁONI',
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 18,
+                    color: AppColors.cyan,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
                   ),
-                ),
-                child: IconButton(
-                  onPressed: () {
-                    print('🔙 Powrót do poprzedniego ekranu');
-                    Navigator.of(context).pop();
-                  },
-                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                  iconSize: 20,
+                  textAlign: TextAlign.center,
                 ),
               ),
-              // PRZYCISKI KAMERY I LATARKI
-              if (_availableCameras.length > 1)
-                Container(
-                  margin: const EdgeInsets.only(left: 8),
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.cyan.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: IconButton(
-                    onPressed: _switchCamera,
-                    icon:
-                        const Icon(Icons.flip_camera_ios, color: Colors.white),
-                    iconSize: 20,
-                    tooltip: 'Przełącz kamerę',
-                  ),
-                ),
-              if (_hasFlash)
-                Container(
-                  margin: const EdgeInsets.only(left: 8),
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: _isFlashEnabled
-                          ? AppColors.cyan
-                          : AppColors.cyan.withOpacity(0.3),
-                      width: 1,
-                    ),
-                    color: _isFlashEnabled
-                        ? AppColors.cyan.withOpacity(0.2)
-                        : null,
-                  ),
-                  child: IconButton(
-                    onPressed: _toggleFlash,
-                    icon: Icon(
-                      _isFlashEnabled ? Icons.flash_on : Icons.flash_off,
-                      color: _isFlashEnabled ? AppColors.cyan : Colors.white,
-                    ),
-                    iconSize: 20,
-                    tooltip:
-                        _isFlashEnabled ? 'Wyłącz latarkę' : 'Włącz latarkę',
-                  ),
-                ),
-              Flexible(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      AnimatedBuilder(
-                        animation: _runeAnimation,
-                        builder: (context, child) {
-                          return Transform.rotate(
-                            angle: _runeAnimation.value * 2 * math.pi,
-                            child: Icon(
-                              Icons.auto_awesome,
-                              color: AppColors.cyan,
-                              size: 20,
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          'MISTYCZNY RYTUAŁ',
-                          style: GoogleFonts.cinzelDecorative(
-                            fontSize: 16,
-                            color: AppColors.cyan,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.0,
-                          ),
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      AnimatedBuilder(
-                        animation: _runeAnimation,
-                        builder: (context, child) {
-                          return Transform.rotate(
-                            angle: -_runeAnimation.value * 2 * math.pi,
-                            child: Icon(
-                              Icons.auto_awesome,
-                              color: AppColors.cyan,
-                              size: 20,
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 44),
+              const SizedBox(width: 40),
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            _topPanelTitle,
-            style: GoogleFonts.cinzelDecorative(
-              fontSize: 16,
-              color: Colors.white,
-              fontWeight: FontWeight.w400,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _getHandInstruction(),
-            style: GoogleFonts.cinzelDecorative(
-              fontSize: 14,
-              color: AppColors.cyan.withOpacity(0.8),
-              fontWeight: FontWeight.w300,
-            ),
-            textAlign: TextAlign.center,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _targetHand == 'left' ? '🤚' : '🖐️',
+                style: const TextStyle(fontSize: 24),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Pokaż ${_getTargetHandName().toUpperCase()} DŁOŃ',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 16,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildScanningFrame() {
+  Widget _buildCenterFrame() {
+    return Center(
+      child: AnimatedBuilder(
+        animation: _feedbackAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _palmDetected ? _feedbackAnimation.value : 1.0,
+            child: _buildPalmFrame(),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPalmFrame() {
+    Color frameColor;
+    switch (_positionStatus) {
+      case 'good':
+        frameColor = Colors.green;
+        break;
+      case 'bad':
+        frameColor = Colors.red;
+        break;
+      default:
+        frameColor = AppColors.cyan;
+    }
+
     return AnimatedBuilder(
-      animation: _feedbackAnimation,
+      animation: _pulseAnimation,
       builder: (context, child) {
-        return Transform.scale(
-          scale: _palmDetected ? _feedbackAnimation.value : 1.0,
-          child: AnimatedBuilder(
-            animation: _pulseAnimation,
-            builder: (context, child) {
-              return Container(
-                width: 300,
-                height: 220,
+        return Container(
+          width: 280,
+          height: 200,
+          child: Stack(
+            children: [
+              // ✅ USUNIĘTY BRZYDKI KWADRAT - tylko delikatna ramka
+              Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: _palmDetected
-                        ? Colors.green.withOpacity(0.9)
-                        : AppColors.cyan.withOpacity(0.7),
-                    width: 3,
+                    color: frameColor.withOpacity(0.6),
+                    width: 2, // cieńsza ramka
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (_palmDetected ? Colors.green : AppColors.cyan)
-                          .withOpacity(0.3 * _pulseAnimation.value),
-                      blurRadius: 25,
-                      spreadRadius: 8,
-                    ),
-                  ],
                 ),
-                child: Stack(
-                  children: [
-                    _buildMysticalCorners(),
-                    Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 64,
-                            height: 64,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: _palmDetected
-                                    ? Colors.green
-                                    : AppColors.cyan,
-                                width: 2,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: (_palmDetected
-                                          ? Colors.green
-                                          : AppColors.cyan)
-                                      .withOpacity(0.3),
-                                  blurRadius: 12,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              _palmDetected
-                                  ? Icons.check_circle_outline
-                                  : Icons.pan_tool_outlined,
-                              color:
-                                  _palmDetected ? Colors.green : AppColors.cyan,
-                              size: 32,
-                              semanticLabel: _palmDetected
-                                  ? 'Dłoń wykryta'
-                                  : 'Umieść dłoń w ramce',
-                            ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    color: Colors.transparent, // ✅ PRZEZROCZYSTE TŁO
+                    child: Stack(
+                      children: [
+                        // ✅ DUŻA IKONA DŁONI W ŚRODKU
+                        Center(
+                          child: Icon(
+                            Icons.pan_tool_outlined, // Ta sama ikona co w menu
+                            size: 120, // Duża ikona
+                            color: frameColor.withOpacity(0.3),
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _palmDetected
-                                ? 'ENERGIA WYKRYTA'
-                                : 'POKAŻ ${_getTargetHandName().toUpperCase()} DŁOŃ',
-                            style: GoogleFonts.cinzelDecorative(
-                              color:
-                                  _palmDetected ? Colors.green : AppColors.cyan,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.8,
-                              height: 1.2,
-                            ),
-                            textAlign: TextAlign.center,
+                        ),
+
+                        // Subtelne linie dłoni jako overlay
+                        CustomPaint(
+                          painter: PalmContourPainter(
+                            animationValue: _contourAnimation.value,
+                            frameColor: frameColor,
+                            positionStatus: _positionStatus,
                           ),
-                          if (_palmDetected && _goodChecks > 0) ...[
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                color: Colors.green.withOpacity(0.15),
-                                border: Border.all(
-                                  color: Colors.green.withOpacity(0.6),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Text(
-                                '$_goodChecks / $_requiredGoodChecks',
-                                style: GoogleFonts.cinzelDecorative(
-                                  color: Colors.green,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                semanticsLabel:
-                                    'Postęp: $_goodChecks z $_requiredGoodChecks sprawdzeń',
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                          size: Size.infinite,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              );
-            },
+              ),
+
+              // Status bubble z komunikatem
+              if (_detectionMessage.isNotEmpty)
+                Positioned(
+                  top: -12,
+                  left: 20,
+                  right: 20,
+                  child: _buildStatusBubble(),
+                ),
+
+              // Narożne wskaźniki
+              _buildCornerIndicators(frameColor),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildMysticalCorners() {
+  Widget _buildStatusBubble() {
+    Color bubbleColor;
+    IconData bubbleIcon;
+
+    switch (_positionStatus) {
+      case 'good':
+        bubbleColor = Colors.green;
+        bubbleIcon = Icons.check_circle;
+        break;
+      case 'bad':
+        bubbleColor = Colors.red;
+        bubbleIcon = Icons.warning;
+        break;
+      default:
+        bubbleColor = AppColors.cyan;
+        bubbleIcon = Icons.info;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: bubbleColor.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: bubbleColor, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: bubbleColor.withOpacity(0.4),
+            blurRadius: 8,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            bubbleIcon,
+            color: Colors.white,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              _detectionMessage,
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 13,
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCornerIndicators(Color frameColor) {
     return Stack(
       children: [
+        // Top-left corner
         Positioned(
           top: 5,
           left: 5,
-          child: AnimatedBuilder(
-            animation: _runeAnimation,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: _runeAnimation.value * math.pi / 6,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: AppColors.cyan.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: AppColors.cyan.withOpacity(0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.star_border,
-                    color: AppColors.cyan,
-                    size: 16,
-                  ),
-                ),
-              );
-            },
-          ),
+          child: _buildCornerWidget(frameColor),
         ),
+        // Top-right corner
         Positioned(
           top: 5,
           right: 5,
-          child: AnimatedBuilder(
-            animation: _runeAnimation,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: -_runeAnimation.value * math.pi / 6,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: AppColors.cyan.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: AppColors.cyan.withOpacity(0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.star_border,
-                    color: AppColors.cyan,
-                    size: 16,
-                  ),
-                ),
-              );
-            },
-          ),
+          child: _buildCornerWidget(frameColor),
         ),
+        // Bottom-left corner
         Positioned(
           bottom: 5,
           left: 5,
-          child: AnimatedBuilder(
-            animation: _runeAnimation,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: _runeAnimation.value * math.pi / 4,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: AppColors.cyan.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: AppColors.cyan.withOpacity(0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.star_border,
-                    color: AppColors.cyan,
-                    size: 16,
-                  ),
-                ),
-              );
-            },
-          ),
+          child: _buildCornerWidget(frameColor),
         ),
+        // Bottom-right corner
         Positioned(
           bottom: 5,
           right: 5,
-          child: AnimatedBuilder(
-            animation: _runeAnimation,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: -_runeAnimation.value * math.pi / 4,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: AppColors.cyan.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: AppColors.cyan.withOpacity(0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.star_border,
-                    color: AppColors.cyan,
-                    size: 16,
-                  ),
-                ),
-              );
-            },
-          ),
+          child: _buildCornerWidget(frameColor),
         ),
       ],
     );
   }
 
-  Widget _buildBottomMysticalPanel() {
+  Widget _buildCornerWidget(Color color) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        border: Border.all(color: color.withOpacity(0.8), width: 2),
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+
+  Widget _buildBottomControls() {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
           colors: [
-            Colors.black.withOpacity(0.4),
             Colors.black.withOpacity(0.8),
+            Colors.black.withOpacity(0.6),
           ],
         ),
         borderRadius: BorderRadius.circular(25),
@@ -1160,175 +981,46 @@ class _PalmScanScreenState extends State<PalmScanScreen>
           color: AppColors.cyan.withOpacity(0.3),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.cyan.withOpacity(0.2),
-            blurRadius: 15,
-            spreadRadius: 2,
-          ),
-        ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: [
-          // Status detection
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: _palmDetected
-                  ? Colors.green.withOpacity(0.12)
-                  : Colors.black.withOpacity(0.7),
-              border: Border.all(
-                color: _palmDetected
-                    ? Colors.green.withOpacity(0.4)
-                    : AppColors.cyan.withOpacity(0.4),
-                width: 1,
-              ),
-            ),
-            child: Text(
-              _detectionStatus,
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 16,
-                color: _palmDetected
-                    ? Colors.green.withOpacity(0.95)
-                    : Colors.white,
-                fontWeight: FontWeight.w400,
-                height: 1.4,
-                letterSpacing: 0.3,
-              ),
-              textAlign: TextAlign.center,
+          // Galeria - po lewej
+          Expanded(
+            child: _buildControlButton(
+              icon: Icons.photo_library,
+              label: 'Galeria',
+              onTap: _pickImageFromGallery,
+              isEnabled: true,
             ),
           ),
 
-          // Test mode button
-          if (widget.testMode) ...[
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: _isAnalyzing
-                    ? null
-                    : () {
-                        print('🧪 RĘCZNE WYWOŁANIE ANALIZY - TEST MODE');
-                        _navigateToFortuneLoading();
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.cyan,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  disabledBackgroundColor: AppColors.cyan.withOpacity(0.5),
-                ),
-                child: Text(
-                  _isAnalyzing ? 'Analizuję...' : 'Testuj Analizę',
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+          // Spacer
+          const SizedBox(width: 20),
 
-  void _restartScanning() {
-    if (_isDisposing || _hasCompletedScan) return;
+          // CENTRALNY PRZYCISK ZDJĘCIA
+          _buildMainCaptureButton(),
 
-    print('🔄 Restart skanowania');
+          // Spacer
+          const SizedBox(width: 20),
 
-    setState(() {
-      _hasCompletedScan = false;
-      _isAnalyzing = false;
-      _scanAttempts = 0;
-      _goodChecks = 0;
-      _palmDetected = false;
-      _detectionStatus = _getHandInstruction();
-    });
-
-    _cancelAllTimers();
-
-    if (widget.testMode) {
-      _initializeTestMode();
-    } else {
-      _initializeCamera();
-    }
-  }
-
-  void _showErrorDialog(String error) {
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.black87,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.red.withOpacity(0.5), width: 1),
-        ),
-        title: Text(
-          'Błąd Analizy',
-          style: GoogleFonts.cinzelDecorative(
-            color: Colors.red,
-            fontSize: 20,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline,
-              color: Colors.red,
-              size: 48,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Wystąpił błąd podczas analizy dłoni:\n\n$error',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.white70,
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: Text(
-              'Anuluj',
-              style: GoogleFonts.cinzelDecorative(color: Colors.grey),
+          // Latarka - po prawej
+          Expanded(
+            child: _buildControlButton(
+              icon: _isFlashOn ? Icons.flash_on : Icons.flash_off,
+              label: 'Latarka',
+              onTap: _toggleFlash,
+              isActive: _isFlashOn,
+              isEnabled: _showCamera,
             ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _restartScanning();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: Text(
-              'Spróbuj ponownie',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+
+          // Przełącz kamerę - skrajnie po prawej
+          Expanded(
+            child: _buildControlButton(
+              icon: Icons.flip_camera_ios,
+              label: 'Przełącz',
+              onTap: _switchCamera,
+              isEnabled: _showCamera && _cameras.length > 1,
             ),
           ),
         ],
@@ -1336,29 +1028,212 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     );
   }
 
-  void _forceCompleteScan() {
-    if (_hasCompletedScan || _isDisposing) return;
+  Widget _buildControlButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isActive = false,
+    bool isEnabled = true,
+  }) {
+    return Opacity(
+      opacity: isEnabled ? 1.0 : 0.5,
+      child: GestureDetector(
+        onTap: isEnabled ? onTap : null,
+        child: Container(
+          width: 60,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isActive
+                      ? AppColors.cyan.withOpacity(0.3)
+                      : Colors.white.withOpacity(0.1),
+                  border: Border.all(
+                    color: isActive
+                        ? AppColors.cyan
+                        : Colors.white.withOpacity(0.3),
+                    width: 2,
+                  ),
+                ),
+                child: Icon(
+                  icon,
+                  color: isActive ? AppColors.cyan : Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 11,
+                  color: isActive ? AppColors.cyan : Colors.white70,
+                  fontWeight: FontWeight.w400,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-    print('⏰ TIMEOUT: Wymuszone zakończenie skanowania');
-
-    setState(() {
-      _detectionStatus = 'Czas skanowania upłynął - wykonuję analizę...';
-      _hasCompletedScan = true;
-    });
-
-    Future.delayed(const Duration(milliseconds: 1000), () {
-      if (mounted && !_isDisposing) {
-        _navigateToFortuneLoading();
-      }
-    });
+  Widget _buildMainCaptureButton() {
+    return GestureDetector(
+      onTap: _isTakingPhoto ? null : _takePicture,
+      child: AnimatedBuilder(
+        animation: _pulseAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _isTakingPhoto ? 0.9 : _pulseAnimation.value,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    AppColors.cyan,
+                    AppColors.cyan.withOpacity(0.8),
+                  ],
+                ),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.8),
+                  width: 4,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.cyan.withOpacity(0.5),
+                    blurRadius: 20,
+                    spreadRadius: 3,
+                  ),
+                ],
+              ),
+              child: _isTakingPhoto
+                  ? const CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 3,
+                    )
+                  : Icon(
+                      Icons.camera_alt,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 
-// Custom painter dla mistycznego tła
-class MysticalBackgroundPainter extends CustomPainter {
+// Custom painter dla konturu dłoni
+class PalmContourPainter extends CustomPainter {
+  final double animationValue;
+  final Color frameColor;
+  final String positionStatus;
+
+  PalmContourPainter({
+    required this.animationValue,
+    required this.frameColor,
+    required this.positionStatus,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..color = frameColor.withOpacity(0.6);
+
+    try {
+      // Rysuj delikatny kontur dłoni
+      _drawPalmContour(canvas, size, paint);
+
+      // Dodatkowe wskaźniki dla dobrej pozycji
+      if (positionStatus == 'good') {
+        _drawSuccessIndicators(canvas, size);
+      }
+    } catch (e) {
+      print('❌ Błąd w PalmContourPainter: $e');
+    }
+  }
+
+  void _drawPalmContour(Canvas canvas, Size size, Paint paint) {
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+
+    // ✅ TYLKO SUBTELNE LINIE DŁONI (bez konturu)
+    paint.strokeWidth = 1.0;
+    paint.color = frameColor
+        .withOpacity(0.2 + (0.1 * math.sin(animationValue * 2 * math.pi)));
+
+    // Linia życia (wokół kciuka)
+    final lifeLinePath = Path();
+    lifeLinePath.moveTo(centerX - 35, centerY - 15);
+    lifeLinePath.quadraticBezierTo(
+        centerX - 25, centerY + 5, centerX - 15, centerY + 25);
+    lifeLinePath.quadraticBezierTo(
+        centerX - 5, centerY + 35, centerX + 10, centerY + 40);
+    canvas.drawPath(lifeLinePath, paint);
+
+    // Linia serca (pozioma u góry)
+    final heartLinePath = Path();
+    heartLinePath.moveTo(centerX - 30, centerY - 15);
+    heartLinePath.quadraticBezierTo(
+        centerX - 10, centerY - 25, centerX + 15, centerY - 20);
+    canvas.drawPath(heartLinePath, paint);
+
+    // Linia głowy (w środku)
+    final headLinePath = Path();
+    headLinePath.moveTo(centerX - 30, centerY - 5);
+    headLinePath.quadraticBezierTo(
+        centerX - 5, centerY + 5, centerX + 20, centerY + 8);
+    canvas.drawPath(headLinePath, paint);
+
+    // Subtelne punkty na końcach linii
+    paint.style = PaintingStyle.fill;
+    paint.color = frameColor.withOpacity(0.4);
+
+    canvas.drawCircle(Offset(centerX - 35, centerY - 15), 2, paint);
+    canvas.drawCircle(Offset(centerX + 10, centerY + 40), 2, paint);
+    canvas.drawCircle(Offset(centerX + 15, centerY - 20), 2, paint);
+  }
+
+  void _drawSuccessIndicators(Canvas canvas, Size size) {
+    final successPaint = Paint()
+      ..color = Colors.green.withOpacity(0.3)
+      ..style = PaintingStyle.fill;
+
+    // Małe kropki wskazujące dobre pozycjonowanie
+    final points = [
+      Offset(size.width * 0.2, size.height * 0.3),
+      Offset(size.width * 0.8, size.height * 0.3),
+      Offset(size.width * 0.5, size.height * 0.1),
+      Offset(size.width * 0.2, size.height * 0.7),
+      Offset(size.width * 0.8, size.height * 0.7),
+    ];
+
+    for (final point in points) {
+      canvas.drawCircle(point, 3, successPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// Custom painter dla tła
+class ScanBackgroundPainter extends CustomPainter {
   final double animationValue;
 
-  MysticalBackgroundPainter(this.animationValue);
+  ScanBackgroundPainter(this.animationValue);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1367,45 +1242,30 @@ class MysticalBackgroundPainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
 
     try {
-      // Mystical circles
-      for (int i = 0; i < 3; i++) {
-        final centerX = size.width * 0.5;
-        final centerY = size.height * 0.5;
-        final baseRadius = 50.0 + (i * 40.0);
-        final animatedRadius =
-            baseRadius * (1 + 0.1 * math.sin(animationValue * 2 * math.pi + i));
+      // Subtelne cząsteczki w tle
+      for (int i = 0; i < 15; i++) {
+        final angle = (animationValue * math.pi) + (i * 2 * math.pi / 15);
+        final radius = 80.0 + (i % 3) * 40.0;
+        final x = size.width * 0.5 + radius * math.cos(angle * 0.3);
+        final y = size.height * 0.5 + radius * math.sin(angle * 0.4);
 
-        if (animatedRadius > 0 && animatedRadius < size.width) {
-          final opacityValue = 0.03 - i * 0.005;
-          final safeOpacity = opacityValue.clamp(0.0, 1.0);
-
-          paint.color = AppColors.cyan.withOpacity(safeOpacity);
-          canvas.drawCircle(Offset(centerX, centerY), animatedRadius, paint);
-        }
-      }
-
-      // Floating particles
-      for (int i = 0; i < 20; i++) {
-        final angle = (animationValue * 2 * math.pi) + (i * 2 * math.pi / 20);
-        final radius = 80.0 + (i % 3) * 30.0;
-        final x = size.width * 0.5 + radius * math.cos(angle);
-        final y = size.height * 0.5 + radius * math.sin(angle);
-
-        if (x >= -10 &&
-            x <= size.width + 10 &&
-            y >= -10 &&
-            y <= size.height + 10) {
+        if (x >= -20 &&
+            x <= size.width + 20 &&
+            y >= -20 &&
+            y <= size.height + 20) {
           final particleSize =
               1.0 + math.sin(animationValue * 3 * math.pi + i) * 0.5;
+          final opacity =
+              0.05 + math.sin(animationValue * 2 * math.pi + i * 0.5) * 0.03;
 
           if (particleSize > 0) {
-            paint.color = AppColors.cyan.withOpacity(0.1);
+            paint.color = AppColors.cyan.withOpacity(opacity.clamp(0.01, 0.08));
             canvas.drawCircle(Offset(x, y), particleSize.abs(), paint);
           }
         }
       }
     } catch (e) {
-      print('❌ Błąd w MysticalBackgroundPainter: $e');
+      print('❌ Błąd w ScanBackgroundPainter: $e');
     }
   }
 

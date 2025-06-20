@@ -1,8 +1,15 @@
+// lib/main.dart
+// Zaktualizowany main.dart - sprawdza czy onboarding był już pokazany
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_phoenix/flutter_phoenix.dart';
 import 'screens/welcome_screen.dart';
+import 'screens/main_menu_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'services/user_preferences_service.dart';
+import 'models/user_data.dart';
 
 void main() {
   ErrorWidget.builder = (FlutterErrorDetails details) {
@@ -58,7 +65,102 @@ class AIWrozkaApp extends StatelessWidget {
           Theme.of(context).textTheme,
         ).apply(bodyColor: Colors.white, displayColor: Colors.white),
       ),
-      home: const WelcomeScreen(),
+      home: const AppInitializer(),
     );
+  }
+}
+
+class AppInitializer extends StatefulWidget {
+  const AppInitializer({super.key});
+
+  @override
+  State<AppInitializer> createState() => _AppInitializerState();
+}
+
+class _AppInitializerState extends State<AppInitializer> {
+  bool _isLoading = true;
+  Widget? _targetScreen;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    try {
+      print('🚀 Inicjalizacja aplikacji...');
+
+      // Sprawdź czy onboarding został ukończony
+      final isOnboardingCompleted =
+          await UserPreferencesService.isOnboardingCompleted();
+      print('📋 Onboarding completed: $isOnboardingCompleted');
+
+      if (isOnboardingCompleted) {
+        // Sprawdź czy mamy dane użytkownika
+        final userData = await UserPreferencesService.getUserData();
+        print('👤 User data: ${userData?.name ?? "BRAK"}');
+
+        if (userData != null) {
+          // Przejdź bezpośrednio do menu głównego
+          print('✅ Przekierowanie do menu głównego');
+          _targetScreen = MainMenuScreen(
+            userName: userData.name,
+            userGender: userData.genderForMessages,
+            dominantHand: userData.dominantHand,
+            birthDate: userData.birthDate,
+          );
+        } else {
+          // Brak danych użytkownika mimo ukończonego onboardingu - powtórz onboarding
+          print('⚠️ Brak danych użytkownika - ponowny onboarding');
+          await UserPreferencesService.clearAllUserData();
+          _targetScreen = const WelcomeScreen();
+        }
+      } else {
+        // Pierwszy raz - pokaż welcome screen
+        print('🎉 Pierwsze uruchomienie - welcome screen');
+        _targetScreen = const WelcomeScreen();
+      }
+
+      // Debug
+      await UserPreferencesService.debugPrintUserData();
+    } catch (e) {
+      print('❌ Błąd inicjalizacji: $e');
+      // W przypadku błędu pokaż welcome screen
+      _targetScreen = const WelcomeScreen();
+    }
+
+    // Symulacja loading (opcjonalne)
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF0B1426),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Color(0xFF00D4FF)),
+              SizedBox(height: 20),
+              Text(
+                'Przywołuję mistyczne moce...',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return _targetScreen ?? const WelcomeScreen();
   }
 }

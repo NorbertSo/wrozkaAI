@@ -1,12 +1,13 @@
 // lib/screens/onboarding_screen.dart
-// Zaktualizowany - po uzupełnieniu danych prowadzi do menu głównego
+// Zaktualizowany - z miejscem i godziną urodzenia + persistencja + poprawki
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import '../utils/constants.dart';
 import '../models/user_data.dart';
-import 'main_menu_screen.dart'; // ✅ ZMIENIONY IMPORT
+import '../services/user_preferences_service.dart';
+import 'main_menu_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -19,11 +20,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _dateController = TextEditingController();
+  final _birthPlaceController = TextEditingController();
 
+  DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
   String _selectedGender = '';
   String _selectedHand = '';
-  bool _showPrivacyMessage = true;
+  bool _rememberBirthTime = true; // Domyślnie chcemy pamiętać godzinę
 
   late AnimationController _fadeController;
   late AnimationController _formController;
@@ -122,7 +125,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              'Twoje dane są zbierane tylko do celów analizy twojej dłoni, nie są one zapisywane. Po wykonaniu "wróżby" wszystkie informacje są usuwane.',
+              'Twoje dane są zbierane tylko do celów analizy dłoni i tworzenia spersonalizowanej wróżby. Miejsce i godzina urodzenia pomagają w dokładniejszej interpretacji.',
               style: GoogleFonts.cinzelDecorative(
                 fontSize: 14,
                 fontWeight: FontWeight.w300,
@@ -166,7 +169,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   @override
   void dispose() {
     _nameController.dispose();
-    _dateController.dispose();
+    _birthPlaceController.dispose();
     _fadeController.dispose();
     _formController.dispose();
     _glowController.dispose();
@@ -248,6 +251,21 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
                               const SizedBox(height: 32),
 
+                              // Pole godzina urodzenia (opcjonalne)
+                              _buildTimeField(),
+
+                              const SizedBox(height: 32),
+
+                              // Pole miejsce urodzenia (OPCJONALNE)
+                              _buildInputField(
+                                label: 'Miejsce urodzenia (opcjonalne)',
+                                controller: _birthPlaceController,
+                                hint: 'np. Warszawa, Kraków, Gdańsk...',
+                                isOptional: true,
+                              ),
+
+                              const SizedBox(height: 32),
+
                               // Wybór płci
                               _buildGenderSelection(),
 
@@ -287,9 +305,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                           vertical: 18,
                                         ),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            30,
-                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(30),
                                           side: BorderSide(
                                             color: AppColors.cyan.withOpacity(
                                               0.8 +
@@ -333,11 +350,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   Widget _buildInputField({
     required String label,
     required TextEditingController controller,
+    String? hint,
     String? Function(String?)? validator,
+    bool isOptional = false,
   }) {
     return AnimatedBuilder(
       animation: _glowAnimation,
       builder: (context, child) {
+        final hasContent = controller.text.isNotEmpty;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -355,22 +376,25 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(
-                  color: AppColors.cyan.withOpacity(0.4),
-                  width: 1.5,
+                  color: hasContent
+                      ? AppColors.cyan.withOpacity(0.6)
+                      : Colors.grey.withOpacity(0.4),
+                  width: hasContent ? 2 : 1.5,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.cyan.withOpacity(
-                      0.1 + (_glowAnimation.value * 0.3),
-                    ),
-                    blurRadius: 10 + (_glowAnimation.value * 10),
-                    spreadRadius: 1 + (_glowAnimation.value * 2),
-                  ),
-                ],
+                boxShadow: hasContent
+                    ? [
+                        BoxShadow(
+                          color: AppColors.cyan.withOpacity(0.3),
+                          blurRadius: 15,
+                          spreadRadius: 2,
+                        ),
+                      ]
+                    : [],
               ),
               child: TextFormField(
                 controller: controller,
                 validator: validator,
+                onChanged: (value) => setState(() {}), // Refresh border color
                 style: GoogleFonts.cinzelDecorative(
                   fontSize: 16,
                   color: Colors.white,
@@ -387,6 +411,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   ),
                   filled: true,
                   fillColor: Colors.black.withOpacity(0.2),
+                  hintText: hint,
                   hintStyle: GoogleFonts.cinzelDecorative(
                     color: Colors.white38,
                     fontSize: 14,
@@ -404,6 +429,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     return AnimatedBuilder(
       animation: _glowAnimation,
       builder: (context, child) {
+        final hasDate = _selectedDate != null;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -421,57 +448,204 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(
-                  color: AppColors.cyan.withOpacity(0.4),
-                  width: 1.5,
+                  color: hasDate
+                      ? AppColors.cyan.withOpacity(0.6)
+                      : Colors.grey.withOpacity(0.4),
+                  width: hasDate ? 2 : 1.5,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.cyan.withOpacity(
-                      0.1 + (_glowAnimation.value * 0.3),
-                    ),
-                    blurRadius: 10 + (_glowAnimation.value * 10),
-                    spreadRadius: 1 + (_glowAnimation.value * 2),
-                  ),
-                ],
+                boxShadow: hasDate
+                    ? [
+                        BoxShadow(
+                          color: AppColors.cyan.withOpacity(0.3),
+                          blurRadius: 15,
+                          spreadRadius: 2,
+                        ),
+                      ]
+                    : [],
               ),
-              child: TextFormField(
-                controller: _dateController,
-                readOnly: true,
+              child: InkWell(
                 onTap: _selectDate,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Wybierz datę urodzenia';
-                  }
-                  return null;
-                },
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 16,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w300,
-                ),
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(
+                borderRadius: BorderRadius.circular(15),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: 20,
                     vertical: 16,
                   ),
-                  border: OutlineInputBorder(
+                  decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(15),
-                    borderSide: BorderSide.none,
+                    color: Colors.black.withOpacity(0.2),
                   ),
-                  filled: true,
-                  fillColor: Colors.black.withOpacity(0.2),
-                  hintText: 'DD.MM.RRRR',
-                  hintStyle: GoogleFonts.cinzelDecorative(
-                    color: Colors.white38,
-                    fontSize: 14,
-                  ),
-                  suffixIcon: Icon(
-                    Icons.calendar_today,
-                    color: AppColors.cyan.withOpacity(0.7),
-                    size: 20,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          hasDate
+                              ? '${_selectedDate!.day.toString().padLeft(2, '0')}.${_selectedDate!.month.toString().padLeft(2, '0')}.${_selectedDate!.year}'
+                              : 'Wybierz datę urodzenia',
+                          style: GoogleFonts.cinzelDecorative(
+                            fontSize: 16,
+                            color: hasDate ? Colors.white : Colors.white38,
+                            fontWeight: FontWeight.w300,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.calendar_today,
+                        color: hasDate
+                            ? AppColors.cyan.withOpacity(0.8)
+                            : Colors.grey.withOpacity(0.6),
+                        size: 20,
+                      ),
+                    ],
                   ),
                 ),
               ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTimeField() {
+    return AnimatedBuilder(
+      animation: _glowAnimation,
+      builder: (context, child) {
+        final hasTime = _selectedTime != null;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Godzina urodzenia',
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '(opcjonalne)',
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w300,
+                    color: Colors.white54,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Pole godziny
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(
+                  color: _rememberBirthTime
+                      ? (hasTime
+                          ? AppColors.cyan.withOpacity(0.6)
+                          : Colors.grey.withOpacity(0.4))
+                      : Colors.grey.withOpacity(0.3),
+                  width: (_rememberBirthTime && hasTime) ? 2 : 1.5,
+                ),
+                boxShadow: (_rememberBirthTime && hasTime)
+                    ? [
+                        BoxShadow(
+                          color: AppColors.cyan.withOpacity(0.3),
+                          blurRadius: 15,
+                          spreadRadius: 2,
+                        ),
+                      ]
+                    : [],
+              ),
+              child: InkWell(
+                onTap: _rememberBirthTime ? _selectTime : null,
+                borderRadius: BorderRadius.circular(15),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(15),
+                    color: _rememberBirthTime
+                        ? Colors.black.withOpacity(0.2)
+                        : Colors.grey.withOpacity(0.1),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          hasTime
+                              ? '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}'
+                              : _rememberBirthTime
+                                  ? 'Wybierz godzinę urodzenia'
+                                  : 'Godzina nieznana',
+                          style: GoogleFonts.cinzelDecorative(
+                            fontSize: 16,
+                            color: _rememberBirthTime
+                                ? (hasTime ? Colors.white : Colors.white38)
+                                : Colors.grey,
+                            fontWeight: FontWeight.w300,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.access_time,
+                        color: _rememberBirthTime
+                            ? (hasTime
+                                ? AppColors.cyan.withOpacity(0.8)
+                                : Colors.grey.withOpacity(0.6))
+                            : Colors.grey,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Checkbox "Nie pamiętam godziny" - PRZENIESIONY POD POLE GODZINY
+            Row(
+              children: [
+                Transform.scale(
+                  scale: 0.9,
+                  child: Checkbox(
+                    value: !_rememberBirthTime,
+                    onChanged: (value) {
+                      setState(() {
+                        _rememberBirthTime = !(value ?? false);
+                        if (!_rememberBirthTime) {
+                          _selectedTime = null;
+                        }
+                      });
+                    },
+                    activeColor: AppColors.cyan,
+                    checkColor: Colors.black,
+                    side: BorderSide(
+                      color: AppColors.cyan.withOpacity(0.6),
+                      width: 2,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Nie pamiętam godziny urodzenia',
+                    style: GoogleFonts.cinzelDecorative(
+                      fontSize: 14,
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w300,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         );
@@ -683,7 +857,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(2000),
+      initialDate: _selectedDate ?? DateTime(2000),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       builder: (context, child) {
@@ -703,14 +877,45 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
     if (picked != null) {
       setState(() {
-        _dateController.text =
-            '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
+        _selectedDate = picked;
       });
     }
   }
 
-  void _handleContinue() {
+  Future<void> _selectTime() async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime ?? TimeOfDay.now(),
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            alwaysUse24HourFormat: true, // ✅ WYMUSZA FORMAT 24H
+          ),
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: ColorScheme.dark(
+                primary: AppColors.cyan,
+                onPrimary: Colors.white,
+                surface: const Color(0xFF1A2332),
+                onSurface: Colors.white,
+              ),
+            ),
+            child: child!,
+          ),
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedTime = picked;
+      });
+    }
+  }
+
+  void _handleContinue() async {
     if (_formKey.currentState!.validate() &&
+        _selectedDate != null &&
         _selectedGender.isNotEmpty &&
         _selectedHand.isNotEmpty) {
       // Uruchom mistyczny efekt świetlny
@@ -718,55 +923,96 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         _glowController.reverse();
       });
 
-      // Stwórz obiekt UserData
-      final userData = UserData(
-        name: _nameController.text.trim(),
-        birthDate: _parseDate(_dateController.text),
-        gender: _selectedGender,
-        dominantHand: _selectedHand,
-        registrationDate: DateTime.now(),
-      );
+      try {
+        // Przygotuj dane godziny urodzenia
+        String? birthTimeString;
+        if (_rememberBirthTime && _selectedTime != null) {
+          birthTimeString =
+              '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
+        }
 
-      // Wyświetl dane w konsoli
-      print('✅ Dane użytkownika: $userData');
-      print('🔍 DEBUG: dominantHand = ${userData.dominantHand}');
+        // Przygotuj miejsce urodzenia (opcjonalne)
+        String? birthPlace;
+        if (_birthPlaceController.text.trim().isNotEmpty) {
+          birthPlace = _birthPlaceController.text.trim();
+        }
 
-      // ✅ ZMIENIONA NAWIGACJA - do menu głównego zamiast palm intro
-      Future.delayed(const Duration(milliseconds: 1000), () {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                MainMenuScreen(
-              userName: userData.name,
-              userGender: userData.genderForMessages,
-              dominantHand: userData.dominantHand,
-              birthDate: userData.birthDate,
-            ),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.0, 0.3),
-                    end: Offset.zero,
-                  ).animate(
-                    CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeOutCubic,
-                    ),
-                  ),
-                  child: child,
-                ),
-              );
-            },
-            transitionDuration: const Duration(milliseconds: 1200),
-          ),
+        // Stwórz obiekt UserData
+        final userData = UserData(
+          name: _nameController.text.trim(),
+          birthDate: _selectedDate!,
+          birthTime: birthTimeString,
+          birthPlace: birthPlace,
+          gender: _selectedGender,
+          dominantHand: _selectedHand,
+          registrationDate: DateTime.now(),
         );
-      });
+
+        // Zapisz dane użytkownika
+        await UserPreferencesService.saveUserData(userData);
+
+        // Oznacz onboarding jako ukończony
+        await UserPreferencesService.setOnboardingCompleted();
+
+        // Debug
+        print('✅ Dane użytkownika: $userData');
+        print('🔍 DEBUG: Full birth info = ${userData.fullBirthInfo}');
+
+        // Nawigacja do menu głównego
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) =>
+                    MainMenuScreen(
+                  userName: userData.name,
+                  userGender: userData.genderForMessages,
+                  dominantHand: userData.dominantHand,
+                  birthDate: userData.birthDate,
+                ),
+                transitionsBuilder:
+                    (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0.0, 0.3),
+                        end: Offset.zero,
+                      ).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOutCubic,
+                        ),
+                      ),
+                      child: child,
+                    ),
+                  );
+                },
+                transitionDuration: const Duration(milliseconds: 1200),
+              ),
+            );
+          }
+        });
+      } catch (e) {
+        print('❌ Błąd zapisywania danych: $e');
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Błąd zapisywania danych: ${e.toString()}',
+                style: GoogleFonts.cinzelDecorative(),
+              ),
+              backgroundColor: Colors.red.withOpacity(0.8),
+            ),
+          );
+        }
+      }
     } else {
       String message = '';
-      if (_selectedGender.isEmpty) {
+      if (_selectedDate == null) {
+        message = 'Wybierz datę urodzenia';
+      } else if (_selectedGender.isEmpty) {
         message = 'Wybierz swoją płeć';
       } else if (_selectedHand.isEmpty) {
         message = 'Wybierz swoją dominującą rękę';
@@ -781,20 +1027,5 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         );
       }
     }
-  }
-
-  DateTime _parseDate(String dateString) {
-    try {
-      final parts = dateString.split('.');
-      if (parts.length == 3) {
-        final day = int.parse(parts[0]);
-        final month = int.parse(parts[1]);
-        final year = int.parse(parts[2]);
-        return DateTime(year, month, day);
-      }
-    } catch (e) {
-      print('Błąd parsowania daty: $e');
-    }
-    return DateTime.now();
   }
 }
