@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import '../utils/constants.dart';
 import '../models/user_data.dart';
 import '../services/fortune_history_service.dart';
+import '../services/user_preferences_service.dart'; // ✅ DODANY IMPORT
 import 'palm_intro_screen.dart';
 import 'fortune_history_screen.dart';
 import 'user_data_screen.dart';
@@ -263,7 +264,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Witaj w Świecie Wróż',
+                  'Witaj w Świecie Wróżb',
                   style: GoogleFonts.cinzelDecorative(
                     fontSize: 24,
                     color: AppColors.cyan,
@@ -655,24 +656,74 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     );
   }
 
-  void _navigateToUserData() {
+  // ✅ POPRAWIONA METODA - pobiera prawdziwe dane z SharedPreferences
+  void _navigateToUserData() async {
     HapticFeedback.mediumImpact();
+
+    try {
+      // ✅ KLUCZOWA ZMIANA: Pobierz PRAWDZIWE dane z SharedPreferences
+      final userData = await UserPreferencesService.getUserData();
+
+      if (userData == null) {
+        // Fallback - jeśli brak danych, stwórz nowe z dostępnych informacji
+        debugPrint('⚠️ Brak zapisanych danych użytkownika - fallback');
+        final fallbackUserData = UserData(
+          name: widget.userName,
+          birthDate: widget.birthDate ?? DateTime(2000, 1, 1),
+          gender: widget.userGender,
+          dominantHand: widget.dominantHand ?? 'right',
+          registrationDate: DateTime.now(),
+        );
+
+        _navigateToUserDataScreen(fallbackUserData);
+        return;
+      }
+
+      // ✅ Używaj PRAWDZIWYCH danych z SharedPreferences
+      debugPrint('✅ Załadowano prawdziwe dane użytkownika: ${userData.name}');
+      debugPrint('📅 Godzina urodzenia: ${userData.birthTime ?? "brak"}');
+      debugPrint('📍 Miejsce urodzenia: ${userData.birthPlace ?? "brak"}');
+
+      _navigateToUserDataScreen(userData);
+    } catch (e) {
+      debugPrint('❌ Błąd ładowania danych użytkownika: $e');
+
+      // Error fallback
+      final fallbackUserData = UserData(
+        name: widget.userName,
+        birthDate: widget.birthDate ?? DateTime(2000, 1, 1),
+        gender: widget.userGender,
+        dominantHand: widget.dominantHand ?? 'right',
+        registrationDate: DateTime.now(),
+      );
+
+      _navigateToUserDataScreen(fallbackUserData);
+    }
+  }
+
+  // ✅ NOWA HELPER METODA - wykonuje nawigację
+  void _navigateToUserDataScreen(UserData userData) {
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => UserDataScreen(
-          userData: UserData(
-            name: widget.userName,
-            birthDate: widget.birthDate ?? DateTime(2000, 1, 1),
-            gender: widget.userGender,
-            dominantHand: widget.dominantHand ?? 'right',
-            registrationDate: DateTime.now(),
-          ),
-          onUserDataChanged: (newUserData) {
+          userData: userData, // ✅ PRAWDZIWE dane, nie stworzone na nowo
+          onUserDataChanged: (newUserData) async {
             if (newUserData != null) {
               debugPrint(
-                  'Dane użytkownika zaktualizowane: ${newUserData.name}');
+                  '✅ Dane użytkownika zaktualizowane: ${newUserData.name}');
+              debugPrint('📅 Nowa godzina: ${newUserData.birthTime ?? "brak"}');
+              debugPrint(
+                  '📍 Nowe miejsce: ${newUserData.birthPlace ?? "brak"}');
+
+              // ✅ DODANE: Odśwież dane w tym ekranie jeśli nazwa się zmieniła
+              if (newUserData.name != widget.userName) {
+                // Opcjonalnie: odśwież stan tego ekranu
+                setState(() {
+                  // Możesz tutaj zaktualizować lokalne zmienne jeśli potrzebujesz
+                });
+              }
             } else {
-              debugPrint('Dane użytkownika usunięte');
+              debugPrint('⚠️ Dane użytkownika usunięte');
             }
           },
         ),

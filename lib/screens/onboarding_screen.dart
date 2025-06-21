@@ -8,6 +8,7 @@ import '../utils/constants.dart';
 import '../models/user_data.dart';
 import '../services/user_preferences_service.dart';
 import 'main_menu_screen.dart';
+import '../utils/responsive_utils.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -660,24 +661,40 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            ResponsiveText(
               'Płeć',
+              baseFontSize: 18,
               style: GoogleFonts.cinzelDecorative(
-                fontSize: 18,
                 fontWeight: FontWeight.w400,
                 color: Colors.white,
                 letterSpacing: 0.5,
               ),
             ),
-            const SizedBox(height: 20),
-            Column(
-              children: [
-                _buildGenderOption('Mężczyzna', 'male'),
-                const SizedBox(height: 12),
-                _buildGenderOption('Kobieta', 'female'),
-                const SizedBox(height: 12),
-                _buildGenderOption('Inna', 'other'),
-              ],
+            SizedBox(height: context.isSmallScreen ? 16 : 20),
+            ResponsiveBuilder(
+              builder: (context, deviceType) {
+                if (deviceType == DeviceType.smallPhone) {
+                  return Column(
+                    children: [
+                      _buildGenderOption('Mężczyzna', 'male'),
+                      const SizedBox(height: 12),
+                      _buildGenderOption('Kobieta', 'female'),
+                      const SizedBox(height: 12),
+                      _buildGenderOption('Inna', 'other'),
+                    ],
+                  );
+                } else {
+                  return Column(
+                    children: [
+                      _buildGenderOption('Mężczyzna', 'male'),
+                      const SizedBox(height: 12),
+                      _buildGenderOption('Kobieta', 'female'),
+                      const SizedBox(height: 12),
+                      _buildGenderOption('Inna', 'other'),
+                    ],
+                  );
+                }
+              },
             ),
           ],
         );
@@ -697,7 +714,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         width: double.infinity,
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(context.isSmallScreen ? 14 : 16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(15),
           border: Border.all(
@@ -739,13 +756,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
+              child: ResponsiveText(
                 title,
+                baseFontSize: 16,
                 style: GoogleFonts.cinzelDecorative(
-                  fontSize: 16,
                   fontWeight: FontWeight.w400,
                   color: isSelected ? AppColors.cyan : Colors.white70,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

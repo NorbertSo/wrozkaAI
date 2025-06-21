@@ -1,5 +1,5 @@
 // lib/screens/palm_intro_screen.dart
-// Zaktualizowany z Open Sans dla długich tekstów
+// NAPRAWIONA WERSJA - dodany przycisk wstecz
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +7,7 @@ import 'package:lottie/lottie.dart';
 import 'dart:math' as math;
 import '../utils/constants.dart';
 import 'palm_scan_screen.dart';
+import '../utils/responsive_utils.dart';
 
 class PalmIntroScreen extends StatefulWidget {
   final String userName;
@@ -102,20 +103,7 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
     super.dispose();
   }
 
-  String get _personalizedMessage {
-    final genderSuffix = widget.userGender == 'female' ? 'aś' : 'eś';
-
-    return '''Drogi${widget.userGender == 'female' ? 'a' : ''} ${widget.userName},
-
-Wkraczasz teraz w świat, który może na zawsze zmienić Twoje życie. W liniach Twojej dłoni kryją się historie, które czekają, by zostać opowiedziane - sekrety o Tobie samej/samym, których być może jeszcze nie odkrył$genderSuffix.
-
-Twoja dłoń to mapa Twojego przeznaczenia. Znajdziemy w niej ślady Twoich predyspozycji, odkryjemy tajemnice Twojego serca i miłości, a także poznamy ścieżki, które prowadzą do Twojego szczęścia.
-
-Każda linia, każdy wzgórek, każda drobna kreska ma swoje znaczenie. To starożytna sztuka, która łączy Cię z tysiącami lat ludzkiej mądrości.
-
-Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popłynęła przez Twoją dłoń i objawi Ci prawdy, na które czekał$genderSuffix.''';
-  }
-
+// 1. RESPONSYWNY build()
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -150,7 +138,47 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
               },
             ),
 
-            // Główna zawartość
+            // Responsywny przycisk wstecz
+            SafeArea(
+              child: Positioned(
+                top: context.isSmallScreen ? 12 : 16,
+                left: context.isSmallScreen ? 12 : 16,
+                child: AnimatedBuilder(
+                  animation: _fadeAnimation,
+                  builder: (context, child) {
+                    return Opacity(
+                      opacity: _fadeAnimation.value,
+                      child: Container(
+                        width: context.isSmallScreen ? 40 : 44,
+                        height: context.isSmallScreen ? 40 : 44,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black.withOpacity(0.3),
+                          border: Border.all(
+                            color: AppColors.cyan.withOpacity(0.5),
+                            width: 1,
+                          ),
+                        ),
+                        child: IconButton(
+                          onPressed: () {
+                            print('🔙 Powrót z PalmIntroScreen');
+                            Navigator.of(context).pop();
+                          },
+                          icon: Icon(
+                            Icons.arrow_back_ios,
+                            color: Colors.white,
+                            size: context.isSmallScreen ? 16 : 20,
+                          ),
+                          tooltip: 'Wróć',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            // Główna zawartość z responsywnym layoutem
             SafeArea(
               child: AnimatedBuilder(
                 animation: _fadeAnimation,
@@ -158,21 +186,21 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
                   return Opacity(
                     opacity: _fadeAnimation.value,
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
+                      padding: context.responsivePadding,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const SizedBox(height: 40),
+                          SizedBox(height: context.isSmallScreen ? 30 : 40),
 
-                          // Mistyczna ikona
+                          // Responsywna mistyczna ikona
                           AnimatedBuilder(
                             animation: _textAnimation,
                             builder: (context, child) {
                               return Transform.scale(
                                 scale: _textAnimation.value,
                                 child: Container(
-                                  width: 120,
-                                  height: 120,
+                                  width: context.isSmallScreen ? 100 : 120,
+                                  height: context.isSmallScreen ? 100 : 120,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     gradient: RadialGradient(
@@ -189,7 +217,7 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
                                   ),
                                   child: Icon(
                                     Icons.auto_awesome,
-                                    size: 60,
+                                    size: context.isSmallScreen ? 50 : 60,
                                     color: AppColors.cyan,
                                   ),
                                 ),
@@ -197,37 +225,51 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
                             },
                           ),
 
-                          const SizedBox(height: 40),
+                          SizedBox(height: context.isSmallScreen ? 30 : 40),
 
-                          // Tekst spersonalizowany - OPEN SANS
+                          // Responsywny tekst
                           AnimatedBuilder(
                             animation: _textAnimation,
                             builder: (context, child) {
                               return Opacity(
                                 opacity: _textAnimation.value,
-                                child: Text(
-                                  _personalizedMessage,
-                                  style: AppTextStyles.introText, // ✅ Open Sans
-                                  textAlign: TextAlign.center,
+                                child: ResponsiveContainer(
+                                  maxWidth: 600,
+                                  child: ResponsiveText(
+                                    _personalizedMessage(
+                                        context), // ✅ Dodaj (context)
+                                    baseFontSize: 16,
+                                    style: AppTextStyles.introText,
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
                               );
                             },
                           ),
 
-                          const SizedBox(height: 80),
+                          SizedBox(height: context.isSmallScreen ? 60 : 80),
 
-                          // Przycisk rozpoczęcia rytuału
+                          // Responsywne przyciski
                           AnimatedBuilder(
                             animation: _buttonAnimation,
                             builder: (context, child) {
                               return Transform.scale(
                                 scale: _buttonAnimation.value,
-                                child: _buildRitualButton(),
+                                child: ResponsiveContainer(
+                                  maxWidth: 400,
+                                  child: Column(
+                                    children: [
+                                      _buildRitualButton(),
+                                      const SizedBox(height: 16),
+                                      _buildBackButton(),
+                                    ],
+                                  ),
+                                ),
                               );
                             },
                           ),
 
-                          const SizedBox(height: 40),
+                          SizedBox(height: context.isSmallScreen ? 30 : 40),
                         ],
                       ),
                     ),
@@ -241,6 +283,7 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
     );
   }
 
+// 2. RESPONSYWNY _buildRitualButton
   Widget _buildRitualButton() {
     return Container(
       width: double.infinity,
@@ -259,29 +302,117 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+          padding: EdgeInsets.symmetric(
+            vertical: context.isSmallScreen ? 14 : 16,
+            horizontal: context.isSmallScreen ? 24 : 32,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(35),
             side: BorderSide(color: AppColors.cyan.withOpacity(0.8), width: 2),
           ),
           elevation: 0,
         ),
-        child: Row(
+        child: ResponsiveRow(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.auto_awesome, color: AppColors.cyan, size: 24),
-            const SizedBox(width: 12),
-            Text(
-              'Rozpocznij rytuał',
-              style: AppTextStyles
-                  .buttonText, // ✅ Cinzel Decorative dla przycisków
+            Icon(
+              Icons.auto_awesome,
+              color: AppColors.cyan,
+              size: context.isSmallScreen ? 20 : 24,
             ),
             const SizedBox(width: 12),
-            Icon(Icons.auto_awesome, color: AppColors.cyan, size: 24),
+            Flexible(
+              child: ResponsiveText(
+                'Rozpocznij rytuał',
+                baseFontSize: 16,
+                style: AppTextStyles.buttonText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Icon(
+              Icons.auto_awesome,
+              color: AppColors.cyan,
+              size: context.isSmallScreen ? 20 : 24,
+            ),
           ],
         ),
       ),
     );
+  }
+
+// 3. RESPONSYWNY _buildBackButton
+  Widget _buildBackButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: TextButton(
+        onPressed: () {
+          print('🔙 Powrót z PalmIntroScreen (przycisk)');
+          Navigator.of(context).pop();
+        },
+        style: TextButton.styleFrom(
+          padding: EdgeInsets.symmetric(
+            vertical: context.isSmallScreen ? 10 : 12,
+            horizontal: context.isSmallScreen ? 20 : 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(25),
+            side: BorderSide(
+              color: Colors.white.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+        ),
+        child: ResponsiveRow(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.arrow_back_ios,
+              color: Colors.white70,
+              size: context.isSmallScreen ? 14 : 16,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: ResponsiveText(
+                'Wróć do menu',
+                baseFontSize: 14,
+                style: AppTextStyles.bodyText.copyWith(
+                  color: Colors.white70,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+// 4. RESPONSYWNY _personalizedMessage
+  String _personalizedMessage(BuildContext context) {
+    final genderSuffix = widget.userGender == 'female' ? 'aś' : 'eś';
+
+    if (context.isSmallScreen) {
+      return '''Drogi${widget.userGender == 'female' ? 'a' : ''} ${widget.userName},
+
+Wkraczasz w świat, który może zmienić Twoje życie. W liniach dłoni kryją się sekrety, które czekają na odkrycie.
+
+Twoja dłoń to mapa przeznaczenia. Znajdziemy w niej ślady predyspozycji i tajemnice serca.
+
+Przygotuj się na podróż w głąb siebie. Pozwól mistycznej energii objawić Ci prawdy, na które czekał$genderSuffix.''';
+    }
+
+    return '''Drogi${widget.userGender == 'female' ? 'a' : ''} ${widget.userName},
+
+Wkraczasz teraz w świat, który może na zawsze zmienić Twoje życie. W liniach Twojej dłoni kryją się historie, które czekają, by zostać opowiedziane - sekrety o Tobie samej/samym, których być może jeszcze nie odkrył$genderSuffix.
+
+Twoja dłoń to mapa Twojego przeznaczenia. Znajdziemy w niej ślady Twoich predyspozycji, odkryjemy tajemnice Twojego serca i miłości, a także poznamy ścieżki, które prowadzą do Twojego szczęścia.
+
+Każda linia, każdy wzgórek, każda drobna kreska ma swoje znaczenie. To starożytna sztuka, która łączy Cię z tysiącami lat ludzkiej mądrości.
+
+Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popłynęła przez Twoją dłoń i objawi Ci prawdy, na które czekał$genderSuffix.''';
   }
 
   void _startRitual() {
