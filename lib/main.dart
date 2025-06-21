@@ -1,5 +1,5 @@
 // lib/main.dart
-// Zaktualizowany main.dart z HapticService
+// Zaktualizowany main.dart z Background Music
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +10,7 @@ import 'screens/main_menu_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/user_preferences_service.dart';
 import 'services/haptic_service.dart';
+import 'services/background_music_service.dart'; // ✅ NOWY IMPORT
 import 'models/user_data.dart';
 
 void main() {
@@ -41,8 +42,67 @@ void main() {
   runApp(Phoenix(child: const AIWrozkaApp()));
 }
 
-class AIWrozkaApp extends StatelessWidget {
+class AIWrozkaApp extends StatefulWidget {
   const AIWrozkaApp({super.key});
+
+  @override
+  State<AIWrozkaApp> createState() => _AIWrozkaAppState();
+}
+
+class _AIWrozkaAppState extends State<AIWrozkaApp> with WidgetsBindingObserver {
+  final BackgroundMusicService _musicService =
+      BackgroundMusicService(); // ✅ NOWY SERWIS
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    // ✅ INICJALIZACJA MUZYKI - automatyczne uruchomienie
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeBackgroundMusic();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _musicService.dispose(); // ✅ ZWOLNIJ ZASOBY MUZYCZNE
+    super.dispose();
+  }
+
+  // ✅ OBSŁUGA CYKLU ŻYCIA APLIKACJI DLA MUZYKI
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+        _musicService.onAppPaused();
+        break;
+      case AppLifecycleState.resumed:
+        _musicService.onAppResumed();
+        break;
+      case AppLifecycleState.detached:
+        _musicService.dispose();
+        break;
+      default:
+        break;
+    }
+  }
+
+  // ✅ INICJALIZACJA I URUCHOMIENIE MUZYKI W TLE
+  Future<void> _initializeBackgroundMusic() async {
+    try {
+      print('🎵 Inicjalizacja muzyki w tle...');
+      await _musicService.initialize();
+      await _musicService.startBackgroundMusic();
+      print('✅ Muzyka w tle uruchomiona pomyślnie');
+    } catch (e) {
+      print('❌ Błąd uruchamiania muzyki w tle: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +153,7 @@ class _AppInitializerState extends State<AppInitializer> {
     try {
       print('🚀 Inicjalizacja aplikacji...');
 
-      // ✅ NOWE: Inicjalizacja HapticService
+      // ✅ Inicjalizacja HapticService
       await _hapticService.initialize();
       await _hapticService.printCapabilities();
 
