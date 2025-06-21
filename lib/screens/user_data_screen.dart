@@ -1,5 +1,5 @@
 // lib/screens/user_data_screen.dart
-// Zaktualizowany ekran danych użytkownika z nowymi polami
+// NAPRAWIONA WERSJA - działająca persistencja danych
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -31,6 +31,9 @@ class _UserDataScreenState extends State<UserDataScreen> {
   late String _dominantHand;
   bool _rememberBirthTime = true;
 
+  // ✅ DODANE: Flaga dla unsaved changes
+  bool _hasUnsavedChanges = false;
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +56,17 @@ class _UserDataScreenState extends State<UserDataScreen> {
     } else {
       _rememberBirthTime = false;
     }
+
+    // ✅ DODANE: Listener do trackowania zmian
+    _nameController.addListener(_onDataChanged);
+    _birthPlaceController.addListener(_onDataChanged);
+  }
+
+  // ✅ DODANE: Track changes
+  void _onDataChanged() {
+    setState(() {
+      _hasUnsavedChanges = true;
+    });
   }
 
   @override
@@ -83,7 +97,10 @@ class _UserDataScreenState extends State<UserDataScreen> {
       },
     );
     if (picked != null) {
-      setState(() => _birthDate = picked);
+      setState(() {
+        _birthDate = picked;
+        _hasUnsavedChanges = true; // ✅ DODANE
+      });
     }
   }
 
@@ -111,12 +128,31 @@ class _UserDataScreenState extends State<UserDataScreen> {
       },
     );
     if (picked != null) {
-      setState(() => _birthTime = picked);
+      setState(() {
+        _birthTime = picked;
+        _hasUnsavedChanges = true; // ✅ DODANE
+      });
     }
   }
 
+  // ✅ POPRAWIONA METODA - lepsze error handling i feedback
   void _saveUserData() async {
+    if (!_hasUnsavedChanges) {
+      // Brak zmian - tylko powróć
+      Navigator.of(context).pop();
+      return;
+    }
+
     try {
+      // ✅ POPRAWKA: Walidacja danych
+      if (_nameController.text.trim().isEmpty) {
+        _showErrorSnackBar('Imię nie może być puste');
+        return;
+      }
+
+      // Pokazuj loading
+      _showLoadingDialog();
+
       String? birthTimeString;
       if (_rememberBirthTime && _birthTime != null) {
         birthTimeString =
@@ -128,6 +164,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
         birthPlace = _birthPlaceController.text.trim();
       }
 
+      // ✅ POPRAWKA: Zachowaj registrationDate z oryginalnych danych
       final newUser = UserData(
         name: _nameController.text.trim(),
         birthDate: _birthDate,
@@ -135,37 +172,93 @@ class _UserDataScreenState extends State<UserDataScreen> {
         birthPlace: birthPlace,
         gender: _gender,
         dominantHand: _dominantHand,
-        registrationDate: widget.userData.registrationDate,
+        registrationDate:
+            widget.userData.registrationDate, // ✅ ZACHOWAJ ORYGINALNE
       );
 
+      // ✅ POPRAWKA: Zapisz do SharedPreferences
       await UserPreferencesService.saveUserData(newUser);
-      widget.onUserDataChanged?.call(newUser);
+
+      // ✅ POPRAWKA: Wywołaj callback
+      if (widget.onUserDataChanged != null) {
+        widget.onUserDataChanged!(newUser);
+      }
+
+      // ✅ POPRAWKA: Debug log
+      print('✅ Dane użytkownika zaktualizowane:');
+      print('   - Imię: ${newUser.name}');
+      print('   - Godzina: ${newUser.birthTime ?? "brak"}');
+      print('   - Miejsce: ${newUser.birthPlace ?? "brak"}');
+      print('   - Pełne info: ${newUser.fullBirthInfo}');
+
+      // Zamknij loading dialog
+      Navigator.of(context).pop();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               'Dane zostały zaktualizowane',
-              style: GoogleFonts.cinzelDecorative(),
+              style: AppTextStyles.bodyText, // ✅ Open Sans
             ),
             backgroundColor: Colors.green.withOpacity(0.8),
+            duration: const Duration(seconds: 2),
           ),
         );
-        Navigator.of(context).pop();
+
+        // ✅ POPRAWKA: Powróć do poprzedniego ekranu
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
       }
     } catch (e) {
+      // Zamknij loading dialog w przypadku błędu
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+
+      print('❌ Błąd zapisywania danych: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Błąd zapisywania: $e',
-              style: GoogleFonts.cinzelDecorative(),
-            ),
-            backgroundColor: Colors.red.withOpacity(0.8),
-          ),
-        );
+        _showErrorSnackBar('Błąd zapisywania: ${e.toString()}');
       }
     }
+  }
+
+  // ✅ DODANE: Loading dialog
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.deepBlue,
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: AppColors.cyan),
+            const SizedBox(width: 20),
+            Text(
+              'Zapisuję zmiany...',
+              style: AppTextStyles.bodyText, // ✅ Open Sans
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ DODANE: Error feedback
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: AppTextStyles.bodyText, // ✅ Open Sans
+        ),
+        backgroundColor: Colors.red.withOpacity(0.8),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   void _deleteUserData() async {
@@ -178,7 +271,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
           SnackBar(
             content: Text(
               'Dane zostały usunięte',
-              style: GoogleFonts.cinzelDecorative(),
+              style: AppTextStyles.bodyText, // ✅ Open Sans
             ),
             backgroundColor: Colors.orange.withOpacity(0.8),
           ),
@@ -187,65 +280,131 @@ class _UserDataScreenState extends State<UserDataScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Błąd usuwania: $e',
-              style: GoogleFonts.cinzelDecorative(),
-            ),
-            backgroundColor: Colors.red.withOpacity(0.8),
-          ),
-        );
+        _showErrorSnackBar('Błąd usuwania: ${e.toString()}');
       }
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.darkBlue,
-      appBar: AppBar(
+  // ✅ DODANE: Back button handling
+  Future<bool> _onWillPop() async {
+    if (!_hasUnsavedChanges) {
+      return true; // Pozwól na powrót
+    }
+
+    // Pokaż dialog potwierdzenia
+    final shouldPop = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
         backgroundColor: AppColors.deepBlue,
         title: Text(
-          'Moje dane',
-          style: GoogleFonts.cinzelDecorative(
-            color: AppColors.cyan,
-            fontWeight: FontWeight.w600,
-          ),
+          'Niezapisane zmiany',
+          style: AppTextStyles.cardTitle
+              .copyWith(color: Colors.orange), // ✅ Cinzel
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        content: Text(
+          'Masz niezapisane zmiany. Czy chcesz wyjść bez zapisywania?',
+          style: AppTextStyles.bodyTextLight, // ✅ Open Sans
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.red),
-            onPressed: () => _showDeleteConfirmation(),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Anuluj',
+              style: AppTextStyles.bodyText
+                  .copyWith(color: Colors.grey), // ✅ Open Sans
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              'Wyjdź bez zapisywania',
+              style: AppTextStyles.bodyText
+                  .copyWith(color: Colors.orange), // ✅ Open Sans
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop(false);
+              _saveUserData(); // Zapisz i wyjdź
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.cyan),
+            child: Text(
+              'Zapisz',
+              style: AppTextStyles.buttonText
+                  .copyWith(color: Colors.black), // ✅ Cinzel
+            ),
           ),
         ],
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: AppColors.welcomeGradient,
+    );
+
+    return shouldPop ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      // ✅ DODANE: Handle back button
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        backgroundColor: AppColors.darkBlue,
+        appBar: AppBar(
+          backgroundColor: AppColors.deepBlue,
+          title: Text(
+            'Moje dane',
+            style: AppTextStyles.sectionTitle, // ✅ Cinzel Decorative
           ),
+          iconTheme: const IconThemeData(color: Colors.white),
+          actions: [
+            // ✅ DODANE: Wskaźnik niezapisanych zmian
+            if (_hasUnsavedChanges)
+              Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Zmienione',
+                  style: AppTextStyles.smallText.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ), // ✅ Open Sans
+                ),
+              ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () => _showDeleteConfirmation(),
+            ),
+          ],
         ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header z informacjami
-              _buildInfoHeader(),
-              const SizedBox(height: 32),
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: AppColors.welcomeGradient,
+            ),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header z informacjami
+                _buildInfoHeader(),
+                const SizedBox(height: 32),
 
-              // Formularz edycji
-              _buildEditForm(),
+                // Formularz edycji
+                _buildEditForm(),
 
-              const SizedBox(height: 40),
+                const SizedBox(height: 40),
 
-              // Przycisk zapisz
-              _buildSaveButton(),
-            ],
+                // Przycisk zapisz
+                _buildSaveButton(),
+              ],
+            ),
           ),
         ),
       ),
@@ -278,11 +437,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
               const SizedBox(width: 12),
               Text(
                 'Aktualne dane',
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 20,
-                  color: AppColors.cyan,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: AppTextStyles.cardTitle, // ✅ Cinzel Decorative
               ),
             ],
           ),
@@ -314,21 +469,15 @@ class _UserDataScreenState extends State<UserDataScreen> {
             width: 120,
             child: Text(
               '$label:',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 14,
-                color: Colors.white70,
-                fontWeight: FontWeight.w400,
-              ),
+              style: AppTextStyles.caption, // ✅ Open Sans
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 14,
-                color: Colors.white,
+              style: AppTextStyles.bodyText.copyWith(
                 fontWeight: FontWeight.w500,
-              ),
+              ), // ✅ Open Sans
             ),
           ),
         ],
@@ -352,11 +501,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
         children: [
           Text(
             'Edytuj dane',
-            style: GoogleFonts.cinzelDecorative(
-              fontSize: 18,
-              color: Colors.white,
-              fontWeight: FontWeight.w500,
-            ),
+            style: AppTextStyles.cardTitle, // ✅ Cinzel Decorative
           ),
           const SizedBox(height: 20),
 
@@ -394,17 +539,12 @@ class _UserDataScreenState extends State<UserDataScreen> {
       children: [
         Text(
           label,
-          style: GoogleFonts.cinzelDecorative(
-            fontSize: 14,
-            color: Colors.white,
-          ),
+          style: AppTextStyles.bodyText, // ✅ Open Sans
         ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
-          style: GoogleFonts.cinzelDecorative(
-            color: Colors.white,
-          ),
+          style: AppTextStyles.bodyText, // ✅ Open Sans
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white.withOpacity(0.1),
@@ -432,10 +572,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
       children: [
         Text(
           'Data urodzenia',
-          style: GoogleFonts.cinzelDecorative(
-            fontSize: 14,
-            color: Colors.white,
-          ),
+          style: AppTextStyles.bodyText, // ✅ Open Sans
         ),
         const SizedBox(height: 8),
         InkWell(
@@ -453,7 +590,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
                 Expanded(
                   child: Text(
                     '${_birthDate.day}.${_birthDate.month}.${_birthDate.year}',
-                    style: GoogleFonts.cinzelDecorative(color: Colors.white),
+                    style: AppTextStyles.bodyText, // ✅ Open Sans
                   ),
                 ),
                 Icon(Icons.calendar_today, color: AppColors.cyan, size: 20),
@@ -471,10 +608,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
       children: [
         Text(
           'Godzina urodzenia',
-          style: GoogleFonts.cinzelDecorative(
-            fontSize: 14,
-            color: Colors.white,
-          ),
+          style: AppTextStyles.bodyText, // ✅ Open Sans
         ),
         const SizedBox(height: 8),
         InkWell(
@@ -502,9 +636,9 @@ class _UserDataScreenState extends State<UserDataScreen> {
                         : _rememberBirthTime
                             ? 'Wybierz godzinę'
                             : 'Godzina nieznana',
-                    style: GoogleFonts.cinzelDecorative(
+                    style: AppTextStyles.bodyText.copyWith(
                       color: _rememberBirthTime ? Colors.white : Colors.grey,
-                    ),
+                    ), // ✅ Open Sans
                   ),
                 ),
                 Icon(
@@ -527,16 +661,14 @@ class _UserDataScreenState extends State<UserDataScreen> {
                   if (!_rememberBirthTime) {
                     _birthTime = null;
                   }
+                  _hasUnsavedChanges = true; // ✅ DODANE
                 });
               },
               activeColor: AppColors.cyan,
             ),
             Text(
               'Nie pamiętam godziny urodzenia',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.white70,
-                fontSize: 12,
-              ),
+              style: AppTextStyles.caption, // ✅ Open Sans
             ),
           ],
         ),
@@ -550,10 +682,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
       children: [
         Text(
           'Płeć',
-          style: GoogleFonts.cinzelDecorative(
-            fontSize: 14,
-            color: Colors.white,
-          ),
+          style: AppTextStyles.bodyText, // ✅ Open Sans
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
@@ -567,13 +696,16 @@ class _UserDataScreenState extends State<UserDataScreen> {
             ),
           ),
           dropdownColor: AppColors.deepBlue,
-          style: GoogleFonts.cinzelDecorative(color: Colors.white),
+          style: AppTextStyles.bodyText, // ✅ Open Sans
           items: const [
             DropdownMenuItem(value: 'female', child: Text('Kobieta')),
             DropdownMenuItem(value: 'male', child: Text('Mężczyzna')),
             DropdownMenuItem(value: 'other', child: Text('Inna')),
           ],
-          onChanged: (v) => setState(() => _gender = v ?? 'other'),
+          onChanged: (v) => setState(() {
+            _gender = v ?? 'other';
+            _hasUnsavedChanges = true; // ✅ DODANE
+          }),
         ),
       ],
     );
@@ -585,10 +717,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
       children: [
         Text(
           'Dominująca ręka',
-          style: GoogleFonts.cinzelDecorative(
-            fontSize: 14,
-            color: Colors.white,
-          ),
+          style: AppTextStyles.bodyText, // ✅ Open Sans
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
@@ -602,12 +731,15 @@ class _UserDataScreenState extends State<UserDataScreen> {
             ),
           ),
           dropdownColor: AppColors.deepBlue,
-          style: GoogleFonts.cinzelDecorative(color: Colors.white),
+          style: AppTextStyles.bodyText, // ✅ Open Sans
           items: const [
             DropdownMenuItem(value: 'right', child: Text('Prawa')),
             DropdownMenuItem(value: 'left', child: Text('Lewa')),
           ],
-          onChanged: (v) => setState(() => _dominantHand = v ?? 'right'),
+          onChanged: (v) => setState(() {
+            _dominantHand = v ?? 'right';
+            _hasUnsavedChanges = true; // ✅ DODANE
+          }),
         ),
       ],
     );
@@ -620,18 +752,34 @@ class _UserDataScreenState extends State<UserDataScreen> {
       child: ElevatedButton(
         onPressed: _saveUserData,
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.cyan,
+          backgroundColor: _hasUnsavedChanges
+              ? AppColors.cyan
+              : Colors.grey, // ✅ ZMIANA KOLORU JEŚLI BRAK ZMIAN
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        child: Text(
-          'Zapisz zmiany',
-          style: GoogleFonts.cinzelDecorative(
-            color: Colors.black,
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-          ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_hasUnsavedChanges) ...[
+              Icon(Icons.save, color: Colors.black, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Zapisz zmiany',
+                style: AppTextStyles.buttonText
+                    .copyWith(color: Colors.black), // ✅ Cinzel
+              ),
+            ] else ...[
+              Icon(Icons.check, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Brak zmian',
+                style: AppTextStyles.buttonText
+                    .copyWith(color: Colors.white), // ✅ Cinzel
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -655,21 +803,20 @@ class _UserDataScreenState extends State<UserDataScreen> {
         backgroundColor: AppColors.deepBlue,
         title: Text(
           'Usuń wszystkie dane',
-          style: GoogleFonts.cinzelDecorative(
-            color: Colors.red,
-            fontWeight: FontWeight.w600,
-          ),
+          style:
+              AppTextStyles.cardTitle.copyWith(color: Colors.red), // ✅ Cinzel
         ),
         content: Text(
           'Czy na pewno chcesz usunąć wszystkie swoje dane? Ta operacja nie może zostać cofnięta.',
-          style: GoogleFonts.cinzelDecorative(color: Colors.white),
+          style: AppTextStyles.bodyTextLight, // ✅ Open Sans
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text(
               'Anuluj',
-              style: GoogleFonts.cinzelDecorative(color: Colors.grey),
+              style: AppTextStyles.bodyText
+                  .copyWith(color: Colors.grey), // ✅ Open Sans
             ),
           ),
           ElevatedButton(
@@ -680,10 +827,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: Text(
               'Usuń',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.buttonText, // ✅ Cinzel
             ),
           ),
         ],

@@ -1,5 +1,5 @@
 // lib/screens/fortune_history_screen.dart
-// Ekran historii wróżb
+// NAPRAWIONA WERSJA - Open Sans dla długich tekstów
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,9 +7,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:math' as math;
 import '../utils/constants.dart';
-import '../models/fortune_history.dart'; // ✅ POPRAWIONY IMPORT
-import '../services/fortune_history_service.dart'; // ✅ POPRAWIONY IMPORT
-import 'fortune_detail_screen.dart'; // ✅ POPRAWIONY IMPORT
+import '../models/fortune_history.dart';
+import '../services/fortune_history_service.dart';
+import 'fortune_detail_screen.dart';
 
 class FortuneHistoryScreen extends StatefulWidget {
   final String userName;
@@ -76,7 +76,7 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
       });
 
       final history = await _historyService.getFortuneHistory();
-      
+
       setState(() {
         _history = history;
         _isLoading = false;
@@ -219,23 +219,14 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
                     const SizedBox(width: 12),
                     Text(
                       'MOJE WRÓŻBY',
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 20,
-                        color: AppColors.cyan,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.5,
-                      ),
+                      style: AppTextStyles.sectionTitle, // ✅ Cinzel Decorative
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Historia Twoich mistycznych odkryć',
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 14,
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w300,
-                  ),
+                  style: AppTextStyles.mysticalAccent, // ✅ Cinzel Decorative
                 ),
               ],
             ),
@@ -300,11 +291,7 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
           const SizedBox(height: 20),
           Text(
             'Przywołuję Twoje wróżby...',
-            style: GoogleFonts.cinzelDecorative(
-              fontSize: 18,
-              color: Colors.white,
-              fontWeight: FontWeight.w400,
-            ),
+            style: AppTextStyles.cardTitle, // ✅ Cinzel Decorative
           ),
         ],
       ),
@@ -340,11 +327,7 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
             const SizedBox(height: 16),
             Text(
               'Błąd ładowania historii',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 18,
-                color: Colors.red,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.errorText, // ✅ Open Sans
             ),
             const SizedBox(height: 16),
             ElevatedButton(
@@ -357,10 +340,7 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
               ),
               child: Text(
                 'Spróbuj ponownie',
-                style: GoogleFonts.cinzelDecorative(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: AppTextStyles.buttonText, // ✅ Cinzel Decorative
               ),
             ),
           ],
@@ -416,22 +396,13 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
                   const SizedBox(height: 24),
                   Text(
                     'Jeszcze nie masz wróżb',
-                    style: GoogleFonts.cinzelDecorative(
-                      fontSize: 20,
-                      color: AppColors.cyan,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: AppTextStyles.cardTitle, // ✅ Cinzel Decorative
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
                   Text(
                     'Wykonaj pierwszą analizę dłoni,\naby odkryć swoją przyszłość',
-                    style: GoogleFonts.cinzelDecorative(
-                      fontSize: 16,
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w300,
-                      height: 1.5,
-                    ),
+                    style: AppTextStyles.bodyTextLight, // ✅ Open Sans
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
@@ -449,11 +420,8 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
                     ),
                     child: Text(
                       'Skanuj dłoń',
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 16,
-                        color: Colors.black,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTextStyles.buttonText
+                          .copyWith(color: Colors.black), // ✅ Cinzel Decorative
                     ),
                   ),
                 ],
@@ -551,20 +519,15 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
                         children: [
                           Text(
                             fortune.handTypeName,
-                            style: GoogleFonts.cinzelDecorative(
+                            style: AppTextStyles.cardTitle.copyWith(
                               fontSize: 16,
                               color: AppColors.cyan,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            ), // ✅ Cinzel Decorative
                           ),
                           const SizedBox(height: 4),
                           Text(
                             fortune.formattedDate,
-                            style: GoogleFonts.cinzelDecorative(
-                              fontSize: 14,
-                              color: Colors.white60,
-                              fontWeight: FontWeight.w300,
-                            ),
+                            style: AppTextStyles.caption, // ✅ Open Sans
                           ),
                         ],
                       ),
@@ -583,15 +546,11 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
 
                 const SizedBox(height: 12),
 
-                // Summary
+                // Summary - ✅ ZMIENIONE NA OPEN SANS
                 Text(
                   fortune.shortSummary,
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 14,
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w300,
-                    height: 1.4,
-                  ),
+                  style:
+                      AppTextStyles.bodyTextLight, // ✅ Open Sans zamiast Cinzel
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -609,11 +568,9 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
                     const SizedBox(width: 4),
                     Text(
                       'Dotknij aby przeczytać',
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 12,
+                      style: AppTextStyles.smallText.copyWith(
                         color: AppColors.cyan.withOpacity(0.7),
-                        fontWeight: FontWeight.w300,
-                      ),
+                      ), // ✅ Open Sans
                     ),
                   ],
                 ),
@@ -693,11 +650,7 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
             // Title
             Text(
               'Opcje wróżby',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 18,
-                color: AppColors.cyan,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.cardTitle, // ✅ Cinzel Decorative
             ),
             const SizedBox(height: 20),
 
@@ -740,15 +693,12 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
     Color? color,
   }) {
     final tileColor = color ?? Colors.white;
-    
+
     return ListTile(
       leading: Icon(icon, color: tileColor),
       title: Text(
         title,
-        style: GoogleFonts.cinzelDecorative(
-          color: tileColor,
-          fontWeight: FontWeight.w400,
-        ),
+        style: AppTextStyles.bodyText.copyWith(color: tileColor), // ✅ Open Sans
       ),
       onTap: onTap,
       shape: RoundedRectangleBorder(
@@ -798,11 +748,7 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
             // Title
             Text(
               'Opcje historii',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 18,
-                color: AppColors.cyan,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.cardTitle, // ✅ Cinzel Decorative
             ),
             const SizedBox(height: 20),
 
@@ -860,27 +806,22 @@ Odkryj swoją przyszłość z AI Wróżka!
         ),
         title: Text(
           'Usuń wróżbę',
-          style: GoogleFonts.cinzelDecorative(
+          style: AppTextStyles.cardTitle.copyWith(
             color: Colors.red,
             fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
+          ), // ✅ Cinzel Decorative
         ),
         content: Text(
           'Czy na pewno chcesz usunąć tę wróżbę z ${fortune.formattedDate}?',
-          style: GoogleFonts.cinzelDecorative(
-            color: Colors.white70,
-            fontSize: 14,
-          ),
+          style: AppTextStyles.bodyTextLight, // ✅ Open Sans
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text(
               'Anuluj',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.white60,
-              ),
+              style: AppTextStyles.bodyText
+                  .copyWith(color: Colors.white60), // ✅ Open Sans
             ),
           ),
           ElevatedButton(
@@ -888,13 +829,13 @@ Odkryj swoją przyszłość z AI Wróżka!
               Navigator.of(context).pop();
               await _historyService.deleteFortune(fortune.id);
               _loadHistory();
-              
+
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
                       'Wróżba została usunięta',
-                      style: GoogleFonts.cinzelDecorative(),
+                      style: AppTextStyles.bodyText, // ✅ Open Sans
                     ),
                     backgroundColor: Colors.green.withOpacity(0.8),
                   ),
@@ -909,10 +850,7 @@ Odkryj swoją przyszłość z AI Wróżka!
             ),
             child: Text(
               'Usuń',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.buttonText, // ✅ Cinzel Decorative
             ),
           ),
         ],
@@ -934,27 +872,22 @@ Odkryj swoją przyszłość z AI Wróżka!
         ),
         title: Text(
           'Wyczyść historię',
-          style: GoogleFonts.cinzelDecorative(
+          style: AppTextStyles.cardTitle.copyWith(
             color: Colors.red,
             fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
+          ), // ✅ Cinzel Decorative
         ),
         content: Text(
           'Czy na pewno chcesz usunąć wszystkie wróżby z historii? Tej operacji nie można cofnąć.',
-          style: GoogleFonts.cinzelDecorative(
-            color: Colors.white70,
-            fontSize: 14,
-          ),
+          style: AppTextStyles.bodyTextLight, // ✅ Open Sans
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text(
               'Anuluj',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.white60,
-              ),
+              style: AppTextStyles.bodyText
+                  .copyWith(color: Colors.white60), // ✅ Open Sans
             ),
           ),
           ElevatedButton(
@@ -962,13 +895,13 @@ Odkryj swoją przyszłość z AI Wróżka!
               Navigator.of(context).pop();
               await _historyService.clearHistory();
               _loadHistory();
-              
+
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
                       'Historia została wyczyszczona',
-                      style: GoogleFonts.cinzelDecorative(),
+                      style: AppTextStyles.bodyText, // ✅ Open Sans
                     ),
                     backgroundColor: Colors.green.withOpacity(0.8),
                   ),
@@ -983,10 +916,7 @@ Odkryj swoją przyszłość z AI Wróżka!
             ),
             child: Text(
               'Wyczyść',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.buttonText, // ✅ Cinzel Decorative
             ),
           ),
         ],
@@ -1014,15 +944,19 @@ class HistoryBackgroundPainter extends CustomPainter {
         final radius = 40.0 + (i % 3) * 20.0;
         final centerX = size.width * (0.1 + (i % 5) * 0.2);
         final centerY = size.height * (0.1 + (i % 4) * 0.25);
-        
+
         final x = centerX + radius * math.cos(angle * 0.3);
         final y = centerY + radius * math.sin(angle * 0.2);
 
-        if (x >= -10 && x <= size.width + 10 && 
-            y >= -10 && y <= size.height + 10) {
-          final particleSize = 0.8 + math.sin(animationValue * 3 * math.pi + i) * 0.4;
-          final opacity = 0.05 + math.sin(animationValue * 2 * math.pi + i * 0.5) * 0.03;
-          
+        if (x >= -10 &&
+            x <= size.width + 10 &&
+            y >= -10 &&
+            y <= size.height + 10) {
+          final particleSize =
+              0.8 + math.sin(animationValue * 3 * math.pi + i) * 0.4;
+          final opacity =
+              0.05 + math.sin(animationValue * 2 * math.pi + i * 0.5) * 0.03;
+
           if (particleSize > 0) {
             paint.color = AppColors.cyan.withOpacity(opacity.clamp(0.01, 0.08));
             canvas.drawCircle(Offset(x, y), particleSize.abs(), paint);

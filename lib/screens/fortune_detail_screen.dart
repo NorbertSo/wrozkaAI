@@ -1,12 +1,12 @@
 // lib/screens/fortune_detail_screen.dart
-// Ekran szczegółów wróżby
+// NAPRAWIONA WERSJA - Open Sans dla długich tekstów
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:math' as math;
 import '../utils/constants.dart';
-import '../models/fortune_history.dart'; // ✅ POPRAWIONY IMPORT
+import '../models/fortune_history.dart';
 
 class FortuneDetailScreen extends StatefulWidget {
   final FortuneHistory fortune;
@@ -197,12 +197,7 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
                     const SizedBox(width: 12),
                     Text(
                       'TWOJA WRÓŻBA',
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 20,
-                        color: AppColors.cyan,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.5,
-                      ),
+                      style: AppTextStyles.sectionTitle, // ✅ Cinzel Decorative
                     ),
                   ],
                 ),
@@ -238,11 +233,10 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
                     const SizedBox(width: 8),
                     Text(
                       widget.fortune.handTypeName,
-                      style: GoogleFonts.cinzelDecorative(
+                      style: AppTextStyles.mysticalAccent.copyWith(
                         fontSize: 14,
-                        color: AppColors.cyan,
                         fontWeight: FontWeight.w500,
-                      ),
+                      ), // ✅ Cinzel Decorative
                     ),
                   ],
                 ),
@@ -270,11 +264,7 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
                     const SizedBox(width: 6),
                     Text(
                       widget.fortune.formattedDate,
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 14,
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w400,
-                      ),
+                      style: AppTextStyles.caption, // ✅ Open Sans
                     ),
                   ],
                 ),
@@ -316,29 +306,23 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Greeting
+            // Greeting - ✅ CINZEL DECORATIVE
             Text(
               'Drogi${widget.fortune.userGender == 'female' ? 'a' : (widget.fortune.userGender == 'other' ? '/a' : '')} ${widget.fortune.userName},',
-              style: GoogleFonts.cinzelDecorative(
+              style: AppTextStyles.cardTitle.copyWith(
                 fontSize: 18,
                 color: AppColors.cyan,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 0.5,
-              ),
+              ), // ✅ Cinzel Decorative
             ),
 
             const SizedBox(height: 20),
 
-            // Fortune text
+            // Fortune text - ✅ OPEN SANS DLA DŁUGICH TEKSTÓW
             Text(
               widget.fortune.fortuneText,
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 16,
-                color: Colors.white,
-                fontWeight: FontWeight.w300,
-                height: 1.6,
-                letterSpacing: 0.2,
-              ),
+              style: AppTextStyles.fortuneText, // ✅ Open Sans dla wróżb
             ),
 
             const SizedBox(height: 24),
@@ -365,16 +349,15 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
 
             const SizedBox(height: 16),
 
-            // Footer message
+            // Footer message - ✅ CINZEL DECORATIVE
             Center(
               child: Text(
                 'Niech mistyczne moce będą z Tobą! ✨',
-                style: GoogleFonts.cinzelDecorative(
+                style: AppTextStyles.mysticalAccent.copyWith(
                   fontSize: 16,
-                  color: AppColors.cyan,
                   fontWeight: FontWeight.w400,
                   letterSpacing: 0.8,
-                ),
+                ), // ✅ Cinzel Decorative
                 textAlign: TextAlign.center,
               ),
             ),
@@ -396,7 +379,10 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
               child: OutlinedButton.icon(
                 onPressed: _shareFortune,
                 icon: const Icon(Icons.share, size: 20),
-                label: const Text('Udostępnij'),
+                label: Text(
+                  'Udostępnij',
+                  style: AppTextStyles.buttonText, // ✅ Cinzel Decorative
+                ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.cyan,
                   side: BorderSide(color: AppColors.cyan.withOpacity(0.7)),
@@ -414,7 +400,10 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
               child: ElevatedButton.icon(
                 onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(Icons.arrow_back, size: 20),
-                label: const Text('Wróć'),
+                label: Text(
+                  'Wróć',
+                  style: AppTextStyles.buttonText, // ✅ Cinzel Decorative
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.cyan,
                   foregroundColor: Colors.black,

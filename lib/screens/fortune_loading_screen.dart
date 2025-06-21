@@ -191,7 +191,7 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            PalmAnalysisResultScreen(
+            PalmAnalysisScreen(
           userName: widget.userData.name,
           userGender: widget.userData.genderForMessages,
           analysisResult: result,
