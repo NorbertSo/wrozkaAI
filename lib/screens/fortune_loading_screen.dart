@@ -1,5 +1,5 @@
 // lib/screens/fortune_loading_screen.dart
-// POPRAWIONA WERSJA - z Lottie i drobnymi poprawkami
+// NOWY INTERAKTYWNY KONCEPT - przytrzymaj ekran
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +7,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import '../utils/constants.dart';
 import '../services/ai_palm_analysis_service.dart';
+import '../services/haptic_service.dart';
 import '../models/user_data.dart';
 import 'palm_analysis_result_screen.dart';
 import 'package:camera/camera.dart';
@@ -30,113 +31,216 @@ class FortuneLoadingScreen extends StatefulWidget {
 
 class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
     with TickerProviderStateMixin {
-  late AnimationController _orbController;
-  late AnimationController _textController;
-  late AnimationController _runeController;
-  late AnimationController _progressController;
-  late AnimationController _pulseController;
+  // ===== KONTROLERY ANIMACJI =====
+  late AnimationController _backgroundController;
+  late AnimationController _loading1Controller;
+  late AnimationController _loading2Controller;
+  late AnimationController _glowController;
 
-  late Animation<double> _orbAnimation;
-  late Animation<double> _textAnimation;
-  late Animation<double> _runeAnimation;
-  late Animation<double> _progressAnimation;
-  late Animation<double> _pulseAnimation;
+  late Animation<double> _backgroundAnimation;
+  late Animation<double> _loading1Animation;
+  late Animation<double> _loading2Animation;
+  late Animation<double> _glowAnimation;
 
-  int _currentMessageIndex = 0;
-  Timer? _messageTimer;
+  // ===== STAN INTERAKCJI =====
+  bool _isHolding = false;
+  bool _hasStartedLoading2 = false;
+  bool _isAnalysisComplete = false;
+  double _totalProgress = 0.0; // 0.0 - 1.0 (10 sekund)
+
+  // ===== TIMERY I SERWISY =====
+  Timer? _progressTimer;
+  Timer? _vibrationTimer;
+  final HapticService _hapticService = HapticService();
+
+  // ===== ANALIZA AI =====
   bool _isAnalyzing = true;
+  PalmAnalysisResult? _analysisResult;
 
-  final List<String> _loadingMessages = [
-    'Łączę się z mistycznymi mocami...',
-    'Analizuję linie Twojej dłoni...',
-    'Odczytuję znaki starożytnych...',
-    'Interpretuję wzgórki energii...',
-    'Konsultuję się z gwiazdami...',
-    'Przygotowuję Twoją przepowiednię...',
-    'Finalizuję wróżbę...',
+  // ===== KOLORY TŁA =====
+  final List<Color> _backgroundColors = [
+    const Color(0xFF0D1B2A), // Ciemny niebieski
+    const Color(0xFF1B263B), // Średni niebieski
+    const Color(0xFF2D1B3B), // Fioletowy
+    const Color(0xFF3B1B2D), // Ciemny fiolet
+    const Color(0xFF3B2D1B), // Brązowy
+    const Color(0xFF1B3B2D), // Ciemny zielony
+    const Color(0xFF1B2D3B), // Powrót do niebieskiego
   ];
 
   @override
   void initState() {
     super.initState();
-    print('🔮 FortuneLoadingScreen - START dla: ${widget.userData.name}');
+    print('🔮 Nowy Fortune Loading Screen - START');
     _initializeAnimations();
-    _startAnimations();
-    _startMessageCycle();
-    _startAnalysis();
+    _startRealAnalysis();
   }
 
   void _initializeAnimations() {
-    _orbController = AnimationController(
-      duration: const Duration(seconds: 3),
-      vsync: this,
-    )..repeat();
-
-    _textController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+    // Animacja tła (12 sekund)
+    _backgroundController = AnimationController(
+      duration: const Duration(seconds: 12),
       vsync: this,
     );
 
-    _runeController = AnimationController(
-      duration: const Duration(seconds: 6),
-      vsync: this,
-    )..repeat();
-
-    // ✅ POPRAWKA: Przyspieszenie do 19 sekund
-    _progressController = AnimationController(
-      duration: const Duration(seconds: 19),
-      vsync: this,
-    );
-
-    _pulseController = AnimationController(
+    // Animacja loading1 (ciągła)
+    _loading1Controller = AnimationController(
       duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+
+    // Animacja loading2 (fade-in od 3-8 sekundy) - 5 sekund
+    _loading2Controller = AnimationController(
+      duration: const Duration(seconds: 5), // 3s-8s
+      vsync: this,
+    );
+
+    // Animacja poświaty
+    _glowController = AnimationController(
+      duration: const Duration(seconds: 3),
       vsync: this,
     )..repeat(reverse: true);
 
-    _orbAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _orbController, curve: Curves.linear),
+    // Konfiguracja animacji
+    _backgroundAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _backgroundController, curve: Curves.easeInOut),
     );
 
-    _textAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _textController, curve: Curves.easeInOut),
+    _loading1Animation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _loading1Controller, curve: Curves.easeInOut),
     );
 
-    _runeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _runeController, curve: Curves.linear),
+    _loading2Animation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _loading2Controller, curve: Curves.easeIn),
     );
 
-    _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _progressController, curve: Curves.easeInOut),
-    );
-
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    _glowAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
   }
 
-  void _startAnimations() {
-    _textController.forward();
-    _progressController.forward();
+  // ===== INTERAKCJA - PRZYTRZYMYWANIE =====
+  void _startHolding() {
+    if (_isHolding) return;
+
+    print('👆 START HOLDING');
+    setState(() {
+      _isHolding = true;
+    });
+
+    // Start animacji loading1
+    _loading1Controller.repeat();
+
+    // Start progressu
+    _startProgressTimer();
+
+    // Start wibracji
+    _startVibrationPattern();
+
+    // Start animacji tła
+    _backgroundController.forward();
   }
 
-  void _startMessageCycle() {
-    _messageTimer = Timer.periodic(const Duration(milliseconds: 2500), (timer) {
-      if (mounted && _isAnalyzing) {
-        setState(() {
-          _currentMessageIndex =
-              (_currentMessageIndex + 1) % _loadingMessages.length;
-        });
-        _textController.reset();
-        _textController.forward();
+  void _stopHolding() {
+    if (!_isHolding) return;
+
+    print('👆 STOP HOLDING');
+    setState(() {
+      _isHolding = false;
+    });
+
+    // Zatrzymaj wszystkie animacje
+    _loading1Controller.stop();
+    _backgroundController.stop();
+
+    // Zatrzymaj timery
+    _progressTimer?.cancel();
+    _vibrationTimer?.cancel();
+
+    // Jeśli loading2 się już rozpoczął, zatrzymaj go też
+    if (_hasStartedLoading2) {
+      _loading2Controller.stop();
+    }
+  }
+
+  void _resumeHolding() {
+    if (_isHolding) return;
+
+    print('👆 RESUME HOLDING');
+    setState(() {
+      _isHolding = true;
+    });
+
+    // Wznów animacje od miejsca gdzie były
+    _loading1Controller.repeat();
+    _backgroundController.forward();
+
+    if (_hasStartedLoading2) {
+      _loading2Controller.forward();
+    }
+
+    // Wznów timery
+    _startProgressTimer();
+    _startVibrationPattern();
+  }
+
+  // ===== TIMER POSTĘPU =====
+  void _startProgressTimer() {
+    _progressTimer?.cancel();
+    _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!_isHolding) {
+        timer.cancel();
+        return;
+      }
+
+      setState(() {
+        _totalProgress += 0.0083; // +0.83% co 100ms = 12 sekund total
+      });
+
+      // Po 3 sekundach start loading2
+      if (_totalProgress >= 0.25 && !_hasStartedLoading2) {
+        print('🎯 3s - START LOADING2');
+        _hasStartedLoading2 = true;
+        _loading2Controller.forward();
+      }
+
+      // Po pełnych 12 sekundach (niezależnie od analizy)
+      if (_totalProgress >= 1.0) {
+        print('✅ LOADING COMPLETE - TRANSITION');
+        timer.cancel();
+        _onLoadingComplete();
       }
     });
   }
 
-  void _startAnalysis() async {
-    try {
-      print('🔮 Rozpoczynam analizę AI w FortuneLoadingScreen');
-      print('📸 Zdjęcie dłoni: ${widget.palmPhoto?.path ?? "BRAK"}');
+  // ===== PROGRESYWNE WIBRACJE =====
+  void _startVibrationPattern() {
+    _vibrationTimer?.cancel();
+    _vibrationTimer =
+        Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      if (!_isHolding) {
+        timer.cancel();
+        return;
+      }
 
+      // Progresywna siła wibracji
+      HapticType hapticType;
+      if (_totalProgress < 0.7) {
+        hapticType = HapticType.light; // Bardzo delikatne
+      } else if (_totalProgress < 0.9) {
+        hapticType = HapticType.medium; // Średnie
+      } else {
+        hapticType = HapticType.heavy; // Mocne na końcu
+      }
+
+      _hapticService.trigger(hapticType);
+    });
+  }
+
+  // ===== PRAWDZIWA ANALIZA AI =====
+  void _startRealAnalysis() async {
+    try {
+      print('🤖 START Real AI Analysis');
       final aiService = SimpleAIPalmService();
       final result = await aiService.analyzePalm(
         userData: widget.userData,
@@ -145,91 +249,105 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
       );
 
       if (mounted) {
-        print('✅ Analiza AI zakończona');
-        _isAnalyzing = false;
-        _messageTimer?.cancel();
-
-        // Pokazuj "Wróżba gotowa!" przez 2 sekundy
         setState(() {
-          _currentMessageIndex = -1; // Specjalny indeks dla wiadomości końcowej
+          _analysisResult = result;
+          _isAnalyzing = false;
+          _isAnalysisComplete = true;
         });
-
-        _textController.reset();
-        _textController.forward();
-
-        await Future.delayed(const Duration(seconds: 2));
-
-        if (mounted) {
-          _navigateToResults(result);
-        }
+        print('✅ AI Analysis COMPLETE');
       }
     } catch (e) {
-      print('❌ Błąd analizy w FortuneLoadingScreen: $e');
-
+      print('❌ AI Analysis ERROR: $e');
       if (mounted) {
-        _isAnalyzing = false;
-        _messageTimer?.cancel();
-
-        // Pokazuj błąd
         setState(() {
-          _currentMessageIndex = -2; // Specjalny indeks dla błędu
+          _isAnalyzing = false;
+          _isAnalysisComplete = true;
+          // Fallback result
+          _analysisResult = PalmAnalysisResult.failure('Błąd analizy: $e');
         });
-
-        _textController.reset();
-        _textController.forward();
-
-        await Future.delayed(const Duration(seconds: 3));
-
-        if (mounted) {
-          Navigator.of(context).pop();
-        }
       }
     }
   }
 
-  void _navigateToResults(PalmAnalysisResult result) {
-    print('🚀 Nawigacja do wyników dla: ${widget.userData.name}');
+  // ===== ZAKOŃCZENIE ŁADOWANIA =====
+  void _onLoadingComplete() async {
+    _progressTimer?.cancel();
+    _vibrationTimer?.cancel();
 
+    // Finalna mocna wibracja
+    await _hapticService.trigger(HapticType.success);
+
+    // Zawsze czekamy na pełne 10 sekund, niezależnie od tego kiedy analiza się skończy
+    if (mounted) {
+      // Jeśli analiza jeszcze się nie skończyła, czekamy na nią
+      if (!_isAnalysisComplete || _analysisResult == null) {
+        print('⏳ Waiting for analysis to complete...');
+        await _waitForAnalysisCompletion();
+      }
+
+      if (_analysisResult != null) {
+        _navigateToResults();
+      }
+    }
+  }
+
+  // ===== CZEKANIE NA ZAKOŃCZENIE ANALIZY =====
+  Future<void> _waitForAnalysisCompletion() async {
+    // Maksymalnie czekamy 5 sekund na zakończenie analizy
+    int attempts = 0;
+    while (!_isAnalysisComplete && attempts < 50) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      attempts++;
+    }
+
+    // Jeśli nadal brak wyniku, tworzymy fallback
+    if (_analysisResult == null) {
+      print('⚠️ Analysis timeout - creating fallback result');
+      _analysisResult = PalmAnalysisResult.failure('Analiza trwała zbyt długo');
+    }
+  }
+
+  void _navigateToResults() {
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             PalmAnalysisScreen(
           userName: widget.userData.name,
           userGender: widget.userData.genderForMessages,
-          analysisResult: result,
+          analysisResult: _analysisResult,
           palmData: null,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          // Efektowne przejście - kombinacja fade + scale + rotate
           return FadeTransition(
             opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.0, 0.3),
-                end: Offset.zero,
-              ).animate(
-                CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                ),
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.8, end: 1.0).animate(
+                CurvedAnimation(parent: animation, curve: Curves.elasticOut),
               ),
-              child: child,
+              child: RotationTransition(
+                turns: Tween<double>(begin: 0.1, end: 0.0).animate(
+                  CurvedAnimation(parent: animation, curve: Curves.easeOut),
+                ),
+                child: child,
+              ),
             ),
           );
         },
-        transitionDuration: const Duration(milliseconds: 1000),
+        transitionDuration: const Duration(milliseconds: 1500),
       ),
     );
   }
 
   @override
   void dispose() {
-    print('🗑️ FortuneLoadingScreen dispose');
-    _messageTimer?.cancel();
-    _orbController.dispose();
-    _textController.dispose();
-    _runeController.dispose();
-    _progressController.dispose();
-    _pulseController.dispose();
+    print('🗑️ Fortune Loading Screen dispose');
+    _progressTimer?.cancel();
+    _vibrationTimer?.cancel();
+    _backgroundController.dispose();
+    _loading1Controller.dispose();
+    _loading2Controller.dispose();
+    _glowController.dispose();
     super.dispose();
   }
 
@@ -237,140 +355,206 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.center,
-            radius: 1.5,
-            colors: [
-              Color(0xFF0D1B2A),
-              Color(0xFF1B263B),
-              Color(0xFF000000),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onPanDown: (_) => _startHolding(),
+        onPanEnd: (_) => _stopHolding(),
+        onPanCancel: () => _stopHolding(),
+        onTapDown: (_) => _startHolding(),
+        onTapUp: (_) => _stopHolding(),
+        onTapCancel: () => _stopHolding(),
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          child: Stack(
+            children: [
+              _buildAnimatedBackground(),
+              _buildStarField(),
+              _buildMainContent(),
+              // Usunięte debug info
             ],
           ),
-        ),
-        child: Stack(
-          children: [
-            _buildMysticalBackground(),
-            SafeArea(
-              child: Column(
-                children: [
-                  _buildHeader(),
-                  Expanded(
-                    child: _buildCenterContent(),
-                  ),
-                  _buildProgressSection(),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
 
-  Widget _buildMysticalBackground() {
+  // ===== TŁO Z ANIMOWANYMI KOLORAMI =====
+  Widget _buildAnimatedBackground() {
     return AnimatedBuilder(
-      animation: _orbAnimation,
+      animation: _backgroundAnimation,
       builder: (context, child) {
-        return CustomPaint(
-          painter: LoadingBackgroundPainter(_orbAnimation.value),
-          size: Size.infinite,
+        // Interpolacja między kolorami
+        final colorIndex =
+            (_backgroundAnimation.value * (_backgroundColors.length - 1));
+        final currentColorIndex = colorIndex.floor();
+        final nextColorIndex =
+            (currentColorIndex + 1).clamp(0, _backgroundColors.length - 1);
+        final t = colorIndex - currentColorIndex;
+
+        final currentColor = _backgroundColors[currentColorIndex];
+        final nextColor = _backgroundColors[nextColorIndex];
+        final interpolatedColor =
+            Color.lerp(currentColor, nextColor, t) ?? currentColor;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 1.5,
+              colors: [
+                interpolatedColor,
+                interpolatedColor.withOpacity(0.8),
+                Colors.black,
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
-  // ✅ POPRAWKA: Prostszy header bez gwiazdek
-  Widget _buildHeader() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      child: Center(
-        child: Text(
-          'PRZYGOTOWUJĘ WRÓŻBĘ',
-          style: GoogleFonts.cinzelDecorative(
-            fontSize: 18,
-            color: AppColors.cyan,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 1.5,
-          ),
-        ),
+  // ===== POLE GWIAZD =====
+  Widget _buildStarField() {
+    return SizedBox.expand(
+      child: Lottie.asset(
+        'assets/animations/star_bg.json',
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
       ),
     );
   }
 
-  Widget _buildCenterContent() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // ✅ POPRAWKA: Lottie animation zamiast ręcznej ikony
-        _buildMainOrb(),
-        const SizedBox(height: 40),
+  // ===== GŁÓWNA ZAWARTOŚĆ =====
+  Widget _buildMainContent() {
+    return SafeArea(
+      child: Column(
+        children: [
+          // Komunikat na górze
+          const SizedBox(height: 20),
+          _buildHoldMessage(),
 
-        // Komunikat ładowania
-        _buildLoadingMessage(),
-        const SizedBox(height: 30),
+          // Środek - animacje
+          Expanded(
+            child: Center(
+              child: _buildLoadingAnimations(),
+            ),
+          ),
 
-        // Dodatkowe informacje
-        _buildUserInfo(),
-      ],
+          // Informacje użytkownika
+          _buildUserInfo(),
+
+          const SizedBox(height: 40),
+        ],
+      ),
     );
   }
 
-  // ✅ POPRAWKA: Lottie animation
-  Widget _buildMainOrb() {
+  // ===== ANIMACJE ŁADOWANIA =====
+  Widget _buildLoadingAnimations() {
     return AnimatedBuilder(
-      animation: Listenable.merge(
-          [_orbAnimation, _progressAnimation, _pulseAnimation]),
+      animation: _loading2Animation,
       builder: (context, child) {
         return Container(
-          width: 200,
-          height: 200,
+          width: 300,
+          height: 300,
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // ✅ LOTTIE ANIMATION ZAMIAST IKONY DŁONI
-              Transform.scale(
-                scale: _pulseAnimation.value,
-                child: Container(
-                  width: 160,
-                  height: 160,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        AppColors.cyan.withOpacity(0.4),
-                        AppColors.cyan.withOpacity(0.1),
-                        Colors.transparent,
-                      ],
-                    ),
-                    border: Border.all(
-                      color: AppColors.cyan.withOpacity(0.8),
-                      width: 3,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.cyan.withOpacity(0.4),
-                        blurRadius: 30,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: Lottie.asset(
-                    'assets/animations/fortuneloading.json',
-                    fit: BoxFit.contain,
-                  ),
+              // Loading1 - zawsze widoczne, STATYCZNA gdy nie trzymamy
+              Container(
+                width: 5500,
+                height: 550,
+                child: Lottie.asset(
+                  'assets/animations/fortuneloading1.json',
+                  fit: BoxFit.contain,
+                  // KLUCZOWE: animuje TYLKO gdy trzymamy
+                  animate: _isHolding,
+                  repeat: _isHolding,
                 ),
               ),
 
-              // Pasek postępu (okrągły)
-              Positioned.fill(
-                child: CircularProgressIndicator(
-                  value: _progressAnimation.value,
-                  strokeWidth: 4,
-                  backgroundColor: Colors.transparent,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.cyan.withOpacity(0.6),
+              // Efekt mgły przed loading2
+              if (_hasStartedLoading2)
+                Container(
+                  width: 280,
+                  height: 280,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      center: Alignment.center,
+                      radius: 0.8,
+                      colors: [
+                        Colors.white
+                            .withOpacity(0.1 * _loading2Animation.value),
+                        Colors.white
+                            .withOpacity(0.05 * _loading2Animation.value),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Loading2 - pojawia się po 3 sekundach z efektem mgły
+              if (_hasStartedLoading2)
+                Opacity(
+                  opacity: _loading2Animation.value,
+                  child: Container(
+                    width: 280,
+                    height: 280,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Dodatkowy efekt blasku wokół loading2
+                        Container(
+                          width: 300,
+                          height: 300,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.cyan.withOpacity(
+                                  0.3 * _loading2Animation.value,
+                                ),
+                                blurRadius: 40,
+                                spreadRadius: 10,
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Sama animacja loading2
+                        Lottie.asset(
+                          'assets/animations/fortuneloading2.json',
+                          fit: BoxFit.contain,
+                          animate: true,
+                          repeat: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Progress indicator
+              Positioned(
+                bottom: -30,
+                child: Container(
+                  width: 250,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: _totalProgress,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.cyan,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -381,86 +565,80 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
     );
   }
 
-  Widget _buildLoadingMessage() {
-    return AnimatedBuilder(
-      animation: _textAnimation,
-      builder: (context, child) {
-        String message;
-        Color messageColor = Colors.white;
-        IconData messageIcon;
-
-        if (_currentMessageIndex == -1) {
-          message = 'Wróżba gotowa!';
-          messageColor = Colors.green;
-          messageIcon = Icons.check_circle;
-        } else if (_currentMessageIndex == -2) {
-          message = 'Wystąpił błąd podczas analizy';
-          messageColor = Colors.red;
-          messageIcon = Icons.error;
-        } else {
-          message = _loadingMessages[_currentMessageIndex];
-          messageIcon = Icons.auto_awesome;
-        }
-
-        return Opacity(
-          opacity: _textAnimation.value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - _textAnimation.value)),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: Colors.black.withOpacity(0.7),
-                border: Border.all(
-                  color: messageColor.withOpacity(0.3),
-                  width: 1,
+  // ===== KOMUNIKAT =====
+  Widget _buildHoldMessage() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _isHolding ? AppColors.cyan : Colors.white.withOpacity(0.4),
+          width: 2,
+        ),
+        boxShadow: _isHolding
+            ? [
+                BoxShadow(
+                  color: AppColors.cyan.withOpacity(0.4),
+                  blurRadius: 15,
+                  spreadRadius: 2,
                 ),
-                boxShadow: [
-                  if (_currentMessageIndex == -1)
-                    BoxShadow(
-                      color: Colors.green.withOpacity(0.3),
-                      blurRadius: 15,
-                      spreadRadius: 2,
-                    ),
-                ],
+              ]
+            : [],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _isHolding ? Icons.touch_app : Icons.pan_tool,
+                color: _isHolding ? AppColors.cyan : Colors.white70,
+                size: 24,
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    messageIcon,
-                    color: messageColor,
-                    size: 18,
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  _isHolding ? 'Trzymaj dalej...' : 'Przytrzymaj ekran',
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 18,
+                    color: _isHolding ? AppColors.cyan : Colors.white70,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
                   ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      message,
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 15,
-                        color: messageColor,
-                        fontWeight: FontWeight.w400,
-                        letterSpacing: 0.5,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
+            ],
           ),
-        );
-      },
+          if (_totalProgress > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+              '${(_totalProgress * 100).round()}%',
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 16,
+                color: AppColors.cyan,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ],
+      ),
     );
   }
 
+  // ===== INFO UŻYTKOWNIKA - KOMPAKTOWE =====
   Widget _buildUserInfo() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       margin: const EdgeInsets.symmetric(horizontal: 32),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(12),
         color: Colors.black.withOpacity(0.5),
         border: Border.all(
           color: AppColors.cyan.withOpacity(0.2),
@@ -468,34 +646,27 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
         ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Analizuję dla: ${widget.userData.name}',
+            widget.userData.name,
             style: GoogleFonts.cinzelDecorative(
               fontSize: 16,
               color: AppColors.cyan,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
             ),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Flexible(
+              Expanded(child: _buildInfoItem('${widget.userData.age} lat')),
+              Expanded(child: _buildInfoItem(widget.userData.zodiacSign)),
+              Expanded(
                   child: _buildInfoItem(
-                'Wiek',
-                '${widget.userData.age} lat',
-              )),
-              Flexible(
-                  child: _buildInfoItem(
-                'Znak',
-                widget.userData.zodiacSign,
-              )),
-              Flexible(
-                  child: _buildInfoItem(
-                'Dłoń',
-                widget.handType == 'left' ? 'Lewa' : 'Prawa',
-              )),
+                      widget.handType == 'left' ? 'Lewa' : 'Prawa')),
             ],
           ),
         ],
@@ -503,213 +674,65 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
     );
   }
 
-  Widget _buildInfoItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.cinzelDecorative(
-            fontSize: 12,
-            color: Colors.white60,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: GoogleFonts.cinzelDecorative(
-            fontSize: 14,
-            color: Colors.white,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
+  Widget _buildInfoItem(String value) {
+    return Text(
+      value,
+      style: GoogleFonts.cinzelDecorative(
+        fontSize: 12,
+        color: Colors.white,
+        fontWeight: FontWeight.w400,
+      ),
+      textAlign: TextAlign.center,
+      overflow: TextOverflow.ellipsis,
     );
   }
 
-  Widget _buildProgressSection() {
+  // ===== POLE DO PRZYCISKANIA NA DOLE =====
+  Widget _buildHoldArea() {
     return Container(
-      margin: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          // Pasek postępu liniowy
-          AnimatedBuilder(
-            animation: _progressAnimation,
-            builder: (context, child) {
-              return Container(
-                height: 4,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  color: Colors.white10,
-                ),
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: _progressAnimation.value,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(2),
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.cyan,
-                          AppColors.cyan.withOpacity(0.6),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-
-          // Procentowy postęp
-          AnimatedBuilder(
-            animation: _progressAnimation,
-            builder: (context, child) {
-              final percentage = (_progressAnimation.value * 100).round();
-              return Text(
-                '$percentage%',
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 14,
-                  color: AppColors.cyan,
-                  fontWeight: FontWeight.w500,
-                ),
-              );
-            },
-          ),
-
-          const SizedBox(height: 20),
-
-          // ✅ POPRAWKA: Usunięte kręcące się gwiazdki
-          // Prosta kropki bez animacji
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(5, (index) {
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
+      width: double.infinity,
+      height: 120,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: _isHolding
+            ? AppColors.cyan.withOpacity(0.2)
+            : Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _isHolding ? AppColors.cyan : Colors.white.withOpacity(0.3),
+          width: 2,
+        ),
+        boxShadow: _isHolding
+            ? [
+                BoxShadow(
                   color: AppColors.cyan.withOpacity(0.3),
+                  blurRadius: 15,
+                  spreadRadius: 2,
                 ),
-              );
-            }),
-          ),
-        ],
+              ]
+            : [],
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _isHolding ? Icons.fingerprint : Icons.touch_app,
+              size: 40,
+              color: _isHolding ? AppColors.cyan : Colors.white70,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _isHolding ? 'Aktywne' : 'Dotknij tutaj',
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 16,
+                color: _isHolding ? AppColors.cyan : Colors.white70,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-}
-
-// Custom painter dla mistycznego tła
-class LoadingBackgroundPainter extends CustomPainter {
-  final double animationValue;
-
-  LoadingBackgroundPainter(this.animationValue);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0) return;
-
-    final paint = Paint()..style = PaintingStyle.fill;
-
-    try {
-      // Mystical aura circles
-      for (int i = 0; i < 4; i++) {
-        final centerX = size.width * 0.5;
-        final centerY = size.height * 0.5;
-        final baseRadius = 80.0 + (i * 60.0);
-        final animatedRadius = baseRadius *
-            (1 + 0.05 * math.sin(animationValue * 2 * math.pi + i));
-
-        if (animatedRadius > 0 && animatedRadius < size.width * 1.2) {
-          final opacityValue = 0.03 - i * 0.005;
-          final safeOpacity = opacityValue.clamp(0.002, 0.05);
-
-          paint.color = AppColors.cyan.withOpacity(safeOpacity);
-          canvas.drawCircle(Offset(centerX, centerY), animatedRadius, paint);
-        }
-      }
-
-      // Floating energy particles
-      for (int i = 0; i < 25; i++) {
-        final angle = (animationValue * 2 * math.pi) + (i * 2 * math.pi / 25);
-        final radius = 100.0 + (i % 5) * 40.0;
-        final x = size.width * 0.5 +
-            radius * math.cos(angle + animationValue * math.pi);
-        final y = size.height * 0.5 +
-            radius * math.sin(angle * 0.8 + animationValue * math.pi);
-
-        if (x >= -15 &&
-            x <= size.width + 15 &&
-            y >= -15 &&
-            y <= size.height + 15) {
-          final particleSize =
-              0.8 + math.sin(animationValue * 4 * math.pi + i) * 0.4;
-
-          if (particleSize > 0) {
-            final opacityBase =
-                0.08 + math.sin(animationValue * 3 * math.pi + i * 0.3) * 0.04;
-            final safeOpacity = opacityBase.clamp(0.02, 0.12);
-
-            paint.color = AppColors.cyan.withOpacity(safeOpacity);
-            canvas.drawCircle(Offset(x, y), particleSize.abs(), paint);
-          }
-        }
-      }
-
-      // Corner mystical symbols
-      _drawCornerSymbols(canvas, size, paint);
-    } catch (e) {
-      print('❌ Błąd w LoadingBackgroundPainter: $e');
-    }
-  }
-
-  void _drawCornerSymbols(Canvas canvas, Size size, Paint paint) {
-    paint
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = AppColors.cyan.withOpacity(0.1);
-
-    // Simple geometric shapes in corners
-    if (size.width > 100 && size.height > 100) {
-      // Top left
-      canvas.drawArc(
-        Rect.fromLTWH(20, 20, 30, 30),
-        -math.pi,
-        math.pi / 2,
-        false,
-        paint,
-      );
-
-      // Top right
-      canvas.drawArc(
-        Rect.fromLTWH(size.width - 50, 20, 30, 30),
-        -math.pi / 2,
-        math.pi / 2,
-        false,
-        paint,
-      );
-
-      // Bottom corners
-      canvas.drawArc(
-        Rect.fromLTWH(20, size.height - 50, 30, 30),
-        math.pi / 2,
-        math.pi / 2,
-        false,
-        paint,
-      );
-
-      canvas.drawArc(
-        Rect.fromLTWH(size.width - 50, size.height - 50, 30, 30),
-        0,
-        math.pi / 2,
-        false,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
