@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import 'dart:math' as math;
+import 'dart:math';
 import '../utils/constants.dart';
 import '../models/user_data.dart';
 import '../services/fortune_history_service.dart';
@@ -33,6 +34,12 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     with TickerProviderStateMixin {
   final FortuneHistoryService _historyService = FortuneHistoryService();
 
+  // Przenieś i zainicjalizuj od razu!
+  String _userName = '';
+  String _userGender = '';
+  String? _dominantHand;
+  DateTime? _birthDate;
+
   late AnimationController _fadeController;
   late AnimationController _floatingController;
   late AnimationController _pulseController;
@@ -46,9 +53,24 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   int _selectedIndex = -1;
   int _fortuneCount = 0;
 
+  final List<String> _greetings = [
+    ', zajrzyj w swoją przyszłość już dziś!',
+    ', poznaj, co kryją gwiazdy!',
+    ', odkryj sekrety swojej dłoni!',
+    ', sprawdź, co przyniesie los!',
+    ', Twoja wróżba czeka na Ciebie!'
+  ];
+  late String _selectedGreeting;
+
   @override
   void initState() {
     super.initState();
+    // Inicjalizuj polami z widgeta
+    _userName = widget.userName;
+    _userGender = widget.userGender;
+    _dominantHand = widget.dominantHand;
+    _birthDate = widget.birthDate;
+    _selectedGreeting = _greetings[Random().nextInt(_greetings.length)];
     _initializeAnimations();
     _startAnimations();
     _loadFortuneCount();
@@ -199,109 +221,157 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   }
 
   Widget _buildWelcomeHeader() {
-    return AnimatedBuilder(
-      animation: _floatingAnimation,
-      builder: (context, child) {
-        return Transform.translate(
-          offset: Offset(0, _floatingAnimation.value),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.black.withOpacity(0.8),
-                  Colors.black.withOpacity(0.6),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: AppColors.cyan.withOpacity(0.4),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.cyan.withOpacity(0.2),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                AnimatedBuilder(
-                  animation: _pulseAnimation,
-                  builder: (context, child) {
-                    return Transform.scale(
-                      scale: _pulseAnimation.value,
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              AppColors.cyan.withOpacity(0.3),
-                              AppColors.cyan.withOpacity(0.1),
-                              Colors.transparent,
-                            ],
-                          ),
-                          border: Border.all(
-                            color: AppColors.cyan.withOpacity(0.6),
-                            width: 2,
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.auto_awesome,
-                          size: 40,
-                          color: AppColors.cyan,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Witaj w Świecie Wróżb',
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 24,
-                    color: AppColors.cyan,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${widget.userGender == 'female' ? 'a' : (widget.userGender == 'other' ? '/a' : '')} ${widget.userName}',
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 18,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w300,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Co chcesz dziś odkryć?',
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 16,
-                    color: AppColors.cyan.withOpacity(0.8),
-                    fontWeight: FontWeight.w300,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.black.withOpacity(0.8),
+            Colors.black.withOpacity(0.6),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.cyan.withOpacity(0.4),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.cyan.withOpacity(0.2),
+            blurRadius: 20,
+            spreadRadius: 2,
           ),
-        );
-      },
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _pulseAnimation.value,
+                child: Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        AppColors.cyan.withOpacity(0.5),
+                        AppColors.cyan.withOpacity(0.15),
+                        Colors.transparent,
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.cyan.withOpacity(0.3),
+                        blurRadius: 18,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome,
+                    color: AppColors.cyan,
+                    size: 32,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '$_userName${_selectedGreeting}',
+            style: GoogleFonts.cinzelDecorative(
+              fontSize: 17,
+              color: AppColors.cyan,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.1,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
+  // Funkcja: wyznacz znak zodiaku na podstawie daty urodzenia
+  String getZodiacSign(DateTime birthDate) {
+    final day = birthDate.day;
+    final month = birthDate.month;
+    if ((month == 1 && day >= 20) || (month == 2 && day <= 18)) return 'Wodnik';
+    if ((month == 2 && day >= 19) || (month == 3 && day <= 20)) return 'Ryby';
+    if ((month == 3 && day >= 21) || (month == 4 && day <= 19)) return 'Baran';
+    if ((month == 4 && day >= 20) || (month == 5 && day <= 20)) return 'Byk';
+    if ((month == 5 && day >= 21) || (month == 6 && day <= 20))
+      return 'Bliźnięta';
+    if ((month == 6 && day >= 21) || (month == 7 && day <= 22)) return 'Rak';
+    if ((month == 7 && day >= 23) || (month == 8 && day <= 22)) return 'Lew';
+    if ((month == 8 && day >= 23) || (month == 9 && day <= 22)) return 'Panna';
+    if ((month == 9 && day >= 23) || (month == 10 && day <= 22)) return 'Waga';
+    if ((month == 10 && day >= 23) || (month == 11 && day <= 21))
+      return 'Skorpion';
+    if ((month == 11 && day >= 22) || (month == 12 && day <= 21))
+      return 'Strzelec';
+    return 'Koziorożec';
+  }
+
+  // Mapowanie znaków zodiaku na ikony Material (przykładowe, możesz podmienić na assety)
+  final Map<String, IconData> zodiacIcons = {
+    'Wodnik': Icons.water_drop_outlined,
+    'Ryby': Icons.set_meal_outlined,
+    'Baran': Icons.flash_on_outlined,
+    'Byk': Icons.grass_outlined,
+    'Bliźnięta': Icons.people_outline,
+    'Rak': Icons.brightness_2_outlined,
+    'Lew': Icons.wb_sunny_outlined,
+    'Panna': Icons.spa_outlined,
+    'Waga': Icons.balance_outlined,
+    'Skorpion': Icons.bug_report_outlined,
+    'Strzelec': Icons.architecture_outlined,
+    'Koziorożec': Icons.terrain_outlined,
+  };
+
+  // Mapowanie polskiej nazwy znaku na angielską nazwę pliku
+  final Map<String, String> zodiacFileNames = {
+    'Baran': 'aries',
+    'Byk': 'taurus',
+    'Bliźnięta': 'gemini',
+    'Rak': 'cancer',
+    'Lew': 'leo',
+    'Panna': 'virgo',
+    'Waga': 'libra',
+    'Skorpion': 'scorpio',
+    'Strzelec': 'sagittarius',
+    'Koziorożec': 'capricorn',
+    'Wodnik': 'aquarius',
+    'Ryby': 'pisces',
+  };
+
   Widget _buildMenuOptions() {
+    // Wyznacz znak zodiaku usera (jeśli brak daty, domyślna ikona)
+    String? zodiacSign;
+    IconData zodiacIcon = Icons.stars_outlined;
+    Widget? zodiacWidget;
+    if (_birthDate != null) {
+      zodiacSign = getZodiacSign(_birthDate!);
+      zodiacIcon = zodiacIcons[zodiacSign] ?? Icons.stars_outlined;
+      final fileName = zodiacFileNames[zodiacSign] ?? '';
+      if (fileName.isNotEmpty) {
+        zodiacWidget = Center(
+          child: Image.asset(
+            'assets/images/$fileName.png',
+            width: 30,
+            height: 30,
+            fit: BoxFit.contain,
+          ),
+        );
+      }
+    }
     final options = [
       MenuOption(
         title: 'Skan Dłoni',
@@ -313,11 +383,22 @@ class _MainMenuScreenState extends State<MainMenuScreen>
       ),
       MenuOption(
         title: 'Horoskop na Dzisiaj',
-        subtitle: 'Twoje gwiazdy mówią...',
-        icon: Icons.stars_outlined,
+        subtitle: zodiacSign != null
+            ? 'Twój znak: $zodiacSign'
+            : 'Twoje gwiazdy mówią...',
+        icon: zodiacIcon,
         color: Colors.purple,
         isAvailable: false,
         onTap: () => _showComingSoon('Horoskop'),
+        badge: null,
+      ),
+      MenuOption(
+        title: 'Zgodność par',
+        subtitle: 'Sprawdź dopasowanie z inną osobą',
+        icon: Icons.favorite_border,
+        color: Colors.pinkAccent,
+        isAvailable: false,
+        onTap: () => _showComingSoon('Zgodność par'),
       ),
       MenuOption(
         title: 'Moje Dane',
@@ -349,13 +430,15 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           duration: Duration(milliseconds: 300 + (index * 100)),
           curve: Curves.easeOutCubic,
           margin: const EdgeInsets.only(bottom: 16),
-          child: _buildMenuCard(option, index),
+          child: _buildMenuCard(option, index,
+              zodiacWidget: zodiacWidget, zodiacSign: zodiacSign),
         );
       }).toList(),
     );
   }
 
-  Widget _buildMenuCard(MenuOption option, int index) {
+  Widget _buildMenuCard(MenuOption option, int index,
+      {Widget? zodiacWidget, String? zodiacSign}) {
     final isSelected = _selectedIndex == index;
 
     return GestureDetector(
@@ -376,6 +459,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             isSelected ? (Matrix4.identity()..scale(0.98)) : Matrix4.identity(),
         child: Container(
           width: double.infinity,
+          constraints: const BoxConstraints(minHeight: 100),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -432,18 +516,26 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                     width: 1,
                   ),
                 ),
-                child: Icon(
-                  option.icon,
-                  size: 28,
-                  color: option.isAvailable ? option.color : Colors.grey,
-                ),
+                child: (option.title == 'Horoskop na Dzisiaj' &&
+                        zodiacWidget != null)
+                    ? zodiacWidget
+                    : Icon(
+                        option.icon,
+                        size: 28,
+                        color: option.isAvailable ? option.color : Colors.grey,
+                      ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: option.isAvailable
+                      ? MainAxisAlignment.center
+                      : MainAxisAlignment
+                          .spaceEvenly, // Dla nieaktywnych rozkład równomierny
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
                           child: Text(
@@ -458,48 +550,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                             ),
                           ),
                         ),
-                        if (!option.isAvailable)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.orange.withOpacity(0.4),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              'Wkrótce',
-                              style: GoogleFonts.cinzelDecorative(
-                                fontSize: 10,
-                                color: Colors.orange,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        if (option.badge != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: option.color.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: option.color.withOpacity(0.4),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              option.badge!,
-                              style: GoogleFonts.cinzelDecorative(
-                                fontSize: 10,
-                                color: option.color,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
+                        // Usunięto badge 'Wkrótce' dla nieaktywnych
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -584,7 +635,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           ),
           const SizedBox(height: 8),
           Text(
-            'Wersja 1.0.0 • AI Wróżka',
+            'Wersja 0.5.0 • AI Wróżka',
             style: GoogleFonts.cinzelDecorative(
               fontSize: 12,
               color: Colors.white54,
@@ -604,8 +655,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 FortuneHistoryScreen(
-              userName: widget.userName,
-              userGender: widget.userGender,
+              userName: _userName,
+              userGender: _userGender,
             ),
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
@@ -633,10 +684,10 @@ class _MainMenuScreenState extends State<MainMenuScreen>
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             PalmIntroScreen(
-          userName: widget.userName,
-          userGender: widget.userGender,
-          dominantHand: widget.dominantHand,
-          birthDate: widget.birthDate,
+          userName: _userName,
+          userGender: _userGender,
+          dominantHand: _dominantHand,
+          birthDate: _birthDate,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
@@ -715,13 +766,13 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               debugPrint(
                   '📍 Nowe miejsce: ${newUserData.birthPlace ?? "brak"}');
 
-              // ✅ DODANE: Odśwież dane w tym ekranie jeśli nazwa się zmieniła
-              if (newUserData.name != widget.userName) {
-                // Opcjonalnie: odśwież stan tego ekranu
-                setState(() {
-                  // Możesz tutaj zaktualizować lokalne zmienne jeśli potrzebujesz
-                });
-              }
+              // Aktualizuj dane w stanie, jeśli się zmieniły
+              setState(() {
+                _userName = newUserData.name;
+                _userGender = newUserData.gender;
+                _birthDate = newUserData.birthDate;
+                _dominantHand = newUserData.dominantHand;
+              });
             } else {
               debugPrint('⚠️ Dane użytkownika usunięte');
             }

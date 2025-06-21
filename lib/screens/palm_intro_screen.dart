@@ -8,6 +8,8 @@ import 'dart:math' as math;
 import '../utils/constants.dart';
 import 'palm_scan_screen.dart';
 import '../utils/responsive_utils.dart';
+import '../services/user_preferences_service.dart';
+import '../models/user_data.dart';
 
 class PalmIntroScreen extends StatefulWidget {
   final String userName;
@@ -39,9 +41,13 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
   late Animation<double> _buttonAnimation;
   late Animation<double> _particleAnimation;
 
+  UserData? _userData;
+  bool _loadingUserData = true;
+
   @override
   void initState() {
     super.initState();
+    _loadUserData();
 
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 2000),
@@ -103,9 +109,32 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    setState(() {
+      _loadingUserData = true;
+    });
+    final userData = await UserPreferencesService.getUserData();
+    setState(() {
+      _userData = userData;
+      _loadingUserData = false;
+    });
+  }
+
 // 1. RESPONSYWNY build()
   @override
   Widget build(BuildContext context) {
+    if (_loadingUserData) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -235,11 +264,12 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
                                 opacity: _textAnimation.value,
                                 child: ResponsiveContainer(
                                   maxWidth: 600,
-                                  child: ResponsiveText(
-                                    _personalizedMessage(
-                                        context), // ✅ Dodaj (context)
-                                    baseFontSize: 16,
-                                    style: AppTextStyles.introText,
+                                  child: Text(
+                                    _personalizedMessage(context),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                    ),
                                     textAlign: TextAlign.center,
                                   ),
                                 ),
@@ -312,8 +342,11 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
           ),
           elevation: 0,
         ),
-        child: ResponsiveRow(
+        child: Row(
+          // Użyj zwykłego Row zamiast ResponsiveRow
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize:
+              MainAxisSize.min, // KLUCZOWE: pozwala tekstowi się rozwinąć
           children: [
             Icon(
               Icons.auto_awesome,
@@ -321,14 +354,14 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
               size: context.isSmallScreen ? 20 : 24,
             ),
             const SizedBox(width: 12),
-            Flexible(
-              child: ResponsiveText(
-                'Rozpocznij rytuał',
-                baseFontSize: 16,
-                style: AppTextStyles.buttonText,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            // Usuń Flexible, użyj Expanded tylko jeśli w Expanded Column, tu nie jest potrzebny
+            Text(
+              'Rozpocznij',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.white,
               ),
+              // NIE ustawiaj maxLines ani overflow!
             ),
             const SizedBox(width: 12),
             Icon(
@@ -364,8 +397,11 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
             ),
           ),
         ),
-        child: ResponsiveRow(
+        child: Row(
+          // Użyj zwykłego Row zamiast ResponsiveRow
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize:
+              MainAxisSize.min, // KLUCZOWE: pozwala tekstowi się rozwinąć
           children: [
             Icon(
               Icons.arrow_back_ios,
@@ -373,16 +409,13 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
               size: context.isSmallScreen ? 14 : 16,
             ),
             const SizedBox(width: 8),
-            Flexible(
-              child: ResponsiveText(
-                'Wróć do menu',
-                baseFontSize: 14,
-                style: AppTextStyles.bodyText.copyWith(
-                  color: Colors.white70,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            Text(
+              'Wróć do menu',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.white70,
               ),
+              // NIE ustawiaj maxLines ani overflow!
             ),
           ],
         ),
@@ -392,10 +425,13 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
 
 // 4. RESPONSYWNY _personalizedMessage
   String _personalizedMessage(BuildContext context) {
-    final genderSuffix = widget.userGender == 'female' ? 'aś' : 'eś';
+    final user = _userData;
+    final userName = user?.name ?? widget.userName;
+    final userGender = user?.gender ?? widget.userGender;
+    final genderSuffix = userGender == 'female' ? 'aś' : 'eś';
 
     if (context.isSmallScreen) {
-      return '''Drogi${widget.userGender == 'female' ? 'a' : ''} ${widget.userName},
+      return '''Drogi${userGender == 'female' ? 'a' : ''} $userName,
 
 Wkraczasz w świat, który może zmienić Twoje życie. W liniach dłoni kryją się sekrety, które czekają na odkrycie.
 
@@ -404,9 +440,9 @@ Twoja dłoń to mapa przeznaczenia. Znajdziemy w niej ślady predyspozycji i taj
 Przygotuj się na podróż w głąb siebie. Pozwól mistycznej energii objawić Ci prawdy, na które czekał$genderSuffix.''';
     }
 
-    return '''Drogi${widget.userGender == 'female' ? 'a' : ''} ${widget.userName},
+    return '''Drogi${userGender == 'female' ? 'a' : ''} $userName,
 
-Wkraczasz teraz w świat, który może na zawsze zmienić Twoje życie. W liniach Twojej dłoni kryją się historie, które czekają, by zostać opowiedziane - sekrety o Tobie samej/samym, których być może jeszcze nie odkrył$genderSuffix.
+Wkraczas teraz w świat, który może na zawsze zmienić Twoje życie. W liniach Twojej dłoni kryją się historie, które czekają, by zostać opowiedziane - sekrety o Tobie samej/samym, których być może jeszcze nie odkrył$genderSuffix.
 
 Twoja dłoń to mapa Twojego przeznaczenia. Znajdziemy w niej ślady Twoich predyspozycji, odkryjemy tajemnice Twojego serca i miłości, a także poznamy ścieżki, które prowadzą do Twojego szczęścia.
 

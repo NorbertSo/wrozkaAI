@@ -1,5 +1,5 @@
 // lib/main.dart
-// Zaktualizowany main.dart - sprawdza czy onboarding był już pokazany
+// Zaktualizowany main.dart z HapticService
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +9,7 @@ import 'screens/welcome_screen.dart';
 import 'screens/main_menu_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/user_preferences_service.dart';
+import 'services/haptic_service.dart';
 import 'models/user_data.dart';
 
 void main() {
@@ -80,6 +81,7 @@ class AppInitializer extends StatefulWidget {
 class _AppInitializerState extends State<AppInitializer> {
   bool _isLoading = true;
   Widget? _targetScreen;
+  final HapticService _hapticService = HapticService();
 
   @override
   void initState() {
@@ -90,6 +92,10 @@ class _AppInitializerState extends State<AppInitializer> {
   Future<void> _initializeApp() async {
     try {
       print('🚀 Inicjalizacja aplikacji...');
+
+      // ✅ NOWE: Inicjalizacja HapticService
+      await _hapticService.initialize();
+      await _hapticService.printCapabilities();
 
       // Sprawdź czy onboarding został ukończony
       final isOnboardingCompleted =
