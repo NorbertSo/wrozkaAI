@@ -1,5 +1,5 @@
 // lib/screens/palm_scan_screen.dart
-// NAPRAWIONA WERSJA - idealny przycisk + duża ikona dłoni
+// MINIMALISTYCZNA WERSJA - więcej miejsca na skan
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +13,7 @@ import '../services/palm_detection_service.dart';
 import '../services/logging_service.dart';
 import '../models/user_data.dart';
 import 'fortune_loading_screen.dart';
+import '../services/haptic_service.dart';
 
 class PalmScanScreen extends StatefulWidget {
   final String userName;
@@ -55,19 +56,17 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   final PalmDetectionService _palmDetectionService = PalmDetectionService();
   final LoggingService _loggingService = LoggingService();
   final ImagePicker _imagePicker = ImagePicker();
+  final HapticService _hapticService = HapticService();
 
   // ===== WYKRYWANIE =====
   bool _palmDetected = false;
   String _detectionMessage = '';
-  String _positionStatus = 'neutral'; // 'good', 'bad', 'neutral'
 
   // ===== ANIMACJE =====
   late AnimationController _pulseController;
   late AnimationController _contourController;
-  late AnimationController _feedbackController;
   late Animation<double> _pulseAnimation;
   late Animation<double> _contourAnimation;
-  late Animation<double> _feedbackAnimation;
 
   // ===== TIMERY =====
   Timer? _detectionTimer;
@@ -105,21 +104,12 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         vsync: this,
       )..repeat();
 
-      _feedbackController = AnimationController(
-        duration: const Duration(milliseconds: 400),
-        vsync: this,
-      );
-
       _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
         CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
       );
 
       _contourAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(parent: _contourController, curve: Curves.linear),
-      );
-
-      _feedbackAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
-        CurvedAnimation(parent: _feedbackController, curve: Curves.elasticOut),
       );
 
       print('✅ Animacje zainicjalizowane');
@@ -132,7 +122,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     final handType = _getTargetHandName();
     setState(() {
       _detectionMessage = 'Pokaż $handType dłoń';
-      _positionStatus = 'neutral';
     });
   }
 
@@ -232,7 +221,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
           _detectionMessage = 'Błąd kamery - sprawdź uprawnienia';
           _isCameraInitialized = false;
           _showCamera = false;
-          _positionStatus = 'bad';
         });
         _showCameraErrorDialog();
       }
@@ -288,20 +276,16 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     if (detectionChance > 0.7) {
       setState(() {
         _palmDetected = true;
-        _positionStatus = 'good';
         _detectionMessage = 'Doskonała pozycja! ✨';
       });
-      _triggerSuccessFeedback();
     } else if (detectionChance > 0.4) {
       setState(() {
         _palmDetected = false;
-        _positionStatus = 'neutral';
         _detectionMessage = _getRandomPositionHint();
       });
     } else {
       setState(() {
         _palmDetected = false;
-        _positionStatus = 'bad';
         _detectionMessage = 'Brak dłoni w kadrze';
       });
     }
@@ -309,11 +293,11 @@ class _PalmScanScreenState extends State<PalmScanScreen>
 
   String _getRandomPositionHint() {
     final hints = [
-      'Wyśrodkuj dłoń w konturze',
-      'Przybliż dłoń do kamery',
-      'Rozłóż palce szerzej',
-      'Trzymaj dłoń nieruchomo',
-      'Popraw oświetlenie',
+      'Wyśrodkuj dłoń',
+      'Przybliż dłoń',
+      'Rozłóż palce',
+      'Trzymaj nieruchomo',
+      'Popraw światło',
     ];
     return hints[math.Random().nextInt(hints.length)];
   }
@@ -356,6 +340,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     }
 
     try {
+      await _hapticService.trigger(HapticType.light);
       setState(() {
         _isFlashOn = !_isFlashOn;
       });
@@ -364,7 +349,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         _isFlashOn ? FlashMode.torch : FlashMode.off,
       );
 
-      HapticFeedback.selectionClick();
       print('💡 Flash ${_isFlashOn ? "ON" : "OFF"}');
     } catch (e) {
       print('❌ Błąd flash: $e');
@@ -374,24 +358,9 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     }
   }
 
-  Future<void> _switchCamera() async {
-    if (_cameras.length < 2 || _isCameraLocked) return;
-
-    try {
-      setState(() {
-        _isFrontCamera = !_isFrontCamera;
-      });
-
-      await _initializeCamera();
-      HapticFeedback.mediumImpact();
-      print('🔄 Camera switched to ${_isFrontCamera ? "FRONT" : "BACK"}');
-    } catch (e) {
-      print('❌ Błąd przełączania kamery: $e');
-    }
-  }
-
   Future<void> _pickImageFromGallery() async {
     try {
+      await _hapticService.trigger(HapticType.medium);
       final XFile? pickedFile = await _imagePicker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 85,
@@ -399,7 +368,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
 
       if (pickedFile != null) {
         print('📁 Wybrano zdjęcie z galerii: ${pickedFile.path}');
-        HapticFeedback.mediumImpact();
         await _navigateToFortuneLoading(pickedFile);
       }
     } catch (e) {
@@ -420,9 +388,9 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     });
 
     try {
+      await _hapticService.trigger(HapticType.success);
       print('📸 Robienie zdjęcia...');
       final XFile photo = await _cameraController!.takePicture();
-      HapticFeedback.heavyImpact();
       print('✅ Zdjęcie wykonane: ${photo.path}');
       await _navigateToFortuneLoading(photo);
     } catch (e) {
@@ -501,19 +469,9 @@ class _PalmScanScreenState extends State<PalmScanScreen>
           _detectionMessage = 'Błąd - spróbuj ponownie';
           _isAnalyzing = false;
           _hasCompletedScan = false;
-          _positionStatus = 'bad';
         });
         _showErrorSnackBar('Wystąpił błąd podczas analizy');
       }
-    }
-  }
-
-  void _triggerSuccessFeedback() {
-    try {
-      HapticFeedback.mediumImpact();
-      _feedbackController.forward().then((_) => _feedbackController.reverse());
-    } catch (e) {
-      print('❌ Błąd haptic feedback: $e');
     }
   }
 
@@ -616,7 +574,6 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     try {
       _pulseController.dispose();
       _contourController.dispose();
-      _feedbackController.dispose();
       print('✅ Animacje disposed');
     } catch (e) {
       print('❌ Błąd dispose animacji: $e');
@@ -681,203 +638,104 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     return SafeArea(
       child: Column(
         children: [
-          _buildTopInstructions(),
+          _buildCompactHeader(), // ✅ KOMPAKTOWY HEADER
           Expanded(
-            child: _buildCenterFrame(),
+            child: _buildFullScreenDetection(), // ✅ CAŁY EKRAN NA DETEKCJĘ
           ),
-          _buildBottomControls(),
+          _buildMinimalControls(), // ✅ MINIMALNE KONTROLKI
         ],
       ),
     );
   }
 
-  Widget _buildTopInstructions() {
+  // ✅ KOMPAKTOWY HEADER - MNIEJSZY
+  Widget _buildCompactHeader() {
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.black.withOpacity(0.8),
-            Colors.black.withOpacity(0.6),
+            Colors.black.withOpacity(0.7),
+            Colors.black.withOpacity(0.5),
           ],
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AppColors.cyan.withOpacity(0.3),
           width: 1,
         ),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                iconSize: 20,
-              ),
-              Expanded(
-                child: Text(
+          IconButton(
+            onPressed: () async {
+              await _hapticService.trigger(HapticType.light);
+              Navigator.of(context).pop();
+            },
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+            iconSize: 18,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            padding: EdgeInsets.zero,
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Text(
                   'SKAN DŁONI',
                   style: GoogleFonts.cinzelDecorative(
-                    fontSize: 18,
+                    fontSize: 16,
                     color: AppColors.cyan,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
+                    letterSpacing: 1.0,
                   ),
-                  textAlign: TextAlign.center,
                 ),
-              ),
-              const SizedBox(width: 40),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                _targetHand == 'left' ? '🤚' : '🖐️',
-                style: const TextStyle(fontSize: 24),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Pokaż ${_getTargetHandName().toUpperCase()} DŁOŃ',
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 16,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
+                Text(
+                  _getTargetHandName().toUpperCase(),
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 12,
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w300,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 32), // Spacer dla symetrii
         ],
       ),
     );
   }
 
-  Widget _buildCenterFrame() {
-    return Stack(
-      children: [
-        // ✅ NAPRAWKA: DUŻA IKONA DŁONI NA CAŁYM EKRANIE
-        Positioned.fill(
-          child: Center(
-            child: AnimatedBuilder(
-              animation: _feedbackAnimation,
-              builder: (context, child) {
-                return Transform.scale(
-                  scale: _palmDetected ? _feedbackAnimation.value : 1.0,
-                  child: _buildFullScreenPalmIcon(),
-                );
-              },
+  // ✅ PEŁNY EKRAN NA DETEKCJĘ
+  Widget _buildFullScreenDetection() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      child: Stack(
+        children: [
+          // Status message na górze
+          if (_detectionMessage.isNotEmpty)
+            Positioned(
+              top: 20,
+              left: 20,
+              right: 20,
+              child: _buildStatusBubble(),
             ),
-          ),
-        ),
-
-        // Status bubble z komunikatem
-        if (_detectionMessage.isNotEmpty)
-          Positioned(
-            top: 20,
-            left: 20,
-            right: 20,
-            child: _buildStatusBubble(),
-          ),
-      ],
-    );
-  }
-
-  // ✅ NAPRAWKA: DUŻA IKONA DŁONI
-  Widget _buildFullScreenPalmIcon() {
-    Color frameColor;
-    switch (_positionStatus) {
-      case 'good':
-        frameColor = Colors.green;
-        break;
-      case 'bad':
-        frameColor = Colors.red;
-        break;
-      default:
-        frameColor = AppColors.cyan;
-    }
-
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _pulseAnimation.value,
-          child: Container(
-            width: MediaQuery.of(context).size.width *
-                0.8, // 80% szerokości ekranu
-            height: MediaQuery.of(context).size.height *
-                0.5, // 50% wysokości ekranu
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                color: frameColor.withOpacity(0.6),
-                width: 3,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: frameColor.withOpacity(0.3),
-                  blurRadius: 20,
-                  spreadRadius: 5,
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                // ✅ GŁÓWNA IKONA DŁONI - DUŻA I NA ŚRODKU
-                Center(
-                  child: Icon(
-                    Icons.pan_tool_outlined,
-                    size: 200, // ✅ WIELKA IKONA!
-                    color: frameColor.withOpacity(0.4),
-                  ),
-                ),
-
-                // Subtelne linie dłoni jako overlay
-                CustomPaint(
-                  painter: PalmContourPainter(
-                    animationValue: _contourAnimation.value,
-                    frameColor: frameColor,
-                    positionStatus: _positionStatus,
-                  ),
-                  size: Size.infinite,
-                ),
-
-                // Narożne wskaźniki
-                _buildCornerIndicators(frameColor),
-              ],
-            ),
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 
   Widget _buildStatusBubble() {
-    Color bubbleColor;
-    IconData bubbleIcon;
-
-    switch (_positionStatus) {
-      case 'good':
-        bubbleColor = Colors.green;
-        bubbleIcon = Icons.check_circle;
-        break;
-      case 'bad':
-        bubbleColor = Colors.red;
-        bubbleIcon = Icons.warning;
-        break;
-      default:
-        bubbleColor = AppColors.cyan;
-        bubbleIcon = Icons.info;
-    }
+    Color bubbleColor = _palmDetected ? Colors.green : AppColors.cyan;
+    IconData bubbleIcon = _palmDetected ? Icons.check_circle : Icons.info;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: bubbleColor.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(25),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: bubbleColor, width: 1),
         boxShadow: [
           BoxShadow(
@@ -893,14 +751,14 @@ class _PalmScanScreenState extends State<PalmScanScreen>
           Icon(
             bubbleIcon,
             color: Colors.white,
-            size: 18,
+            size: 16,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Flexible(
             child: Text(
               _detectionMessage,
               style: GoogleFonts.cinzelDecorative(
-                fontSize: 14,
+                fontSize: 13,
                 color: Colors.white,
                 fontWeight: FontWeight.w500,
               ),
@@ -914,116 +772,52 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     );
   }
 
-  Widget _buildCornerIndicators(Color frameColor) {
-    return Stack(
-      children: [
-        // Top-left corner
-        Positioned(
-          top: 10,
-          left: 10,
-          child: _buildCornerWidget(frameColor),
-        ),
-        // Top-right corner
-        Positioned(
-          top: 10,
-          right: 10,
-          child: _buildCornerWidget(frameColor),
-        ),
-        // Bottom-left corner
-        Positioned(
-          bottom: 10,
-          left: 10,
-          child: _buildCornerWidget(frameColor),
-        ),
-        // Bottom-right corner
-        Positioned(
-          bottom: 10,
-          right: 10,
-          child: _buildCornerWidget(frameColor),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCornerWidget(Color color) {
-    return Container(
-      width: 25,
-      height: 25,
-      decoration: BoxDecoration(
-        border: Border.all(color: color.withOpacity(0.8), width: 3),
-        borderRadius: BorderRadius.circular(6),
-      ),
-    );
-  }
-
-  Widget _buildBottomControls() {
+  // ✅ MINIMALNE KONTROLKI - TYLKO 3 PRZYCISKI
+  Widget _buildMinimalControls() {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.black.withOpacity(0.9),
-            Colors.black.withOpacity(0.7),
+            Colors.black.withOpacity(0.8),
+            Colors.black.withOpacity(0.6),
           ],
         ),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(25),
         border: Border.all(
           color: AppColors.cyan.withOpacity(0.3),
           width: 1,
         ),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // ✅ GALERIA - KOMPAKTOWY PRZYCISK
-          Expanded(
-            flex: 1,
-            child: _buildSideControlButton(
-              icon: Icons.photo_library,
-              label: 'Galeria',
-              onTap: _pickImageFromGallery,
-              isEnabled: true,
-            ),
+          // ✅ GALERIA
+          _buildControlButton(
+            icon: Icons.photo_library,
+            label: 'Galeria',
+            onTap: _pickImageFromGallery,
+            isEnabled: true,
           ),
 
-          // ✅ SPACER DLA CENTRALNEGO PRZYCISKU
-          const SizedBox(width: 24),
-
-          // ✅ CENTRALNY PRZYCISK ZDJĘCIA - IDEALNIE NA ŚRODKU
+          // ✅ ZDJĘCIE - GŁÓWNY PRZYCISK
           _buildMainCaptureButton(),
 
-          // ✅ SPACER DLA CENTRALNEGO PRZYCISKU
-          const SizedBox(width: 24),
-
-          // ✅ LATARKA I PRZEŁĄCZNIK - KOMPAKTOWE
-          Expanded(
-            flex: 1,
-            child: Column(
-              children: [
-                _buildSideControlButton(
-                  icon: _isFlashOn ? Icons.flash_on : Icons.flash_off,
-                  label: 'Latarka',
-                  onTap: _toggleFlash,
-                  isActive: _isFlashOn,
-                  isEnabled: _showCamera,
-                ),
-                const SizedBox(height: 12),
-                _buildSideControlButton(
-                  icon: Icons.flip_camera_ios,
-                  label: 'Przełącz',
-                  onTap: _switchCamera,
-                  isEnabled: _showCamera && _cameras.length > 1,
-                ),
-              ],
-            ),
+          // ✅ LATARKA
+          _buildControlButton(
+            icon: _isFlashOn ? Icons.flash_on : Icons.flash_off,
+            label: 'Latarka',
+            onTap: _toggleFlash,
+            isActive: _isFlashOn,
+            isEnabled: _showCamera,
           ),
         ],
       ),
     );
   }
 
-  // ✅ NAPRAWKA: BOCZNE PRZYCISKI - KOMPAKTOWE
-  Widget _buildSideControlButton({
+  Widget _buildControlButton({
     required IconData icon,
     required String label,
     required VoidCallback onTap,
@@ -1057,7 +851,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                 size: 24,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               label,
               style: GoogleFonts.cinzelDecorative(
@@ -1073,147 +867,53 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     );
   }
 
-  // ✅ NAPRAWKA: GŁÓWNY PRZYCISK - IDEALNIE NA ŚRODKU
   Widget _buildMainCaptureButton() {
-    return Center(
-      // ✅ WYŚRODKOWANIE!
-      child: GestureDetector(
-        onTap: _isTakingPhoto ? null : _takePicture,
-        child: AnimatedBuilder(
-          animation: _pulseAnimation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _isTakingPhoto ? 0.9 : _pulseAnimation.value,
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      AppColors.cyan,
-                      AppColors.cyan.withOpacity(0.8),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.8),
-                    width: 4,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.cyan.withOpacity(0.5),
-                      blurRadius: 20,
-                      spreadRadius: 3,
-                    ),
+    return GestureDetector(
+      onTap: _isTakingPhoto ? null : _takePicture,
+      child: AnimatedBuilder(
+        animation: _pulseAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _isTakingPhoto ? 0.9 : _pulseAnimation.value,
+            child: Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    AppColors.cyan,
+                    AppColors.cyan.withOpacity(0.8),
                   ],
                 ),
-                child: _isTakingPhoto
-                    ? const CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 3,
-                      )
-                    : Icon(
-                        Icons.camera_alt,
-                        color: Colors.white,
-                        size: 32,
-                      ),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.8),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.cyan.withOpacity(0.5),
+                    blurRadius: 15,
+                    spreadRadius: 2,
+                  ),
+                ],
               ),
-            );
-          },
-        ),
+              child: _isTakingPhoto
+                  ? const CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 3,
+                    )
+                  : Icon(
+                      Icons.camera_alt,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+            ),
+          );
+        },
       ),
     );
   }
-}
-
-// Custom painter dla konturu dłoni - UPROSZCZONY
-class PalmContourPainter extends CustomPainter {
-  final double animationValue;
-  final Color frameColor;
-  final String positionStatus;
-
-  PalmContourPainter({
-    required this.animationValue,
-    required this.frameColor,
-    required this.positionStatus,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0) return;
-
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..color = frameColor.withOpacity(0.3);
-
-    try {
-      // ✅ TYLKO SUBTELNE LINIE DŁONI
-      _drawPalmLines(canvas, size, paint);
-
-      // Dodatkowe wskaźniki dla dobrej pozycji
-      if (positionStatus == 'good') {
-        _drawSuccessIndicators(canvas, size);
-      }
-    } catch (e) {
-      print('❌ Błąd w PalmContourPainter: $e');
-    }
-  }
-
-  void _drawPalmLines(Canvas canvas, Size size, Paint paint) {
-    final centerX = size.width / 2;
-    final centerY = size.height / 2;
-
-    // ✅ SUBTELNE LINIE DŁONI
-    paint.strokeWidth = 1.5;
-    paint.color = frameColor
-        .withOpacity(0.15 + (0.1 * math.sin(animationValue * 2 * math.pi)));
-
-    // Linia życia
-    final lifeLinePath = Path();
-    lifeLinePath.moveTo(centerX - 60, centerY - 30);
-    lifeLinePath.quadraticBezierTo(
-        centerX - 40, centerY + 10, centerX - 20, centerY + 50);
-    lifeLinePath.quadraticBezierTo(
-        centerX, centerY + 70, centerX + 20, centerY + 80);
-    canvas.drawPath(lifeLinePath, paint);
-
-    // Linia serca
-    final heartLinePath = Path();
-    heartLinePath.moveTo(centerX - 50, centerY - 30);
-    heartLinePath.quadraticBezierTo(
-        centerX - 20, centerY - 50, centerX + 30, centerY - 40);
-    canvas.drawPath(heartLinePath, paint);
-
-    // Linia głowy
-    final headLinePath = Path();
-    headLinePath.moveTo(centerX - 50, centerY - 10);
-    headLinePath.quadraticBezierTo(
-        centerX - 10, centerY + 10, centerX + 40, centerY + 15);
-    canvas.drawPath(headLinePath, paint);
-  }
-
-  void _drawSuccessIndicators(Canvas canvas, Size size) {
-    final successPaint = Paint()
-      ..color = Colors.green.withOpacity(0.2)
-      ..style = PaintingStyle.fill;
-
-    // Małe kropki wskazujące dobre pozycjonowanie
-    final points = [
-      Offset(size.width * 0.2, size.height * 0.3),
-      Offset(size.width * 0.8, size.height * 0.3),
-      Offset(size.width * 0.5, size.height * 0.1),
-      Offset(size.width * 0.2, size.height * 0.7),
-      Offset(size.width * 0.8, size.height * 0.7),
-    ];
-
-    for (final point in points) {
-      canvas.drawCircle(point, 3, successPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 // Custom painter dla tła

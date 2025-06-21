@@ -1,5 +1,5 @@
 // lib/screens/palm_intro_screen.dart
-// NAPRAWIONA WERSJA - dodany przycisk wstecz
+// NAPRAWIONA WERSJA - dodany przycisk wstecz i naprawione błędy
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,6 +10,7 @@ import 'palm_scan_screen.dart';
 import '../utils/responsive_utils.dart';
 import '../services/user_preferences_service.dart';
 import '../models/user_data.dart';
+import '../services/haptic_service.dart';
 
 class PalmIntroScreen extends StatefulWidget {
   final String userName;
@@ -43,6 +44,8 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
 
   UserData? _userData;
   bool _loadingUserData = true;
+
+  final HapticService _hapticService = HapticService();
 
   @override
   void initState() {
@@ -126,7 +129,6 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
     });
   }
 
-// 1. RESPONSYWNY build()
   @override
   Widget build(BuildContext context) {
     if (_loadingUserData) {
@@ -169,36 +171,50 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
 
             // Responsywny przycisk wstecz
             SafeArea(
-              child: Positioned(
-                top: context.isSmallScreen ? 12 : 16,
-                left: context.isSmallScreen ? 12 : 16,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  top: context.isSmallScreen ? 18 : 24,
+                  left: context.isSmallScreen ? 18 : 24,
+                ),
                 child: AnimatedBuilder(
                   animation: _fadeAnimation,
                   builder: (context, child) {
                     return Opacity(
                       opacity: _fadeAnimation.value,
-                      child: Container(
-                        width: context.isSmallScreen ? 40 : 44,
-                        height: context.isSmallScreen ? 40 : 44,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.black.withOpacity(0.3),
-                          border: Border.all(
-                            color: AppColors.cyan.withOpacity(0.5),
-                            width: 1,
-                          ),
-                        ),
-                        child: IconButton(
-                          onPressed: () {
-                            print('🔙 Powrót z PalmIntroScreen');
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () async {
+                            await _hapticService.trigger(HapticType.light);
                             Navigator.of(context).pop();
                           },
-                          icon: Icon(
-                            Icons.arrow_back_ios,
-                            color: Colors.white,
-                            size: context.isSmallScreen ? 16 : 20,
+                          child: Container(
+                            width: context.isSmallScreen ? 44 : 48,
+                            height: context.isSmallScreen ? 44 : 48,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: AppColors.cyan.withOpacity(0.5),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.cyan.withOpacity(0.12),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.arrow_back_ios_new,
+                                color: Colors.white,
+                                size: context.isSmallScreen ? 20 : 24,
+                              ),
+                            ),
                           ),
-                          tooltip: 'Wróć',
                         ),
                       ),
                     );
@@ -266,10 +282,7 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
                                   maxWidth: 600,
                                   child: Text(
                                     _personalizedMessage(context),
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.white,
-                                    ),
+                                    style: AppTextStyles.bodyText,
                                     textAlign: TextAlign.center,
                                   ),
                                 ),
@@ -313,7 +326,6 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
     );
   }
 
-// 2. RESPONSYWNY _buildRitualButton
   Widget _buildRitualButton() {
     return Container(
       width: double.infinity,
@@ -328,7 +340,10 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
         ],
       ),
       child: ElevatedButton(
-        onPressed: _startRitual,
+        onPressed: () async {
+          await _hapticService.trigger(HapticType.medium);
+          _startRitual();
+        },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
@@ -343,10 +358,8 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
           elevation: 0,
         ),
         child: Row(
-          // Użyj zwykłego Row zamiast ResponsiveRow
           mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize:
-              MainAxisSize.min, // KLUCZOWE: pozwala tekstowi się rozwinąć
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.auto_awesome,
@@ -354,14 +367,9 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
               size: context.isSmallScreen ? 20 : 24,
             ),
             const SizedBox(width: 12),
-            // Usuń Flexible, użyj Expanded tylko jeśli w Expanded Column, tu nie jest potrzebny
             Text(
               'Rozpocznij',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.white,
-              ),
-              // NIE ustawiaj maxLines ani overflow!
+              style: AppTextStyles.buttonText,
             ),
             const SizedBox(width: 12),
             Icon(
@@ -375,13 +383,12 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
     );
   }
 
-// 3. RESPONSYWNY _buildBackButton
   Widget _buildBackButton() {
     return SizedBox(
       width: double.infinity,
       child: TextButton(
-        onPressed: () {
-          print('🔙 Powrót z PalmIntroScreen (przycisk)');
+        onPressed: () async {
+          await _hapticService.trigger(HapticType.light);
           Navigator.of(context).pop();
         },
         style: TextButton.styleFrom(
@@ -398,10 +405,8 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
           ),
         ),
         child: Row(
-          // Użyj zwykłego Row zamiast ResponsiveRow
           mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize:
-              MainAxisSize.min, // KLUCZOWE: pozwala tekstowi się rozwinąć
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.arrow_back_ios,
@@ -411,11 +416,10 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
             const SizedBox(width: 8),
             Text(
               'Wróć do menu',
-              style: TextStyle(
+              style: AppTextStyles.bodyText.copyWith(
                 fontSize: 14,
                 color: Colors.white70,
               ),
-              // NIE ustawiaj maxLines ani overflow!
             ),
           ],
         ),
@@ -423,15 +427,16 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
     );
   }
 
-// 4. RESPONSYWNY _personalizedMessage
   String _personalizedMessage(BuildContext context) {
     final user = _userData;
     final userName = user?.name ?? widget.userName;
     final userGender = user?.gender ?? widget.userGender;
-    final genderSuffix = userGender == 'female' ? 'aś' : 'eś';
+    final isFemale = userGender == 'female';
+    final genderSuffix = isFemale ? 'aś' : 'eś';
+    final sameSelf = isFemale ? 'sama' : 'sam';
 
     if (context.isSmallScreen) {
-      return '''Drogi${userGender == 'female' ? 'a' : ''} $userName,
+      return '''$userName,
 
 Wkraczasz w świat, który może zmienić Twoje życie. W liniach dłoni kryją się sekrety, które czekają na odkrycie.
 
@@ -440,9 +445,9 @@ Twoja dłoń to mapa przeznaczenia. Znajdziemy w niej ślady predyspozycji i taj
 Przygotuj się na podróż w głąb siebie. Pozwól mistycznej energii objawić Ci prawdy, na które czekał$genderSuffix.''';
     }
 
-    return '''Drogi${userGender == 'female' ? 'a' : ''} $userName,
+    return '''$userName,
 
-Wkraczas teraz w świat, który może na zawsze zmienić Twoje życie. W liniach Twojej dłoni kryją się historie, które czekają, by zostać opowiedziane - sekrety o Tobie samej/samym, których być może jeszcze nie odkrył$genderSuffix.
+Wkraczasz teraz w świat, który może na zawsze zmienić Twoje życie. W liniach Twojej dłoni kryją się historie, które czekają, by zostać opowiedziane - sekrety o Tobie $sameSelf, których być może jeszcze nie odkrył$genderSuffix.
 
 Twoja dłoń to mapa Twojego przeznaczenia. Znajdziemy w niej ślady Twoich predyspozycji, odkryjemy tajemnice Twojego serca i miłości, a także poznamy ścieżki, które prowadzą do Twojego szczęścia.
 

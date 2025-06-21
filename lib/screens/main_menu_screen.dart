@@ -8,6 +8,8 @@ import '../utils/constants.dart';
 import '../models/user_data.dart';
 import '../services/fortune_history_service.dart';
 import '../services/user_preferences_service.dart'; // ✅ DODANY IMPORT
+import '../services/haptic_service.dart'; // ✅ NOWY IMPORT
+import '../widgets/haptic_button.dart'; // ✅ NOWY IMPORT
 import 'palm_intro_screen.dart';
 import 'fortune_history_screen.dart';
 import 'user_data_screen.dart';
@@ -33,6 +35,7 @@ class MainMenuScreen extends StatefulWidget {
 class _MainMenuScreenState extends State<MainMenuScreen>
     with TickerProviderStateMixin {
   final FortuneHistoryService _historyService = FortuneHistoryService();
+  final HapticService _hapticService = HapticService(); // ✅ NOWY SERWIS
 
   // Przenieś i zainicjalizuj od razu!
   String _userName = '';
@@ -394,7 +397,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
       ),
       MenuOption(
         title: 'Zgodność par',
-        subtitle: 'Sprawdź dopasowanie z inną osobą',
+        subtitle: 'Sprawdź dopasowanie',
         icon: Icons.favorite_border,
         color: Colors.pinkAccent,
         isAvailable: false,
@@ -437,144 +440,151 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     );
   }
 
+  // Zamień HapticButton na GestureDetector w _buildMenuCard
   Widget _buildMenuCard(MenuOption option, int index,
       {Widget? zodiacWidget, String? zodiacSign}) {
     final isSelected = _selectedIndex == index;
 
-    return GestureDetector(
-      onTapDown: (_) {
-        setState(() => _selectedIndex = index);
-        HapticFeedback.selectionClick();
-      },
-      onTapUp: (_) {
-        setState(() => _selectedIndex = -1);
-        option.onTap();
-      },
-      onTapCancel: () {
-        setState(() => _selectedIndex = -1);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        transform:
-            isSelected ? (Matrix4.identity()..scale(0.98)) : Matrix4.identity(),
-        child: Container(
-          width: double.infinity,
-          constraints: const BoxConstraints(minHeight: 100),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: option.isAvailable
-                  ? [
-                      Colors.black.withOpacity(0.8),
-                      Colors.black.withOpacity(0.6),
-                    ]
-                  : [
-                      Colors.grey.withOpacity(0.3),
-                      Colors.grey.withOpacity(0.2),
-                    ],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: option.isAvailable
-                  ? (isSelected ? option.color : option.color.withOpacity(0.4))
-                  : Colors.grey.withOpacity(0.3),
-              width: isSelected ? 2 : 1,
-            ),
-            boxShadow: option.isAvailable
-                ? [
-                    BoxShadow(
-                      color: option.color.withOpacity(isSelected ? 0.4 : 0.15),
-                      blurRadius: isSelected ? 20 : 10,
-                      spreadRadius: isSelected ? 2 : 1,
-                    ),
-                  ]
-                : [],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: option.isAvailable
-                      ? RadialGradient(
-                          colors: [
-                            option.color.withOpacity(0.3),
-                            option.color.withOpacity(0.1),
-                          ],
-                        )
-                      : null,
-                  color:
-                      option.isAvailable ? null : Colors.grey.withOpacity(0.2),
-                  border: Border.all(
-                    color: option.isAvailable
-                        ? option.color.withOpacity(0.6)
-                        : Colors.grey.withOpacity(0.4),
-                    width: 1,
-                  ),
-                ),
-                child: (option.title == 'Horoskop na Dzisiaj' &&
-                        zodiacWidget != null)
-                    ? zodiacWidget
-                    : Icon(
-                        option.icon,
-                        size: 28,
-                        color: option.isAvailable ? option.color : Colors.grey,
-                      ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: GestureDetector(
+        onTap: () async {
+          await _hapticService.trigger(
+            option.isAvailable ? HapticType.light : HapticType.selection,
+          );
+          if (option.isAvailable) {
+            option.onTap();
+          } else {
+            _showComingSoon(option.title);
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          transform: isSelected
+              ? (Matrix4.identity()..scale(0.98))
+              : Matrix4.identity(),
+          child: Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(minHeight: 100),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: option.isAvailable
+                    ? [
+                        Colors.black.withOpacity(0.8),
+                        Colors.black.withOpacity(0.6),
+                      ]
+                    : [
+                        Colors.grey.withOpacity(0.3),
+                        Colors.grey.withOpacity(0.2),
+                      ],
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: option.isAvailable
-                      ? MainAxisAlignment.center
-                      : MainAxisAlignment
-                          .spaceEvenly, // Dla nieaktywnych rozkład równomierny
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            option.title,
-                            style: GoogleFonts.cinzelDecorative(
-                              fontSize: 18,
-                              color: option.isAvailable
-                                  ? Colors.white
-                                  : Colors.grey,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 0.5,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: option.isAvailable
+                    ? (isSelected
+                        ? option.color
+                        : option.color.withOpacity(0.4))
+                    : Colors.grey.withOpacity(0.3),
+                width: isSelected ? 2 : 1,
+              ),
+              boxShadow: option.isAvailable
+                  ? [
+                      BoxShadow(
+                        color:
+                            option.color.withOpacity(isSelected ? 0.4 : 0.15),
+                        blurRadius: isSelected ? 20 : 10,
+                        spreadRadius: isSelected ? 2 : 1,
+                      ),
+                    ]
+                  : [],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: option.isAvailable
+                        ? RadialGradient(
+                            colors: [
+                              option.color.withOpacity(0.3),
+                              option.color.withOpacity(0.1),
+                            ],
+                          )
+                        : null,
+                    color: option.isAvailable
+                        ? null
+                        : Colors.grey.withOpacity(0.2),
+                    border: Border.all(
+                      color: option.isAvailable
+                          ? option.color.withOpacity(0.6)
+                          : Colors.grey.withOpacity(0.4),
+                      width: 1,
+                    ),
+                  ),
+                  child: (option.title == 'Horoskop na Dzisiaj' &&
+                          zodiacWidget != null)
+                      ? zodiacWidget
+                      : Icon(
+                          option.icon,
+                          size: 28,
+                          color:
+                              option.isAvailable ? option.color : Colors.grey,
+                        ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: option.isAvailable
+                        ? MainAxisAlignment.center
+                        : MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              option.title,
+                              style: GoogleFonts.cinzelDecorative(
+                                fontSize: 18,
+                                color: option.isAvailable
+                                    ? Colors.white
+                                    : Colors.grey,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.5,
+                              ),
                             ),
                           ),
-                        ),
-                        // Usunięto badge 'Wkrótce' dla nieaktywnych
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      option.subtitle,
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 14,
-                        color: option.isAvailable
-                            ? Colors.white70
-                            : Colors.grey.withOpacity(0.7),
-                        fontWeight: FontWeight.w300,
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        option.subtitle,
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 14,
+                          color: option.isAvailable
+                              ? Colors.white70
+                              : Colors.grey.withOpacity(0.7),
+                          fontWeight: FontWeight.w300,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: option.isAvailable
-                    ? option.color.withOpacity(0.7)
-                    : Colors.grey.withOpacity(0.5),
-              ),
-            ],
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: option.isAvailable
+                      ? option.color.withOpacity(0.7)
+                      : Colors.grey.withOpacity(0.5),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -648,8 +658,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     );
   }
 
-  void _navigateToFortuneHistory() {
-    HapticFeedback.mediumImpact();
+  void _navigateToFortuneHistory() async {
+    await _hapticService.trigger(HapticType.medium);
     Navigator.of(context)
         .push(
           PageRouteBuilder(
@@ -678,8 +688,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         .then((_) => _loadFortuneCount());
   }
 
-  void _navigateToPalmScan() {
-    HapticFeedback.mediumImpact();
+  void _navigateToPalmScan() async {
+    await _hapticService.trigger(HapticType.success);
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -709,7 +719,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
   // ✅ POPRAWIONA METODA - pobiera prawdziwe dane z SharedPreferences
   void _navigateToUserData() async {
-    HapticFeedback.mediumImpact();
+    await _hapticService.trigger(HapticType.light);
 
     try {
       // ✅ KLUCZOWA ZMIANA: Pobierz PRAWDZIWE dane z SharedPreferences
@@ -796,8 +806,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     );
   }
 
-  void _showComingSoon(String featureName) {
-    HapticFeedback.lightImpact();
+  void _showComingSoon(String featureName) async {
+    await _hapticService.trigger(HapticType.warning);
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -851,21 +861,16 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: HapticButton(
+                  text: 'Rozumiem',
+                  hapticType: HapticType.light,
                   onPressed: () => Navigator.of(context).pop(),
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.black,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(25)),
-                  ),
-                  child: Text(
-                    'Rozumiem',
-                    style: GoogleFonts.cinzelDecorative(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black,
-                    ),
                   ),
                 ),
               ),

@@ -1,5 +1,5 @@
-// lib/screens/palm_analysis_screen.dart
-// NOWY PIĘKNY EKRAN WYNIKÓW ANALIZY DŁONI
+// lib/screens/palm_analysis_result_screen.dart
+// POPRAWIONA WERSJA - naprawione błędy składni i overflow
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,6 +10,7 @@ import '../models/palm_analysis.dart';
 import '../services/logging_service.dart';
 import '../services/ai_palm_analysis_service.dart';
 import '../services/fortune_history_service.dart';
+import '../services/haptic_service.dart';
 import 'main_menu_screen.dart';
 
 class PalmAnalysisScreen extends StatefulWidget {
@@ -34,6 +35,7 @@ class _PalmAnalysisScreenState extends State<PalmAnalysisScreen>
     with TickerProviderStateMixin {
   final LoggingService _loggingService = LoggingService();
   final FortuneHistoryService _historyService = FortuneHistoryService();
+  final HapticService _hapticService = HapticService();
   final PageController _pageController = PageController();
   final ScrollController _scrollController = ScrollController();
 
@@ -276,6 +278,7 @@ class _PalmAnalysisScreenState extends State<PalmAnalysisScreen>
     _mysticalController.dispose();
     _sectionController.dispose();
     _glowController.dispose();
+    _pageController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -373,56 +376,29 @@ class _PalmAnalysisScreenState extends State<PalmAnalysisScreen>
       ),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedBuilder(
-                animation: _mysticalAnimation,
-                builder: (context, child) {
-                  return Transform.rotate(
-                    angle: _mysticalAnimation.value * 2 * math.pi,
-                    child: Icon(
-                      Icons.auto_awesome,
-                      color: AppColors.cyan,
-                      size: 24,
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'TWOJA WRÓŻBA',
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 24,
-                  color: AppColors.cyan,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(width: 12),
-              AnimatedBuilder(
-                animation: _mysticalAnimation,
-                builder: (context, child) {
-                  return Transform.rotate(
-                    angle: -_mysticalAnimation.value * 2 * math.pi,
-                    child: Icon(
-                      Icons.auto_awesome,
-                      color: AppColors.cyan,
-                      size: 24,
-                    ),
-                  );
-                },
-              ),
-            ],
+          // Usunięcie animowanych gwiazdek
+          Text(
+            'WRÓŻBA',
+            style: GoogleFonts.cinzelDecorative(
+              fontSize: 24,
+              color: AppColors.cyan,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 2,
+            ),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 12),
+          // Usunięcie "Drogi/a" - zostawienie tylko imienia
           Text(
-            'Drogi${widget.userGender == 'female' ? 'a' : (widget.userGender == 'other' ? '/a' : '')} ${widget.userName}',
+            widget.userName,
             style: GoogleFonts.cinzelDecorative(
               fontSize: 18,
               color: Colors.white,
               fontWeight: FontWeight.w400,
             ),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 8),
           Text(
@@ -572,6 +548,7 @@ class _PalmAnalysisScreenState extends State<PalmAnalysisScreen>
                               fontWeight: FontWeight.w600,
                               letterSpacing: 0.5,
                             ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
                           Container(
@@ -658,12 +635,16 @@ class _PalmAnalysisScreenState extends State<PalmAnalysisScreen>
       margin: const EdgeInsets.all(16),
       child: Row(
         children: [
+          // Poprawiony przycisk Udostępnij - używamy Expanded zamiast Flexible
           Expanded(
             child: Container(
               height: 48,
               margin: const EdgeInsets.only(right: 8),
               child: OutlinedButton.icon(
-                onPressed: _shareResults,
+                onPressed: () async {
+                  await _hapticService.trigger(HapticType.light);
+                  _shareResults();
+                },
                 icon: const Icon(Icons.share, size: 20),
                 label: const Text('Udostępnij'),
                 style: OutlinedButton.styleFrom(
@@ -676,14 +657,18 @@ class _PalmAnalysisScreenState extends State<PalmAnalysisScreen>
               ),
             ),
           ),
+          // Poprawiony przycisk Cofnij - używamy Expanded zamiast Flexible i poprawna pisownia
           Expanded(
             child: Container(
               height: 48,
               margin: const EdgeInsets.only(left: 8),
               child: ElevatedButton.icon(
-                onPressed: () => _navigateToMainMenu(),
+                onPressed: () async {
+                  await _hapticService.trigger(HapticType.medium);
+                  _navigateToMainMenu();
+                },
                 icon: const Icon(Icons.auto_awesome, size: 20),
-                label: const Text('Świat Wróż'),
+                label: const Text('Cofnij'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.cyan,
                   foregroundColor: Colors.black,
@@ -753,7 +738,10 @@ class _PalmAnalysisScreenState extends State<PalmAnalysisScreen>
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () => _navigateToMainMenu(),
+                        onPressed: () async {
+                          await _hapticService.trigger(HapticType.medium);
+                          _navigateToMainMenu();
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange,
                           padding: const EdgeInsets.symmetric(

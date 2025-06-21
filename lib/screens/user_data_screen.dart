@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_data.dart';
 import '../services/user_preferences_service.dart';
+import '../services/haptic_service.dart';
 import '../utils/constants.dart';
 
 class UserDataScreen extends StatefulWidget {
@@ -37,6 +38,8 @@ class _UserDataScreenState extends State<UserDataScreen> {
 
   // ✅ KLUCZOWA POPRAWKA: Aktualne zapisane dane do wyświetlania w podglądzie
   late UserData _currentSavedUserData;
+
+  final HapticService _hapticService = HapticService();
 
   @override
   void initState() {
@@ -182,6 +185,9 @@ class _UserDataScreenState extends State<UserDataScreen> {
       // Pokazuj loading
       _showLoadingDialog();
 
+      // Mocniejsza wibracja przy zapisie
+      await _hapticService.trigger(HapticType.impact);
+
       String? birthTimeString;
       if (_rememberBirthTime && _birthTime != null) {
         birthTimeString =
@@ -311,6 +317,9 @@ class _UserDataScreenState extends State<UserDataScreen> {
 
   void _deleteUserData() async {
     try {
+      // Lekka wibracja przy usuwaniu
+      await _hapticService.trigger(HapticType.light);
+
       await UserPreferencesService.clearAllUserData();
       widget.onUserDataChanged?.call(null);
 
@@ -903,14 +912,18 @@ class _UserDataScreenState extends State<UserDataScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () async {
+              await _hapticService.trigger(HapticType.light);
+              Navigator.of(context).pop();
+            },
             child: Text(
               'Anuluj',
               style: AppTextStyles.bodyText.copyWith(color: Colors.grey),
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              await _hapticService.trigger(HapticType.light);
               Navigator.of(context).pop();
               _deleteUserData();
             },

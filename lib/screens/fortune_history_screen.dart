@@ -9,6 +9,7 @@ import 'dart:math' as math;
 import '../utils/constants.dart';
 import '../models/fortune_history.dart';
 import '../services/fortune_history_service.dart';
+import '../services/haptic_service.dart'; // Dodaj import jeśli nie masz
 import 'fortune_detail_screen.dart';
 
 class FortuneHistoryScreen extends StatefulWidget {
@@ -29,6 +30,7 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
     with TickerProviderStateMixin {
   // ===== SERWISY =====
   final FortuneHistoryService _historyService = FortuneHistoryService();
+  final HapticService _hapticService = HapticService(); // Dodaj pole
 
   // ===== STAN =====
   List<FortuneHistory> _history = [];
@@ -177,6 +179,9 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
         ],
       ),
       child: Row(
+        mainAxisAlignment:
+            MainAxisAlignment.spaceBetween, // Rozsuń przyciski na boki
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Back button
           Container(
@@ -190,48 +195,43 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
               ),
             ),
             child: IconButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () async {
+                await _hapticService.trigger(HapticType.light);
+                Navigator.of(context).pop();
+              },
               icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-              iconSize: 20,
+              iconSize: 22,
+              tooltip: 'Wróć',
             ),
           ),
-
-          // Title
+          // Tytuł i podtytuł
           Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    AnimatedBuilder(
-                      animation: _mysticalAnimation,
-                      builder: (context, child) {
-                        return Transform.rotate(
-                          angle: _mysticalAnimation.value * 2 * math.pi,
-                          child: Icon(
-                            Icons.history,
-                            color: AppColors.cyan,
-                            size: 24,
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'MOJE WRÓŻBY',
-                      style: AppTextStyles.sectionTitle, // ✅ Cinzel Decorative
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
                 Text(
-                  'Historia Twoich mistycznych odkryć',
-                  style: AppTextStyles.mysticalAccent, // ✅ Cinzel Decorative
+                  'HISTORIA',
+                  style: AppTextStyles.sectionTitle.copyWith(
+                    fontSize: 22, // Większy font
+                    letterSpacing: 1.2,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Twoich wróźb',
+                  style: AppTextStyles.mysticalAccent.copyWith(
+                    fontSize: 13, // Większy font
+                  ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ],
             ),
           ),
-
           // Action button
           Container(
             width: 44,
@@ -244,9 +244,13 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
               ),
             ),
             child: IconButton(
-              onPressed: _showOptionsMenu,
+              onPressed: () async {
+                await _hapticService.trigger(HapticType.selection);
+                _showOptionsMenu();
+              },
               icon: const Icon(Icons.more_vert, color: Colors.white),
-              iconSize: 20,
+              iconSize: 22,
+              tooltip: 'Opcje',
             ),
           ),
         ],
@@ -480,7 +484,10 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _openFortuneDetail(fortune),
+          onTap: () async {
+            await _hapticService.trigger(HapticType.light);
+            _openFortuneDetail(fortune);
+          },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -698,9 +705,12 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
       leading: Icon(icon, color: tileColor),
       title: Text(
         title,
-        style: AppTextStyles.bodyText.copyWith(color: tileColor), // ✅ Open Sans
+        style: AppTextStyles.bodyText.copyWith(color: tileColor),
       ),
-      onTap: onTap,
+      onTap: () async {
+        await _hapticService.trigger(HapticType.light);
+        onTap();
+      },
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),

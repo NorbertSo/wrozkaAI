@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:math' as math;
 import '../utils/constants.dart';
 import '../models/fortune_history.dart';
+import '../services/haptic_service.dart';
 
 class FortuneDetailScreen extends StatefulWidget {
   final FortuneHistory fortune;
@@ -24,9 +25,9 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
     with TickerProviderStateMixin {
   // ===== ANIMACJE =====
   late AnimationController _fadeController;
-  late AnimationController _mysticalController;
   late Animation<double> _fadeAnimation;
-  late Animation<double> _mysticalAnimation;
+  // Haptic
+  final HapticService _hapticService = HapticService();
 
   @override
   void initState() {
@@ -40,18 +41,8 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
       duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
-
-    _mysticalController = AnimationController(
-      duration: const Duration(seconds: 8),
-      vsync: this,
-    )..repeat();
-
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
-    );
-
-    _mysticalAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _mysticalController, curve: Curves.linear),
     );
   }
 
@@ -66,7 +57,6 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
   @override
   void dispose() {
     _fadeController.dispose();
-    _mysticalController.dispose();
     super.dispose();
   }
 
@@ -97,10 +87,10 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
         ),
       ),
       child: AnimatedBuilder(
-        animation: _mysticalAnimation,
+        animation: _fadeAnimation,
         builder: (context, child) {
           return CustomPaint(
-            painter: DetailBackgroundPainter(_mysticalAnimation.value),
+            painter: DetailBackgroundPainter(_fadeAnimation.value),
             size: Size.infinite,
           );
         },
@@ -133,7 +123,8 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
   Widget _buildHeader() {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+      padding: const EdgeInsets.symmetric(
+          vertical: 16, horizontal: 12), // zmniejszono padding
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -162,8 +153,8 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
           Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 40, // zmniejszono szerokość
+                height: 40,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
@@ -172,49 +163,37 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
                   ),
                 ),
                 child: IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () async {
+                    await _hapticService.trigger(HapticType.light);
+                    Navigator.of(context).pop();
+                  },
                   icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                  iconSize: 20,
+                  iconSize: 18,
+                  tooltip: 'Wróć',
                 ),
               ),
+              const SizedBox(width: 8),
               Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    AnimatedBuilder(
-                      animation: _mysticalAnimation,
-                      builder: (context, child) {
-                        return Transform.rotate(
-                          angle: _mysticalAnimation.value * 2 * math.pi,
-                          child: Icon(
-                            Icons.auto_awesome,
-                            color: AppColors.cyan,
-                            size: 24,
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'TWOJA WRÓŻBA',
-                      style: AppTextStyles.sectionTitle, // ✅ Cinzel Decorative
-                    ),
-                  ],
+                child: Text(
+                  'TWOJA WRÓŻBA',
+                  style: AppTextStyles.sectionTitle,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 44),
+              const SizedBox(width: 8),
+              // Puste miejsce dla symetrii
+              SizedBox(width: 40),
             ],
           ),
-
-          const SizedBox(height: 16),
-
+          const SizedBox(height: 12),
           // Fortune info
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: AppColors.cyan.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
@@ -228,23 +207,23 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
                   children: [
                     Text(
                       widget.fortune.handIcon,
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 15),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Text(
                       widget.fortune.handTypeName,
                       style: AppTextStyles.mysticalAccent.copyWith(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w500,
-                      ), // ✅ Cinzel Decorative
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 10),
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
@@ -258,13 +237,13 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
                   children: [
                     Icon(
                       Icons.access_time,
-                      size: 16,
+                      size: 15,
                       color: Colors.white70,
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 5),
                     Text(
                       widget.fortune.formattedDate,
-                      style: AppTextStyles.caption, // ✅ Open Sans
+                      style: AppTextStyles.caption,
                     ),
                   ],
                 ),
@@ -377,11 +356,15 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
               height: 48,
               margin: const EdgeInsets.only(right: 8),
               child: OutlinedButton.icon(
-                onPressed: _shareFortune,
+                onPressed: () async {
+                  await _hapticService.trigger(HapticType.light);
+                  _shareFortune();
+                },
                 icon: const Icon(Icons.share, size: 20),
                 label: Text(
                   'Udostępnij',
-                  style: AppTextStyles.buttonText, // ✅ Cinzel Decorative
+                  style: AppTextStyles.buttonText,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.cyan,
@@ -389,6 +372,8 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
+                  textStyle: AppTextStyles.buttonText,
+                  padding: const EdgeInsets.symmetric(horizontal: 0),
                 ),
               ),
             ),
@@ -398,11 +383,16 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
               height: 48,
               margin: const EdgeInsets.only(left: 8),
               child: ElevatedButton.icon(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.arrow_back, size: 20),
+                onPressed: () async {
+                  await _hapticService.trigger(HapticType.light);
+                  Navigator.of(context).pop();
+                },
+                icon:
+                    const Icon(Icons.arrow_back, size: 20, color: Colors.black),
                 label: Text(
                   'Wróć',
-                  style: AppTextStyles.buttonText, // ✅ Cinzel Decorative
+                  style: AppTextStyles.buttonText.copyWith(color: Colors.black),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.cyan,
@@ -410,6 +400,9 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
+                  textStyle:
+                      AppTextStyles.buttonText.copyWith(color: Colors.black),
+                  padding: const EdgeInsets.symmetric(horizontal: 0),
                 ),
               ),
             ),

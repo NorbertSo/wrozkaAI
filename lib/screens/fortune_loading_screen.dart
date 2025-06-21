@@ -1,5 +1,5 @@
 // lib/screens/fortune_loading_screen.dart
-// POPRAWIONA WERSJA - bez Lottie, z czystymi animacjami Flutter
+// POPRAWIONA WERSJA - z Lottie i drobnymi poprawkami
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,6 +10,7 @@ import '../services/ai_palm_analysis_service.dart';
 import '../models/user_data.dart';
 import 'palm_analysis_result_screen.dart';
 import 'package:camera/camera.dart';
+import 'package:lottie/lottie.dart';
 
 class FortuneLoadingScreen extends StatefulWidget {
   final UserData userData;
@@ -81,8 +82,9 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
       vsync: this,
     )..repeat();
 
+    // ✅ POPRAWKA: Przyspieszenie do 19 sekund
     _progressController = AnimationController(
-      duration: const Duration(seconds: 20), // Długość całego procesu
+      duration: const Duration(seconds: 19),
       vsync: this,
     );
 
@@ -279,50 +281,20 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
     );
   }
 
+  // ✅ POPRAWKA: Prostszy header bez gwiazdek
   Widget _buildHeader() {
     return Container(
-      margin: const EdgeInsets.all(20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedBuilder(
-            animation: _runeAnimation,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: _runeAnimation.value * 2 * math.pi,
-                child: Icon(
-                  Icons.auto_awesome,
-                  color: AppColors.cyan,
-                  size: 24,
-                ),
-              );
-            },
+      margin: const EdgeInsets.all(16),
+      child: Center(
+        child: Text(
+          'PRZYGOTOWUJĘ WRÓŻBĘ',
+          style: GoogleFonts.cinzelDecorative(
+            fontSize: 18,
+            color: AppColors.cyan,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.5,
           ),
-          const SizedBox(width: 12),
-          Text(
-            'PRZYGOTOWUJĘ WRÓŻBĘ',
-            style: GoogleFonts.cinzelDecorative(
-              fontSize: 20,
-              color: AppColors.cyan,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(width: 12),
-          AnimatedBuilder(
-            animation: _runeAnimation,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: -_runeAnimation.value * 2 * math.pi,
-                child: Icon(
-                  Icons.auto_awesome,
-                  color: AppColors.cyan,
-                  size: 24,
-                ),
-              );
-            },
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -331,7 +303,7 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Główna animowana sfera
+        // ✅ POPRAWKA: Lottie animation zamiast ręcznej ikony
         _buildMainOrb(),
         const SizedBox(height: 40),
 
@@ -345,6 +317,7 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
     );
   }
 
+  // ✅ POPRAWKA: Lottie animation
   Widget _buildMainOrb() {
     return AnimatedBuilder(
       animation: Listenable.merge(
@@ -356,24 +329,7 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Zewnętrzne kręgi energii
-              for (int i = 0; i < 3; i++)
-                Transform.scale(
-                  scale: 1.0 + (i * 0.3) + (_pulseAnimation.value * 0.1),
-                  child: Container(
-                    width: 160 + (i * 20),
-                    height: 160 + (i * 20),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.cyan.withOpacity(0.3 - (i * 0.1)),
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Główna sfera
+              // ✅ LOTTIE ANIMATION ZAMIAST IKONY DŁONI
               Transform.scale(
                 scale: _pulseAnimation.value,
                 child: Container(
@@ -400,37 +356,9 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
                       ),
                     ],
                   ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Ikona dłoni w centrum
-                      Icon(
-                        Icons.pan_tool_outlined,
-                        size: 60,
-                        color: AppColors.cyan.withOpacity(0.9),
-                      ),
-
-                      // Obracające się symbole
-                      ...List.generate(6, (index) {
-                        final angle = (index * math.pi / 3) +
-                            (_orbAnimation.value * 2 * math.pi);
-                        final radius = 50.0;
-                        return Transform.translate(
-                          offset: Offset(
-                            radius * math.cos(angle),
-                            radius * math.sin(angle),
-                          ),
-                          child: Transform.rotate(
-                            angle: angle,
-                            child: Icon(
-                              _getSymbolIcon(index),
-                              size: 16,
-                              color: AppColors.cyan.withOpacity(0.7),
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
+                  child: Lottie.asset(
+                    'assets/animations/fortuneloading.json',
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
@@ -453,25 +381,13 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
     );
   }
 
-  IconData _getSymbolIcon(int index) {
-    final icons = [
-      Icons.star,
-      Icons.favorite,
-      Icons.diamond,
-      Icons.local_fire_department,
-      Icons.water_drop,
-      Icons.air,
-    ];
-    return icons[index % icons.length];
-  }
-
   Widget _buildLoadingMessage() {
     return AnimatedBuilder(
       animation: _textAnimation,
       builder: (context, child) {
         String message;
         Color messageColor = Colors.white;
-        IconData? messageIcon;
+        IconData messageIcon;
 
         if (_currentMessageIndex == -1) {
           message = 'Wróżba gotowa!';
@@ -491,9 +407,10 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
           child: Transform.translate(
             offset: Offset(0, 20 * (1 - _textAnimation.value)),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              margin: const EdgeInsets.symmetric(horizontal: 24),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(25),
+                borderRadius: BorderRadius.circular(20),
                 color: Colors.black.withOpacity(0.7),
                 border: Border.all(
                   color: messageColor.withOpacity(0.3),
@@ -511,19 +428,17 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (messageIcon != null) ...[
-                    Icon(
-                      messageIcon,
-                      color: messageColor,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                  ],
+                  Icon(
+                    messageIcon,
+                    color: messageColor,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
                   Flexible(
                     child: Text(
                       message,
                       style: GoogleFonts.cinzelDecorative(
-                        fontSize: 16,
+                        fontSize: 15,
                         color: messageColor,
                         fontWeight: FontWeight.w400,
                         letterSpacing: 0.5,
@@ -566,18 +481,21 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildInfoItem(
+              Flexible(
+                  child: _buildInfoItem(
                 'Wiek',
                 '${widget.userData.age} lat',
-              ),
-              _buildInfoItem(
+              )),
+              Flexible(
+                  child: _buildInfoItem(
                 'Znak',
                 widget.userData.zodiacSign,
-              ),
-              _buildInfoItem(
+              )),
+              Flexible(
+                  child: _buildInfoItem(
                 'Dłoń',
                 widget.handType == 'left' ? 'Lewa' : 'Prawa',
-              ),
+              )),
             ],
           ),
         ],
@@ -661,29 +579,19 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
 
           const SizedBox(height: 20),
 
-          // Dekoracyjne elementy
+          // ✅ POPRAWKA: Usunięte kręcące się gwiazdki
+          // Prosta kropki bez animacji
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(5, (index) {
-              return AnimatedBuilder(
-                animation: _orbAnimation,
-                builder: (context, child) {
-                  final delay = index * 0.2;
-                  final animValue = (_orbAnimation.value + delay) % 1.0;
-                  final opacity =
-                      0.3 + (0.4 * math.sin(animValue * 2 * math.pi));
-
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color:
-                          AppColors.cyan.withOpacity(opacity.clamp(0.1, 0.7)),
-                    ),
-                  );
-                },
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.cyan.withOpacity(0.3),
+                ),
               );
             }),
           ),
