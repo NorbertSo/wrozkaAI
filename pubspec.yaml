@@ -1,0 +1,94 @@
+name: ai_wrozka
+description: AI Wróżka - Analiza Dłoni z wykorzystaniem AI
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # 📅 Date Formatting
+  intl: ^0.20.2
+
+  # UI & Fonts
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  lottie: ^3.3.1
+
+  # ✅ FIREBASE - NOWE DEPENDENCIES:
+  firebase_core: ^2.32.0
+  firebase_analytics: ^10.7.4
+  cloud_firestore: ^4.17.5
+  firebase_remote_config: ^4.3.8
+  
+  # Camera & Image
+  camera: ^0.10.6
+  image_picker: ^1.1.2
+  
+  # HTTP & API
+  http: ^1.4.0
+  
+  # File & Storage
+  path_provider: ^2.1.5
+  shared_preferences: ^2.2.2  # ✅ DODANE - dla historii wróżb
+  flutter_secure_storage: ^9.0.0
+  
+  # Sharing
+  share_plus: ^7.2.2
+  flutter_phoenix: ^1.0.0
+
+  # Wibracje przenieś do dependencies (NIE dev_dependencies)!
+  vibration: ^3.1.3
+  audioplayers: ^6.5.0
+  just_audio: ^0.10.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.3
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/capricorn.png
+    - assets/images/aquarius.png
+    - assets/images/pisces.png
+    - assets/images/aries.png
+    - assets/images/taurus.png
+    - assets/images/gemini.png
+    - assets/images/cancer.png
+    - assets/images/leo.png
+    - assets/images/virgo.png
+    - assets/images/libra.png
+    - assets/images/scorpio.png
+    - assets/images/sagittarius.png
+    - assets/images/magic_hand.png
+    - assets/animations/
+    - assets/sound/
+    - assets/data/
+
+fonts:
+  - family: Cinzel Decorative
+    fonts:
+      - asset: fonts/CinzelDecorative-Regular.ttf
+      - asset: fonts/CinzelDecorative-Bold.ttf
+        weight: 700
+
+  # ✅ NOWY FONT - Open Sans dla długich tekstów
+  - family: Open Sans
+    fonts:
+      - asset: fonts/OpenSans-Regular.ttf
+      - asset: fonts/OpenSans-Light.ttf
+        weight: 300
+      - asset: fonts/OpenSans-SemiBold.ttf
+        weight: 600
+      - asset: fonts/OpenSans-Bold.ttf
+        weight: 700
+

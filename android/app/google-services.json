@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "173770111771",
+    "project_id": "retixly-58e1e",
+    "storage_bucket": "retixly-58e1e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:173770111771:android:fd8e00ebd41d8961cdf1be",
+        "android_client_info": {
+          "package_name": "com.example.ai_wrozka"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCUhZyR8gdLtVKr3MTxRBfiT52asc7RQv8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

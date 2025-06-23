@@ -1,0 +1,175 @@
+import 'package:flutter/material.dart';
+
+class AppColors {
+  // Główne kolory aplikacji
+  static const Color cyan = Color(0xFF00D4FF);
+  static const Color lightCyan = Color(0xFF7DDDFF);
+  static const Color darkCyan = Color(0xFF0099CC);
+  
+  // Kolory tła i gradientów
+  static const Color darkBlue = Color(0xFF0B1426);
+  static const Color mediumBlue = Color(0xFF1A2332);
+  static const Color lightBlue = Color(0xFF2A3442);
+  
+  // Gradienty
+  static const List<Color> welcomeGradient = [
+    Color(0xFF0B1426), // Ciemny niebieski
+    Color(0xFF1A2332), // Średni niebieski
+  ];
+  
+  static const List<Color> buttonGradient = [
+    Color(0xFF00D4FF), // Cyan
+    Color(0xFF0099CC), // Ciemniejszy cyan
+  ];
+  
+  // Kolory tekstu
+  static const Color primaryText = Colors.white;
+  static const Color secondaryText = Color(0xFFB0B0B0);
+  static const Color accentText = Color(0xFF00D4FF);
+  
+  // Kolory statusu
+  static const Color success = Color(0xFF4CAF50);
+  static const Color warning = Color(0xFFFF9800);
+  static const Color error = Color(0xFFF44336);
+  static const Color info = Color(0xFF2196F3);
+  
+  // Kolory przezroczystoś i
+  static Color blackOverlay = Colors.black.withOpacity(0.7);
+  static Color whiteOverlay = Colors.white.withOpacity(0.1);
+  static Color cyanOverlay = cyan.withOpacity(0.2);
+}
+
+class AppSizes {
+  // Padding i margin
+  static const double paddingSmall = 8.0;
+  static const double paddingMedium = 16.0;
+  static const double paddingLarge = 24.0;
+  static const double paddingXLarge = 32.0;
+  
+  // Border radius
+  static const double radiusSmall = 8.0;
+  static const double radiusMedium = 12.0;
+  static const double radiusLarge = 20.0;
+  static const double radiusXLarge = 30.0;
+  
+  // Icon sizes
+  static const double iconSmall = 16.0;
+  static const double iconMedium = 24.0;
+  static const double iconLarge = 32.0;
+  static const double iconXLarge = 48.0;
+  
+  // Button heights
+  static const double buttonHeightSmall = 40.0;
+  static const double buttonHeightMedium = 48.0;
+  static const double buttonHeightLarge = 56.0;
+  
+  // Animation durations (milliseconds)
+  static const int animationFast = 300;
+  static const int animationMedium = 500;
+  static const int animationSlow = 800;
+  static const int animationVerySlow = 1200;
+}
+
+class AppStrings {
+  // Ogólne
+  static const String appName = 'AI Wróżka';
+  static const String loading = 'Ładowanie...';
+  static const String error = 'Błąd';
+  static const String success = 'Sukces';
+  static const String cancel = 'Anuluj';
+  static const String confirm = 'Potwierdź';
+  static const String retry = 'Spróbuj ponownie';
+  
+  // Nawigacja
+  static const String back = 'Wstecz';
+  static const String next = 'Dalej';
+  static const String finish = 'Zakończ';
+  static const String close = 'Zamknij';
+  
+  // Camera związane
+  static const String cameraInitializing = 'Inicjalizacja kamery...';
+  static const String cameraError = 'Błąd kamery';
+  static const String cameraPermissionDenied = 'Brak uprawnień do kamery';
+  static const String placePalmInFrame = 'Umieść dłoń w ramce';
+  static const String holdStill = 'Trzymaj nieruchomo';
+  static const String scanningInProgress = 'Skanowanie w toku...';
+  static const String scanComplete = 'Skanowanie zakończone';
+  
+  // Wróżby
+  static const String palmReading = 'Wróżenie z dłoni';
+  static const String analysisComplete = 'Analiza zakończona';
+  static const String fortune = 'Wróżba';
+  static const String yourFortune = 'Twoja wróżba';
+}
+
+class AppAssets {
+  // Images
+  static const String _imagesPath = 'assets/images/';
+  static const String palmIcon = '${_imagesPath}palm_icon.png';
+  static const String mysticBackground = '${_imagesPath}mystic_bg.png';
+  
+  // Animations
+  static const String _animationsPath = 'assets/animations/';
+  static const String starFieldAnimation = '${_animationsPath}star_bg.json';
+  static const String loadingAnimation = '${_animationsPath}loading.json';
+  static const String successAnimation = '${_animationsPath}success.json';
+  
+  // Sounds
+  static const String _soundsPath = 'assets/sound/';
+  static const String successSound = '${_soundsPath}success.mp3';
+  static const String clickSound = '${_soundsPath}click.mp3';
+}
+
+class AppConfig {
+  // API endpoints
+  static const String baseUrl = 'https://api.ai-wrozka.com';
+  static const String palmAnalysisEndpoint = '/palm-analysis';
+  
+  // Timeouts
+  static const Duration apiTimeout = Duration(seconds: 30);
+  static const Duration cameraTimeout = Duration(seconds: 30);
+  
+  // Camera settings
+  static const int maxScanAttempts = 20;
+  static const int requiredStabilityFrames = 15;
+  static const int requiredGoodStreak = 10;
+  static const double minLightLevel = 0.3;
+  
+  // File paths
+  static const String logsDirectory = 'ai_wrozka_logs';
+  static const String analysisFileName = 'palm_analysis.json';
+  static const String detectionLogsFileName = 'detection_logs.txt';
+}
+
+// Text Styles helpers
+class AppTextStyles {
+  static TextStyle title = const TextStyle(
+    fontSize: 24,
+    fontWeight: FontWeight.w600,
+    color: AppColors.primaryText,
+  );
+  
+  static TextStyle subtitle = const TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w500,
+    color: AppColors.primaryText,
+  );
+  
+  static TextStyle body = const TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+    color: AppColors.primaryText,
+  );
+  
+  static TextStyle caption = const TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    color: AppColors.secondaryText,
+  );
+  
+  static TextStyle button = const TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    color: AppColors.primaryText,
+  );
+}

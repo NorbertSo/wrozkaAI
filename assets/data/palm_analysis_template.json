@@ -1,0 +1,80 @@
+{
+  "hand_shape": {
+    "size": ["duża", "mała", "średnia"],
+    "form": ["kwadratowa", "prostokątna", "stożkowa", "mieszana", "szpatułkowata"],
+    "element_type": ["ziemia", "powietrze", "woda", "ogień"]
+  },
+  "fingers": {
+    "length": ["długie", "krótkie", "proporcjonalne"],
+    "flexibility": ["sztywne", "giętkie"],
+    "palec_wskazujący": ["dominujący", "słaby", "normalny"],
+    "palec_serdeczny": ["dłuższy niż wskazujący", "krótszy", "równy"],
+    "kciuk": {
+      "typ": ["mocny", "słaby", "prosty", "zakrzywiony"],
+      "ustawienie": ["wysoko osadzony", "nisko osadzony"]
+    }
+  },
+  "lines": {
+    "life_line": {
+      "długość": ["długa", "krótka", "średnia"],
+      "kształt": ["głęboka", "płytka", "przerywana", "falowana"],
+      "rozpoczęcie": ["blisko kciuka", "daleko od kciuka"],
+      "przebieg": ["przylega do kciuka", "oddalona", "rozdwojona na końcu"]
+    },
+    "head_line": {
+      "długość": ["długa", "krótka"],
+      "kształt": ["prosta", "zakrzywiona", "falowana", "przerywana"],
+      "rozpoczęcie": ["łączy się z linią życia", "oddzielona"],
+      "koniec": ["wskazuje ku górze", "zbiega ku dołowi"]
+    },
+    "heart_line": {
+      "długość": ["długa", "krótka"],
+      "kształt": ["prosta", "zakrzywiona", "falowana", "przerywana"],
+      "rozpoczęcie": ["pod palcem wskazującym", "między palcami", "pod palcem środkowym"],
+      "znaki": ["rozdwojona", "ma krzyże", "ma wyspy", "ma przerwy"]
+    },
+    "fate_line": {
+      "obecność": ["jest", "brak"],
+      "rozpoczęcie": ["od nadgarstka", "od linii życia", "od środka dłoni"],
+      "przebieg": ["prosta", "falowana", "rozdwojona", "przerywana"]
+    },
+    "sun_line": {
+      "obecność": ["jest", "brak"],
+      "rozpoczęcie": ["od dołu dłoni", "od linii losu", "krótka przy palcu serdecznym"],
+      "przebieg": ["prosta", "falowana", "z przerwami"]
+    },
+    "health_line": {
+      "obecność": ["jest", "brak"],
+      "przebieg": ["prosta", "zakrzywiona", "z przerwami"]
+    },
+    "marriage_lines": {
+      "ilość": ["brak", "1", "2", "więcej niż 2"],
+      "kształt": ["prosta", "zakrzywiona w dół", "rozgałęziona"],
+      "znaki": ["krzyże", "wyspy", "przerwy"]
+    },
+    "children_lines": {
+      "ilość": ["brak", "1-2", "3-4", "więcej niż 4"],
+      "intensywność": ["jasne", "ciemne", "głębokie", "ledwo widoczne"]
+    }
+  },
+  "mounts": {
+    "Mount of Jupiter": ["wysoki", "średni", "płaski"],
+    "Mount of Saturn": ["wysoki", "średni", "płaski"],
+    "Mount of Apollo": ["wysoki", "średni", "płaski"],
+    "Mount of Mercury": ["wysoki", "średni", "płaski"],
+    "Mount of Venus": ["pełny", "płaski", "rozległy"],
+    "Mount of Mars (upper)": ["silny", "słaby", "niewidoczny"],
+    "Mount of Mars (lower)": ["silny", "słaby", "niewidoczny"],
+    "Mount of Moon": ["aktywny", "słaby", "neutralny"]
+  },
+  "skin": {
+    "tekstura": ["miękka", "szorstka", "średnia"],
+    "wilgotność": ["sucha", "wilgotna", "normalna"],
+    "kolor": ["różowawa", "blada", "czerwonawa", "ciemna"]
+  },
+  "paznokcie": {
+    "długość": ["długie", "krótkie"],
+    "kształt": ["owalne", "kwadratowe", "okrągłe", "migdałowe"],
+    "kolor": ["jasne", "przygaszone", "zaczerwienione"]
+  }
+}
