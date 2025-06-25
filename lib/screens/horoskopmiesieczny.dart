@@ -5,11 +5,11 @@ import 'package:lottie/lottie.dart';
 import '../utils/constants.dart';
 import '../services/haptic_service.dart';
 import '../services/horoscope_service.dart';
+import '../services/logging_service.dart';
 import '../models/horoscope_data.dart';
 import '../widgets/haptic_button.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
-
 
 class HoroskopMiesiecznyScreen extends StatefulWidget {
   final String userName;
@@ -34,10 +34,12 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
   late Animation<double> _scaleAnimation;
   final HapticService _hapticService = HapticService();
   final HoroscopeService _horoscopeService = HoroscopeService();
+  final LoggingService _logger = LoggingService();
   
-  List<HoroscopeData> _monthlyHoroscopes = []; // DODANE
-  HoroscopeData? horoscope; // Usuń final
+  // ✅ POPRAWKA: Używamy pojedynczy horoskop miesięczny zamiast listy dziennych
+  HoroscopeData? _monthlyHoroscope;
   bool _isLoading = true;
+  bool _hasError = false;
 
   // Dates for the monthly horoscope
   late DateTime _startDate;
@@ -70,7 +72,7 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
     // Calculate the dates
     _calculateDates();
 
-    // Initialize monthly data
+    // ✅ POPRAWKA: Inicjalizuj miesięczne dane
     _initializeMonthlyData();
   }
 
@@ -90,47 +92,70 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
     _nextUpdateDate = DateTime(now.year, now.month + 1, 1);
   }
 
+  // ✅ POPRAWKA: Używaj getMonthlyHoroscope zamiast pobierania dziennych
   Future<void> _initializeMonthlyData() async {
     try {
+      setState(() {
+        _isLoading = true;
+        _hasError = false;
+      });
+
+      _logger.logToConsole('Inicjalizacja horoskopu miesięcznego dla ${widget.zodiacSign}', 
+          tag: 'MONTHLY_HOROSCOPE');
+
       await _horoscopeService.initialize();
 
-      // Załaduj horoskopy na każdy dzień miesiąca
-      final daysInMonth = _endDate.day;
-      for (int i = 0; i < daysInMonth; i++) {
-        final date = DateTime(_startDate.year, _startDate.month, i + 1);
-        final fetchedHoroscope = await _horoscopeService.getDailyHoroscope(
-            _getZodiacSignFromName(widget.zodiacSign),
-            date: date);
-        
-        // Utwórz horoskop (nie przypisuj do zmiennej horoscope)
-        final dayHoroscope = fetchedHoroscope ?? HoroscopeData(
-          zodiacSign: widget.zodiacSign,
-          text: "Horoskop dla znaku ${widget.zodiacSign} na dzień ${date.day}/${date.month}/${date.year}",
-          date: date,
-          moonPhase: _horoscopeService.calculateMoonPhase(date),
-          isFromAI: false,
-          createdAt: DateTime.now(),
-        );
-        
-        _monthlyHoroscopes.add(dayHoroscope);
-      }
+      // ✅ POPRAWKA: Pobierz horoskop miesięczny
+      final fetchedHoroscope = await _horoscopeService.getMonthlyHoroscope(
+        _getZodiacSignFromName(widget.zodiacSign),
+        date: _startDate,
+      );
 
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _monthlyHoroscope = fetchedHoroscope;
+          _isLoading = false;
+          _hasError = fetchedHoroscope == null;
+        });
+
+        if (fetchedHoroscope != null) {
+          _logger.logToConsole('✅ Pomyślnie załadowano horoskop miesięczny', 
+              tag: 'MONTHLY_HOROSCOPE');
+        } else {
+          _logger.logToConsole('⚠️ Nie udało się załadować horoskopu miesięcznego', 
+              tag: 'MONTHLY_HOROSCOPE');
+        }
+      }
     } catch (e) {
-      print('Błąd inicjalizacji danych miesięcznych: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      _logger.logToConsole('❌ Błąd inicjalizacji danych miesięcznych: $e', 
+          tag: 'ERROR');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
     }
   }
 
-  // Helper method to convert zodiac sign name to enum or code
+  // ✅ POPRAWKA: Konwertuj polską nazwę znaku na kod
   String _getZodiacSignFromName(String name) {
-    // This would depend on how your HoroscopeService is implemented
-    // Here's a simple implementation that assumes the service accepts the Polish names
-    return name.toLowerCase();
+    final Map<String, String> zodiacMap = {
+      'koziorożec': 'capricorn',
+      'wodnik': 'aquarius',
+      'ryby': 'pisces',
+      'baran': 'aries',
+      'byk': 'taurus',
+      'bliźnięta': 'gemini',
+      'rak': 'cancer',
+      'lew': 'leo',
+      'panna': 'virgo',
+      'waga': 'libra',
+      'skorpion': 'scorpio',
+      'strzelec': 'sagittarius',
+    };
+    
+    return zodiacMap[name.toLowerCase()] ?? name.toLowerCase();
   }
 
   @override
@@ -157,7 +182,10 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.cyan),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () async {
+            await _hapticService.trigger(HapticType.light);
+            Navigator.of(context).pop();
+          },
         ),
       ),
       body: Stack(
@@ -169,44 +197,123 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
 
           // Content
           SafeArea(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 16),
+            child: _buildContent(),
+          ),
+        ],
+      ),
+    );
+  }
 
-                    // Zodiac Header
-                    _buildZodiacHeader(),
+  // ✅ POPRAWKA: Obsługa różnych stanów
+  Widget _buildContent() {
+    if (_isLoading) {
+      return _buildLoadingState();
+    }
+    
+    if (_hasError || _monthlyHoroscope == null) {
+      return _buildErrorState();
+    }
 
-                    const SizedBox(height: 30),
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 16),
 
-                    // Monthly Preview (Free content)
-                    _buildMonthlyPreview(),
+            // Zodiac Header
+            _buildZodiacHeader(),
 
-                    const SizedBox(height: 30),
+            const SizedBox(height: 30),
 
-                    // Lunar Calendar for the month (replaces date info)
-                    _buildMonthlyLunarCalendar(),
+            // Monthly Horoscope Content
+            _buildMonthlyContent(),
 
-                    const SizedBox(height: 40),
+            const SizedBox(height: 30),
 
-                    // Premium Button
-                    _buildPremiumButton(
-                      title: 'Sprawdź Co Szepczą Tylko Do Ciebie',
-                      color: Colors.amber,
-                      icon: Icons.visibility,
-                      onTap: () => _showPremiumDialog('personalny'),
-                    ),
+            // Lunar Calendar for the month
+            _buildMonthlyLunarCalendar(),
 
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 40),
+
+            // Premium Button
+            _buildPremiumButton(
+              title: 'Sprawdź Co Szepczą Tylko Do Ciebie',
+              color: Colors.amber,
+              icon: Icons.visibility,
+              onTap: () => _showPremiumDialog('personalny'),
+            ),
+
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ NOWY: Stan ładowania
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: AppColors.cyan),
+          const SizedBox(height: 20),
+          Text(
+            'Przywołuję mądrość gwiazd...',
+            style: GoogleFonts.cinzelDecorative(
+              fontSize: 16,
+              color: Colors.white70,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ✅ NOWY: Stan błędu
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: Colors.orange,
+              size: 64,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Gwiazdy są dziś nieczytelne...',
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 18,
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Spróbuj ponownie za chwilę',
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 14,
+                color: Colors.white70,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            HapticButton(
+              text: 'Spróbuj ponownie',
+              hapticType: HapticType.light,
+              onPressed: _initializeMonthlyData,
+              backgroundColor: AppColors.cyan,
+              foregroundColor: Colors.black,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -229,16 +336,26 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
           ),
         ),
 
-        // Stars animation
-        Opacity(
-          opacity: 0.7,
-          child: Lottie.asset(
-            'assets/animations/star_bg.json',
-            fit: BoxFit.cover,
-          ),
-        ),
+        // ✅ POPRAWKA: Bezpieczne ładowanie animacji Lottie
+        _buildLottieAnimation(),
       ],
     );
+  }
+
+  // ✅ NOWA METODA: Bezpieczne ładowanie animacji
+  Widget _buildLottieAnimation() {
+    try {
+      return Opacity(
+        opacity: 0.7,
+        child: Lottie.asset(
+          'assets/animations/star_bg.json',
+          fit: BoxFit.cover,
+        ),
+      );
+    } catch (e) {
+      // Fallback gdy brak animacji
+      return Container();
+    }
   }
 
   Widget _buildZodiacHeader() {
@@ -349,52 +466,59 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
     );
   }
 
-  Widget _buildMonthlyPreview() {
-    return GestureDetector(
-      onTap: () {
-        // Navigate to the detailed monthly horoscope screen
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => DetailedMonthlyHoroscopeScreen(
-              zodiacSign: widget.zodiacSign,
-              startDate: _startDate,
-              endDate: _endDate,
-            ),
-          ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: Colors.black.withOpacity(0.5),
-          border: Border.all(
-            color: Colors.purple.withOpacity(0.3),
-            width: 1.5,
-          ),
+  // ✅ POPRAWKA: Wyświetlaj rzeczywisty horoskop miesięczny
+  Widget _buildMonthlyContent() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: Colors.black.withOpacity(0.5),
+        border: Border.all(
+          color: Colors.purple.withOpacity(0.3),
+          width: 1.5,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Horoskop miesięczny',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 20,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.auto_awesome,
                 color: Colors.purple,
-                fontWeight: FontWeight.w600,
+                size: 24,
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _getMonthlyHoroscopePreview(),
-              style: AppTextStyles.fortuneText.copyWith(
-                fontSize: 16,
-                color: Colors.white,
-                height: 1.8,
+              const SizedBox(width: 12),
+              Text(
+                'Horoskop miesięczny',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 20,
+                  color: Colors.purple,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _monthlyHoroscope?.text ?? _getMonthlyHoroscopePreview(),
+            style: AppTextStyles.fortuneText.copyWith(
+              fontSize: 16,
+              color: Colors.white,
+              height: 1.8,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          // Info o aktualizacji
+          Text(
+            'Następna aktualizacja: ${DateFormat('d MMMM yyyy', 'pl_PL').format(_nextUpdateDate)}',
+            style: GoogleFonts.cinzelDecorative(
+              fontSize: 12,
+              color: Colors.white60,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
       ),
     );
   }
