@@ -460,8 +460,8 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
 
           const SizedBox(width: 20),
 
-          // ✅ NAPRAWKA: Expanded zapobiega overflow
-          Expanded(
+          // ✅ NAPRAWKA: Flexible zapobiega overflow
+          Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -471,6 +471,8 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                     fontSize: 14,
                     color: Colors.white70,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -480,7 +482,8 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                     color: AppColors.cyan,
                     fontWeight: FontWeight.w600,
                   ),
-                  overflow: TextOverflow.ellipsis, // ✅ NAPRAWKA: Prevent overflow
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -490,7 +493,8 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
                   ),
-                  overflow: TextOverflow.ellipsis, // ✅ NAPRAWKA: Prevent overflow
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ],
             ),
@@ -515,6 +519,7 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ✅ NAPRAWKA: Wrap Row in Flexible to prevent overflow
           Row(
             children: [
               Icon(
@@ -523,12 +528,16 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                 size: 24,
               ),
               const SizedBox(width: 12),
-              Text(
-                'Horoskop tygodniowy',
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 20,
-                  color: Colors.purple,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  'Horoskop tygodniowy',
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 20,
+                    color: Colors.purple,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
             ],
@@ -813,8 +822,8 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
             ),
             const SizedBox(width: 16),
             
-            // ✅ NAPRAWKA: Expanded zapobiega overflow
-            Expanded(
+            // ✅ NAPRAWKA: Flexible zamiast Expanded dla lepszej kontroli
+            Flexible(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -825,8 +834,8 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                       color: Colors.white,
                       fontWeight: FontWeight.w500,
                     ),
-                    overflow: TextOverflow.ellipsis, // ✅ NAPRAWKA
-                    maxLines: 2, // ✅ NAPRAWKA
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -835,10 +844,14 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                       fontSize: 12,
                       color: color.withOpacity(0.7),
                     ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ],
               ),
             ),
+            
+            const SizedBox(width: 8),
             
             Icon(
               Icons.lock_outline,
@@ -1090,9 +1103,8 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
 
             // Navigation buttons
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
+                Flexible(
                   child: ElevatedButton(
                     onPressed: () {
                       // Navigate to the previous week
@@ -1118,14 +1130,16 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
                     child: Text(
                       'Poprzedni Tydzień',
                       style: GoogleFonts.cinzelDecorative(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
                 ),
                 const SizedBox(width: 16),
-                Expanded(
+                Flexible(
                   child: ElevatedButton(
                     onPressed: () {
                       // Navigate to the next week
@@ -1150,9 +1164,11 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
                     child: Text(
                       'Następny Tydzień',
                       style: GoogleFonts.cinzelDecorative(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
                 ),
@@ -1218,8 +1234,8 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
 
           const SizedBox(width: 20),
 
-          // Zodiac sign and date range
-          Expanded(
+          // ✅ NAPRAWKA: Flexible zamiast Expanded
+          Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1229,6 +1245,8 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
                     fontSize: 14,
                     color: Colors.white70,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -1238,6 +1256,8 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
                     color: AppColors.cyan,
                     fontWeight: FontWeight.w600,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -1247,6 +1267,8 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ],
             ),

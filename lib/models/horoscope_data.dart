@@ -3,52 +3,60 @@
 // ✅ Zgodny z wytycznymi: Clean Code, Single Responsibility
 
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class HoroscopeData {
   final String? zodiacSign;
   final String? text;
-  final DateTime? date;
   final String? moonPhase;
   final String? moonEmoji;
+  final String? lunarDescription;
+  final String? recommendedCandle;
+  final String? recommendedCandleReason;
   final int? luckyNumber;
   final String? luckyColor;
-  final bool isFromAI;
-  final DateTime? createdAt;
-  final double? confidence;
+  final DateTime? date;
+  final bool? isFromAI; // ✅ PARAMETR DODANY
+  final DateTime? createdAt; // ✅ PARAMETR DODANY
 
-  HoroscopeData({
+  const HoroscopeData({
     this.zodiacSign,
     this.text,
-    this.date,
     this.moonPhase,
     this.moonEmoji,
+    this.lunarDescription,
+    this.recommendedCandle,
+    this.recommendedCandleReason,
     this.luckyNumber,
     this.luckyColor,
-    this.isFromAI = false,
-    this.createdAt,
-    this.confidence,
+    this.date,
+    this.isFromAI, // ✅ W KONSTRUKTORZE
+    this.createdAt, // ✅ W KONSTRUKTORZE
   });
 
   // 🔥 KONSTRUKTOR Z DANYCH FIRESTORE
-  factory HoroscopeData.fromFirestore(Map<String, dynamic> data, String dateStr) {
-    DateTime? parsedDate;
-    try {
-      parsedDate = DateTime.parse(dateStr);
-    } catch (e) {
-      parsedDate = DateTime.now();
-    }
-
+  factory HoroscopeData.fromFirestore(Map<String, dynamic> data) {
     return HoroscopeData(
-      text: data['text'] ?? 'Brak horoskopu na dziś',
-      date: data['date'] != null ? parseDateTime(data['date']) : parsedDate,
-      zodiacSign: data['zodiacSign'] ?? 'Nieznany',
-      moonPhase: data['moonPhase'] ?? 'Nieznana',
-      moonEmoji: data['moonEmoji'] ?? '🌙',
-      luckyNumber: data['luckyNumber'],
+      zodiacSign: data['zodiacSign'] ?? '',
+      text: data['text'] ?? '',
+      date: data['date'] != null
+          ? (data['date'] is Timestamp
+              ? (data['date'] as Timestamp).toDate()
+              : DateTime.parse(data['date'].toString()))
+          : DateTime.now(),
+      moonPhase: data['moonPhase'] ?? '',
+      moonEmoji: data['moonEmoji'],
+      lunarDescription: data['lunarDescription'],
+      recommendedCandle: data['recommendedCandle'],
+      recommendedCandleReason: data['recommendedCandleReason'],
+      luckyNumber: data['luckyNumber']?.toInt(),
       luckyColor: data['luckyColor'],
-      isFromAI: data['isFromAI'] ?? false,
-      createdAt: data['createdAt'] != null ? parseDateTime(data['createdAt']) : DateTime.now(),
-      confidence: data['confidence']?.toDouble(),
+      isFromAI: data['isFromAI'] ?? false, // ✅ OBSŁUGA FIRESTORE
+      createdAt: data['createdAt'] != null // ✅ OBSŁUGA FIRESTORE
+          ? (data['createdAt'] is Timestamp
+              ? (data['createdAt'] as Timestamp).toDate()
+              : DateTime.parse(data['createdAt'].toString()))
+          : DateTime.now(),
     );
   }
 
@@ -62,9 +70,11 @@ class HoroscopeData {
       'moonEmoji': moonEmoji,
       'luckyNumber': luckyNumber,
       'luckyColor': luckyColor,
-      'isFromAI': isFromAI,
-      'createdAt': createdAt?.toIso8601String(),
-      'confidence': confidence,
+      'lunarDescription': lunarDescription,
+      'recommendedCandle': recommendedCandle,
+      'recommendedCandleReason': recommendedCandleReason,
+      'isFromAI': isFromAI, // ✅ W MAPIE
+      'createdAt': createdAt?.toIso8601String(), // ✅ W MAPIE
     };
   }
 
@@ -82,6 +92,10 @@ class HoroscopeData {
 
     if (dateTimeData is DateTime) {
       return dateTimeData;
+    }
+
+    if (dateTimeData is Timestamp) {
+      return dateTimeData.toDate();
     }
 
     return DateTime.now();
@@ -176,8 +190,8 @@ class HoroscopeData {
 
   /// 📝 Sformatowana data
   String get formattedDate {
-    if (date == null) return 'brak daty';
-    
+    if (date == null) return 'Brak daty';
+
     final months = [
       'stycznia',
       'lutego',
@@ -193,13 +207,13 @@ class HoroscopeData {
       'grudnia'
     ];
 
-    return '${date!.day} ${months[date!.month - 1]} ${date!.year}';
+    return '${date?.day} ${months[date!.month - 1]} ${date?.year}';
   }
 
   /// 🌙 Emoji fazy księżyca
   String get moonPhaseEmoji {
     const emojis = {
-      'Nów Księżyca': '🌑',
+      'Nów': '🌑',
       'Przybywający sierp': '🌒',
       'Pierwsza kwadra': '🌓',
       'Przybywający garb': '🌔',
@@ -216,26 +230,31 @@ class HoroscopeData {
   HoroscopeData copyWith({
     String? zodiacSign,
     String? text,
-    DateTime? date,
     String? moonPhase,
     String? moonEmoji,
+    String? lunarDescription,
+    String? recommendedCandle,
+    String? recommendedCandleReason,
     int? luckyNumber,
     String? luckyColor,
-    bool? isFromAI,
-    DateTime? createdAt,
-    double? confidence,
+    DateTime? date,
+    bool? isFromAI, // ✅ W copyWith
+    DateTime? createdAt, // ✅ W copyWith
   }) {
     return HoroscopeData(
       zodiacSign: zodiacSign ?? this.zodiacSign,
       text: text ?? this.text,
-      date: date ?? this.date,
       moonPhase: moonPhase ?? this.moonPhase,
       moonEmoji: moonEmoji ?? this.moonEmoji,
+      lunarDescription: lunarDescription ?? this.lunarDescription,
+      recommendedCandle: recommendedCandle ?? this.recommendedCandle,
+      recommendedCandleReason:
+          recommendedCandleReason ?? this.recommendedCandleReason,
       luckyNumber: luckyNumber ?? this.luckyNumber,
       luckyColor: luckyColor ?? this.luckyColor,
-      isFromAI: isFromAI ?? this.isFromAI,
-      createdAt: createdAt ?? this.createdAt,
-      confidence: confidence ?? this.confidence,
+      date: date ?? this.date,
+      isFromAI: isFromAI ?? this.isFromAI, // ✅ W copyWith
+      createdAt: createdAt ?? this.createdAt, // ✅ W copyWith
     );
   }
 
