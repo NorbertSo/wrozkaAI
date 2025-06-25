@@ -1,8 +1,6 @@
-// lib/main.dart
-// 🔥 Zaktualizowany main.dart z Firebase Remote Config
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_phoenix/flutter_phoenix.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -14,34 +12,40 @@ import 'screens/onboarding_screen.dart';
 import 'services/user_preferences_service.dart';
 import 'services/haptic_service.dart';
 import 'services/background_music_service.dart';
-import 'services/firebase_remote_config_service.dart'; // ✅ NOWY IMPORT
-import 'services/logging_service.dart'; // ✅ ISTNIEJĄCY LOGGING
+import 'services/firebase_remote_config_service.dart';
+import 'services/logging_service.dart';
 import 'models/user_data.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  
   // 📝 Inicjalizuj LoggingService
   final logger = LoggingService();
 
-  // 🔥 Bezpieczna inicjalizacja Firebase
+  // 🔥 BEZPIECZNA INICJALIZACJA FIREBASE
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    logger.logToConsole('✅ Firebase zainicjalizowany pomyślnie',
-        tag: 'FIREBASE');
-  } catch (e) {
-    if (e.toString().contains('duplicate-app')) {
-      logger.logToConsole('✅ Firebase już był zainicjalizowany',
-          tag: 'FIREBASE');
+    logger.logToConsole('✅ Firebase zainicjalizowany pomyślnie', tag: 'FIREBASE');
+    
+    // ✅ WYŁĄCZ AUTOMATYCZNE DATA COLLECTION w debug
+    if (kDebugMode) {
+      await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(false);
+      logger.logToConsole('📊 Analytics wyłączone w debug mode', tag: 'FIREBASE');
     } else {
-      logger.logToConsole('❌ Błąd Firebase: $e', tag: 'ERROR');
+      await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
+      logger.logToConsole('📊 Analytics włączone w release mode', tag: 'FIREBASE');
     }
+    
+    // Debug info
+    print('✅ Firebase Project ID: ${Firebase.app().options.projectId}');
+    print('✅ Firebase App Name: ${Firebase.app().name}');
+    
+  } catch (e) {
+    logger.logToConsole('❌ Błąd Firebase: $e', tag: 'ERROR');
+    // ✅ Aplikacja powinna dalej działać bez Firebase
   }
-
-  // 📊 Włącz Analytics
-  FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
 
   // 🔑 Zainicjalizuj Remote Config
   try {
@@ -98,6 +102,7 @@ void main() async {
   );
 }
 
+// Reszta kodu pozostaje bez zmian...
 class AIWrozkaApp extends StatefulWidget {
   const AIWrozkaApp({super.key});
 
@@ -210,6 +215,14 @@ class _AppInitializerState extends State<AppInitializer> {
     try {
       logger.logToConsole('🚀 Inicjalizacja aplikacji...', tag: 'APP');
 
+      // ✅ DODAJ SPRAWDZENIE FIREBASE
+      if (Firebase.apps.isNotEmpty) {
+        logger.logToConsole('✅ Firebase dostępny w aplikacji', tag: 'FIREBASE');
+        print('🔍 Firebase Project ID: ${Firebase.app().options.projectId}');
+      } else {
+        logger.logToConsole('❌ Firebase niedostępny w aplikacji', tag: 'ERROR');
+      }
+
       // ✅ Inicjalizacja HapticService
       await _hapticService.initialize();
       await _hapticService.printCapabilities();
@@ -221,13 +234,13 @@ class _AppInitializerState extends State<AppInitializer> {
           tag: 'APP');
 
       if (isOnboardingCompleted) {
-        // Sprawdź czy mamy dane użytkownika - POPRAWKA: getUserData zamiast loadUserData
+        // Sprawdź czy mamy dane użytkownika
         final userData = await UserPreferencesService.getUserData();
         logger.logToConsole('👤 User data: ${userData?.name ?? "BRAK"}',
             tag: 'USER');
 
         if (userData != null) {
-          // Przejdź bezpośrednio do menu głównego - POPRAWKA: Dodaj wszystkie wymagane parametry
+          // Przejdź bezpośrednio do menu głównego
           logger.logToConsole('✅ Przekierowanie do menu głównego', tag: 'USER');
           _targetScreen = MainMenuScreen(
             userName: userData.name,
@@ -236,7 +249,7 @@ class _AppInitializerState extends State<AppInitializer> {
             birthDate: userData.birthDate,
           );
         } else {
-          // Brak danych użytkownika mimo ukończonego onboardingu - powtórz onboarding
+          // Brak danych użytkownika mimo ukończonego onboardingu
           logger.logToConsole('⚠️ Brak danych użytkownika - ponowny onboarding',
               tag: 'USER');
           await UserPreferencesService.clearAllUserData();

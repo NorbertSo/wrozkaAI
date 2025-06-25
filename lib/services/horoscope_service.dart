@@ -1,326 +1,257 @@
-// lib/services/horoscope_service.dart
-// 🔮 SERWIS HOROSKOPÓW - integracja z Firebase i AI backend
-// Zgodny z wytycznymi projektu AI Wróżka
-
+import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:intl/intl.dart';
-import 'logging_service.dart';
-import 'package:ai_wrozka/models/horoscope_data.dart';
+import '../models/horoscope_data.dart';
+import '../services/logging_service.dart';
 
 class HoroscopeService {
-  static final HoroscopeService _instance = HoroscopeService._internal();
-  factory HoroscopeService() => _instance;
-  HoroscopeService._internal();
-
-  // 🔥 Firebase Firestore
-  FirebaseFirestore? _firestore;
-
-  // 📝 Logging zgodnie z wytycznymi
   final LoggingService _logger = LoggingService();
-
-  // 🏠 Kolekcja horoskopów w Firestore
-  static const String _horoscopesCollection = 'horoscopes';
-
-  // 🌟 Znaki zodiaku
-  static const List<String> _zodiacSigns = [
-    'aries',
-    'taurus',
-    'gemini',
-    'cancer',
-    'leo',
-    'virgo',
-    'libra',
-    'scorpio',
-    'sagittarius',
-    'capricorn',
-    'aquarius',
-    'pisces'
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
+  final List<String> _zodiacSigns = [
+    'Baran', 'Byk', 'Bliźnięta', 'Rak', 'Lew', 'Panna',
+    'Waga', 'Skorpion', 'Strzelec', 'Koziorożec', 'Wodnik', 'Ryby'
   ];
 
-  /// 🚀 Inicjalizacja serwisu
-  Future<bool> initialize() async {
+  // Implementacja initialize
+  Future<void> initialize() async {
     try {
-      _logger.logToConsole('Inicjalizacja HoroscopeService...',
-          tag: 'HOROSCOPE');
-
-      // Sprawdź czy Firebase jest zainicjalizowany
-      if (Firebase.apps.isEmpty) {
-        _logger.logToConsole('❌ Firebase nie jest zainicjalizowany',
-            tag: 'ERROR');
-        return false;
-      }
-
-      _firestore = FirebaseFirestore.instance;
-      _logger.logToConsole('✅ HoroscopeService zainicjalizowany pomyślnie',
-          tag: 'HOROSCOPE');
-      return true;
+      await checkFirebaseConnection();
+      _logger.logToConsole('✅ Serwis horoskopów zainicjalizowany', tag: 'HOROSCOPE');
     } catch (e) {
-      _logger.logToConsole('❌ Błąd inicjalizacji HoroscopeService: $e',
-          tag: 'ERROR');
-      return false;
+      _logger.logToConsole('❌ Błąd inicjalizacji serwisu horoskopów: $e', tag: 'ERROR');
     }
   }
 
-  /// 📅 Pobierz horoskop dzienny dla znaku zodiaku
-  Future<HoroscopeData?> getDailyHoroscope(String zodiacSign,
-      {DateTime? date}) async {
-    final targetDate = date ?? DateTime.now();
-
+  // Prawdziwe pobieranie z Firebase
+  Future<HoroscopeData?> getDailyHoroscope(String zodiacSign, {DateTime? date}) async {
     try {
-      final dateString = DateFormat('yyyy-MM-dd').format(targetDate);
-
-      _logger.logToConsole('Pobieranie horoskopu: $zodiacSign na $dateString',
-          tag: 'HOROSCOPE');
-
-      if (_firestore == null) {
-        _logger.logToConsole('❌ Firestore nie jest zainicjalizowany',
-            tag: 'ERROR');
-        return _getFallbackHoroscope(zodiacSign, targetDate);
-      }
-
-      // Pobierz dokument z Firestore
-      final docRef = _firestore!
-          .collection(_horoscopesCollection)
-          .doc(dateString)
-          .collection('signs')
-          .doc(zodiacSign);
-
-      final docSnapshot = await docRef.get();
-
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        _logger.logToConsole('✅ Znaleziono horoskop w Firebase',
-            tag: 'HOROSCOPE');
-        return HoroscopeData.fromFirestore(docSnapshot);
+      final String dateStr = date != null 
+          ? DateFormat('yyyy-MM-dd').format(date)
+          : DateFormat('yyyy-MM-dd').format(DateTime.now());
+      
+      _logger.logToConsole('🔍 Pobieranie horoskopu z Firebase dla $zodiacSign na $dateStr', tag: 'FIREBASE');
+      
+      // Pobieranie z Firebase
+      final docRef = _firestore
+          .collection('horoscopes')
+          .doc('daily')
+          .collection(zodiacSign.toLowerCase())
+          .doc(dateStr);
+      
+      final doc = await docRef.get();
+      
+      if (doc.exists && doc.data() != null) {
+        _logger.logToConsole('✅ Znaleziono horoskop w Firebase', tag: 'FIREBASE');
+        return HoroscopeData.fromFirestore(doc.data()!, dateStr);
       } else {
-        _logger.logToConsole('⚠️ Brak horoskopu w Firebase - używam fallback',
-            tag: 'HOROSCOPE');
-        return _getFallbackHoroscope(zodiacSign, targetDate);
+        _logger.logToConsole('⚠️ Brak horoskopu w Firebase, używam fallback', tag: 'FIREBASE');
+        
+        // Jeśli nie ma w Firebase, spróbuj wygenerować i zapisać
+        final fallbackHoroscope = _getFallbackHoroscope(zodiacSign, date ?? DateTime.now());
+        await _saveHoroscopeToFirebase(fallbackHoroscope, dateStr);
+        return fallbackHoroscope;
       }
     } catch (e) {
-      _logger.logToConsole('❌ Błąd pobierania horoskopu: $e', tag: 'ERROR');
-      return _getFallbackHoroscope(zodiacSign, targetDate);
+      _logger.logToConsole('❌ Błąd pobierania z Firebase: $e', tag: 'ERROR');
+      return _getFallbackHoroscope(zodiacSign, date ?? DateTime.now());
     }
   }
 
-  /// 📅 Pobierz horoskop księżycowy (lunar)
-  Future<HoroscopeData?> getLunarHoroscope({DateTime? date}) async {
-    final targetDate = date ?? DateTime.now();
-
-    try {
-      final dateString = DateFormat('yyyy-MM-dd').format(targetDate);
-
-      _logger.logToConsole('Pobieranie horoskopu księżycowego na $dateString',
-          tag: 'HOROSCOPE');
-
-      if (_firestore == null) {
-        return _getFallbackLunarHoroscope(targetDate);
-      }
-
-      final docRef = _firestore!
-          .collection(_horoscopesCollection)
-          .doc(dateString)
-          .collection('signs')
-          .doc('lunar');
-
-      final docSnapshot = await docRef.get();
-
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        _logger.logToConsole('✅ Znaleziono horoskop księżycowy w Firebase',
-            tag: 'HOROSCOPE');
-        return HoroscopeData.fromFirestore(docSnapshot);
-      } else {
-        _logger.logToConsole('⚠️ Brak horoskopu księżycowego - używam fallback',
-            tag: 'HOROSCOPE');
-        return _getFallbackLunarHoroscope(targetDate);
-      }
-    } catch (e) {
-      _logger.logToConsole('❌ Błąd pobierania horoskopu księżycowego: $e',
-          tag: 'ERROR');
-      return _getFallbackLunarHoroscope(targetDate);
-    }
+  // Pobieranie horoskopu dla konkretnej daty
+  Future<HoroscopeData?> getHoroscopeForDate(String zodiacSign, DateTime date) async {
+    return await getDailyHoroscope(zodiacSign, date: date);
   }
 
-  /// 📊 Pobierz wszystkie horoskopy na dany dzień
-  Future<List<HoroscopeData>> getAllDailyHoroscopes({DateTime? date}) async {
-    final targetDate = date ?? DateTime.now();
-
-    try {
-      final dateString = DateFormat('yyyy-MM-dd').format(targetDate);
-
-      _logger.logToConsole('Pobieranie wszystkich horoskopów na $dateString',
-          tag: 'HOROSCOPE');
-
-      final List<HoroscopeData> horoscopes = [];
-
-      if (_firestore == null) {
-        _logger.logToConsole('❌ Firestore niedostępny - używam fallback',
-            tag: 'ERROR');
-        return _getAllFallbackHoroscopes(targetDate);
+  // ✅ DODAJ BRAKUJĄCĄ METODĘ _getFallbackHoroscope
+  HoroscopeData _getFallbackHoroscope(String zodiacSign, dynamic dateInput) {
+    DateTime dateTime;
+    
+    // Obsługa różnych typów daty
+    if (dateInput is DateTime) {
+      dateTime = dateInput;
+    } else if (dateInput is String) {
+      try {
+        dateTime = DateTime.parse(dateInput);
+      } catch (e) {
+        dateTime = DateTime.now();
       }
-
-      // Pobierz wszystkie znaki zodiaku
-      for (String sign in _zodiacSigns) {
-        final horoscope = await getDailyHoroscope(sign, date: targetDate);
-        if (horoscope != null) {
-          horoscopes.add(horoscope);
-        }
-      }
-
-      // Dodaj horoskop księżycowy
-      final lunarHoroscope = await getLunarHoroscope(date: targetDate);
-      if (lunarHoroscope != null) {
-        horoscopes.add(lunarHoroscope);
-      }
-
-      _logger.logToConsole('✅ Pobrano ${horoscopes.length} horoskopów',
-          tag: 'HOROSCOPE');
-      return horoscopes;
-    } catch (e) {
-      _logger.logToConsole('❌ Błąd pobierania wszystkich horoskopów: $e',
-          tag: 'ERROR');
-      return _getAllFallbackHoroscopes(targetDate);
+    } else {
+      dateTime = DateTime.now();
     }
+
+    // Generowanie losowego tekstu horoskopu
+    String text = _generateHoroscopeText(zodiacSign);
+    
+    // Obliczanie fazy księżyca
+    String moonPhase = calculateMoonPhase(dateTime);
+
+    // Utworzenie danych horoskopu
+    return HoroscopeData(
+      zodiacSign: zodiacSign,
+      text: text,
+      date: dateTime,
+      moonPhase: moonPhase,
+      moonEmoji: _getMoonPhaseEmoji(moonPhase),
+      luckyNumber: (DateTime.now().millisecondsSinceEpoch % 10) + 1,
+      luckyColor: _getLuckyColor(zodiacSign),
+      isFromAI: false,
+      createdAt: DateTime.now(),
+    );
   }
 
-  /// 🔍 Sprawdź czy horoskopy są dostępne dla danej daty
-  Future<bool> areHoroscopesAvailable({DateTime? date}) async {
-    try {
-      final targetDate = date ?? DateTime.now();
-      final dateString = DateFormat('yyyy-MM-dd').format(targetDate);
-
-      if (_firestore == null) return false;
-
-      final docRef =
-          _firestore!.collection(_horoscopesCollection).doc(dateString);
-      final docSnapshot = await docRef.get();
-
-      return docSnapshot.exists;
-    } catch (e) {
-      _logger.logToConsole('❌ Błąd sprawdzania dostępności: $e', tag: 'ERROR');
-      return false;
-    }
-  }
-
-  /// 🌙 Oblicz fazę księżyca
+  // ✅ DODAJ BRAKUJĄCĄ METODĘ calculateMoonPhase (PUBLICZNĄ - bez _)
   String calculateMoonPhase(DateTime date) {
-    // Uproszczony algorytm - w pełnej wersji można użyć dokładniejszych obliczeń
-    final daysSinceNewMoon =
-        date.difference(DateTime(2000, 1, 6)).inDays % 29.53;
-
-    if (daysSinceNewMoon < 1.84) return 'Nów Księżyca';
-    if (daysSinceNewMoon < 5.53) return 'Przybywający sierp';
-    if (daysSinceNewMoon < 9.22) return 'Pierwsza kwadra';
-    if (daysSinceNewMoon < 12.91) return 'Przybywający garb';
-    if (daysSinceNewMoon < 16.61) return 'Pełnia';
-    if (daysSinceNewMoon < 20.30) return 'Ubywający garb';
-    if (daysSinceNewMoon < 23.99) return 'Ostatnia kwadra';
-    if (daysSinceNewMoon < 27.68) return 'Ubywający sierp';
+    // Uproszczone obliczanie fazy księżyca
+    // W rzeczywistej aplikacji powinieneś użyć bardziej zaawansowanego algorytmu
+    final lunarAge = date.difference(DateTime(2000, 1, 6)).inDays % 29.53;
+    
+    if (lunarAge < 1.84) return 'Nów Księżyca';
+    if (lunarAge < 5.53) return 'Przybywający sierp';
+    if (lunarAge < 9.22) return 'Pierwsza kwadra';
+    if (lunarAge < 12.91) return 'Przybywający garb';
+    if (lunarAge < 16.61) return 'Pełnia';
+    if (lunarAge < 20.30) return 'Ubywający garb';
+    if (lunarAge < 23.99) return 'Ostatnia kwadra';
+    if (lunarAge < 27.68) return 'Ubywający sierp';
     return 'Nów Księżyca';
   }
 
-  /// 🛡️ Fallback horoskop gdy Firebase nie działa
-  HoroscopeData _getFallbackHoroscope(String zodiacSign, DateTime date) {
-    final moonPhase = calculateMoonPhase(date);
-
-    final fallbackTexts = {
-      'aries':
-          'Dzisiaj Twoja energia i determinacja będą kluczowe. Podejmij odważne decyzje, ale pamiętaj o dyplomacji w kontaktach z innymi.',
-      'taurus':
-          'Stabilność i wytrwałość to Twoje atuty dzisiaj. Skoncentruj się na praktycznych sprawach i nie spiesz się z ważnymi decyzjami.',
-      'gemini':
-          'Komunikacja będzie dzisiaj szczególnie ważna. Wykorzystaj swoją naturalną ciekawość i umiejętność nawiązywania kontaktów.',
-      'cancer':
-          'Intuicja prowadzi Cię we właściwym kierunku. Zaufaj swoim przeczuciom, szczególnie w sprawach osobistych.',
-      'leo':
-          'Twoja charyzma i pewność siebie będą dzisiaj szczególnie widoczne. To dobry czas na prezentację swoich pomysłów.',
-      'virgo':
-          'Precyzja i uwaga na szczegóły pomogą Ci dzisiaj osiągnąć cele. Systematyczne podejście przyniesie najlepsze rezultaty.',
-      'libra':
-          'Harmonia i równowaga są dziś kluczowe. Staraj się unikać konfliktów i szukaj kompromisów w trudnych sytuacjach.',
-      'scorpio':
-          'Głęboka analiza i intuicja pomogą Ci odkryć ukryte prawdy. Nie bój się spojrzeć na sprawy z nowej perspektywy.',
-      'sagittarius':
-          'Optymizm i otwartość na nowe doświadczenia będą Twoimi przewodnikami. To dobry dzień na podróże lub naukę.',
-      'capricorn':
-          'Ambicja i pracowitość przyniosą dziś konkretne rezultaty. Skoncentruj się na długoterminowych celach.',
-      'aquarius':
-          'Innowacyjność i niezależność myślenia będą dzisiaj szczególnie cenne. Nie bój się być inny.',
-      'pisces':
-          'Empatia i intuicja to Twoje największe atuty dzisiaj. Zaufaj swoim odczuciom w relacjach z innymi.',
-    };
-
-    return HoroscopeData(
-      zodiacSign: zodiacSign,
-      text: fallbackTexts[zodiacSign] ??
-          'Dzisiaj jest dobry dzień na refleksję i podejmowanie pozytywnych działań.',
-      date: date,
-      moonPhase: moonPhase,
-      isFromAI: false,
-      createdAt: DateTime.now(),
-    );
-  }
-
-  /// 🌙 Fallback horoskop księżycowy
-  HoroscopeData _getFallbackLunarHoroscope(DateTime date) {
-    final moonPhase = calculateMoonPhase(date);
-
-    final lunarTexts = {
-      'Nów Księżyca':
-          'Czas nowych początków i zamierzeń. Idealna pora na sadzenie ziaren przyszłych sukcesów.',
-      'Przybywający sierp':
-          'Energia rośnie wraz z Księżycem. Czas na działanie i realizację planów.',
-      'Pierwsza kwadra':
-          'Moment podejmowania ważnych decyzji. Przezwyciężaj przeszkody z determinacją.',
-      'Przybywający garb':
-          'Kontynuuj wytrwale swoją pracę. Efekty będą wkrótce widoczne.',
-      'Pełnia':
-          'Szczyt energii lunalnej. Czas manifestacji i celebrowania osiągnięć.',
-      'Ubywający garb':
-          'Refleksja nad tym, co zostało osiągnięte. Czas na wdzięczność.',
-      'Ostatnia kwadra':
-          'Puść to, co Ci już nie służy. Przygotuj miejsce na nowe.',
-      'Ubywający sierp': 'Okres oczyszczenia i przygotowań do nowego cyklu.',
-    };
-
-    return HoroscopeData(
-      zodiacSign: 'lunar',
-      text: lunarTexts[moonPhase] ??
-          'Księżyc wpływa na nasze emocje i energię. Żyj w zgodzie z jego cyklem.',
-      date: date,
-      moonPhase: moonPhase,
-      isFromAI: false,
-      createdAt: DateTime.now(),
-    );
-  }
-
-  /// 📋 Wszystkie fallback horoskopy
-  List<HoroscopeData> _getAllFallbackHoroscopes(DateTime date) {
-    final List<HoroscopeData> horoscopes = [];
-
-    // Dodaj wszystkie znaki zodiaku
-    for (String sign in _zodiacSigns) {
-      horoscopes.add(_getFallbackHoroscope(sign, date));
-    }
-
-    // Dodaj horoskop księżycowy
-    horoscopes.add(_getFallbackLunarHoroscope(date));
-
-    return horoscopes;
-  }
-
-  /// 🔧 Metoda do testowania połączenia z Firebase
-  Future<bool> testFirebaseConnection() async {
+  // Zapisywanie horoskopu do Firebase
+  Future<void> _saveHoroscopeToFirebase(HoroscopeData horoscope, String dateStr) async {
     try {
-      if (_firestore == null) return false;
+      if (horoscope.zodiacSign == null) return;
+      
+      final docRef = _firestore
+          .collection('horoscopes')
+          .doc('daily')
+          .collection(horoscope.zodiacSign!.toLowerCase())
+          .doc(dateStr);
+      
+      await docRef.set(horoscope.toMap());
+      _logger.logToConsole('✅ Zapisano horoskop do Firebase', tag: 'FIREBASE');
+    } catch (e) {
+      _logger.logToConsole('❌ Błąd zapisywania do Firebase: $e', tag: 'ERROR');
+    }
+  }
 
-      // Próba odczytu test collection
-      await _firestore!.collection('test').limit(1).get();
-      _logger.logToConsole('✅ Połączenie z Firebase działa', tag: 'HOROSCOPE');
+  // Sprawdzenie połączenia z Firebase
+  Future<bool> checkFirebaseConnection() async {
+    try {
+      // Prawdziwy test połączenia z Firebase
+      await _firestore
+          .collection('test')
+          .doc('connection')
+          .get()
+          .timeout(const Duration(seconds: 5));
+      
+      _logger.logToConsole('✅ Połączenie z Firebase działa', tag: 'FIREBASE');
       return true;
     } catch (e) {
       _logger.logToConsole('❌ Brak połączenia z Firebase: $e', tag: 'ERROR');
       return false;
+    }
+  }
+
+  // ✅ DODAJ BRAKUJĄCĄ METODĘ _generateHoroscopeText
+  String _generateHoroscopeText(String zodiacSign) {
+    final List<String> templates = [
+      'Dzisiaj $zodiacSign będzie miał szczęśliwy dzień. Gwiazdy sprzyjają Twoim planom.',
+      'Dla znaku $zodiacSign to dzień pełen wyzwań, ale poradzisz sobie doskonale.',
+      'Księżyc w odpowiedniej fazie zapewni znakowi $zodiacSign powodzenie w miłości.',
+      'Znak $zodiacSign powinien dziś zwrócić uwagę na szczegóły. Nie pomijaj niczego.',
+      'Dla $zodiacSign to dobry moment na podjęcie ważnych decyzji. Gwiazdy Ci sprzyjają.',
+      'Energia planet sprzyja znakowi $zodiacSign w sprawach zawodowych.',
+      'Dzisiejszy dzień przyniesie znakowi $zodiacSign nowe możliwości.',
+      'Intuicja będzie dziś przewodnikiem dla znaku $zodiacSign.',
+    ];
+
+    // Wybierz losowy tekst na podstawie daty i znaku
+    final index = (zodiacSign.hashCode + DateTime.now().day) % templates.length;
+    return templates[index];
+  }
+
+  // ✅ DODAJ BRAKUJĄCĄ METODĘ _getMoonPhaseEmoji
+  String _getMoonPhaseEmoji(String phase) {
+    const emojis = {
+      'Nów Księżyca': '🌑',
+      'Przybywający sierp': '🌒',
+      'Pierwsza kwadra': '🌓',
+      'Przybywający garb': '🌔',
+      'Pełnia': '🌕',
+      'Ubywający garb': '🌖',
+      'Ostatnia kwadra': '🌗',
+      'Ubywający sierp': '🌘',
+    };
+    return emojis[phase] ?? '🌙';
+  }
+
+  // ✅ DODAJ BRAKUJĄCĄ METODĘ _getLuckyColor
+  String _getLuckyColor(String zodiacSign) {
+    const colors = {
+      'Baran': 'czerwony',
+      'Byk': 'zielony',
+      'Bliźnięta': 'żółty',
+      'Rak': 'srebrny',
+      'Lew': 'złoty',
+      'Panna': 'beżowy',
+      'Waga': 'różowy',
+      'Skorpion': 'ciemnoczerwony',
+      'Strzelec': 'fioletowy',
+      'Koziorożec': 'granatowy',
+      'Wodnik': 'turkusowy',
+      'Ryby': 'morski',
+    };
+    return colors[zodiacSign] ?? 'biały';
+  }
+
+  // Pobieranie wszystkich horoskopów dla tygodnia
+  Future<List<HoroscopeData>> getWeeklyHoroscopes(String zodiacSign, DateTime startDate) async {
+    List<HoroscopeData> horoscopes = [];
+    for (int i = 0; i < 7; i++) {
+      final date = startDate.add(Duration(days: i));
+      final horoscope = await getDailyHoroscope(zodiacSign, date: date);
+      horoscopes.add(horoscope ?? _getFallbackHoroscope(zodiacSign, date));
+    }
+    return horoscopes;
+  }
+
+  // Pobieranie wszystkich horoskopów dla danej daty
+  Future<List<HoroscopeData>> getAllHoroscopesForDate(DateTime date) async {
+    List<HoroscopeData> horoscopes = [];
+    for (String sign in _zodiacSigns) {
+      final horoscope = await getDailyHoroscope(sign, date: date);
+      horoscopes.add(horoscope ?? _getFallbackHoroscope(sign, date));
+    }
+    return horoscopes;
+  }
+
+  // Metoda do masowego zapisu horoskopów
+  Future<void> generateAndSaveHoroscopesForDate(DateTime date) async {
+    try {
+      final String dateStr = DateFormat('yyyy-MM-dd').format(date);
+      _logger.logToConsole('🔄 Generowanie horoskopów na $dateStr', tag: 'FIREBASE');
+      
+      final batch = _firestore.batch();
+      
+      for (String sign in _zodiacSigns) {
+        final horoscope = _getFallbackHoroscope(sign, date);
+        
+        final docRef = _firestore
+            .collection('horoscopes')
+            .doc('daily')
+            .collection(sign.toLowerCase())
+            .doc(dateStr);
+        
+        batch.set(docRef, horoscope.toMap());
+      }
+      
+      await batch.commit();
+      _logger.logToConsole('✅ Zapisano ${_zodiacSigns.length} horoskopów do Firebase', tag: 'FIREBASE');
+    } catch (e) {
+      _logger.logToConsole('❌ Błąd zapisu batch do Firebase: $e', tag: 'ERROR');
     }
   }
 }

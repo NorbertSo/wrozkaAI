@@ -9,6 +9,7 @@ import '../models/horoscope_data.dart';
 import '../widgets/haptic_button.dart';
 import 'package:intl/intl.dart';
 
+
 class HoroskopTygodniowyScreen extends StatefulWidget {
   final String userName;
   final String zodiacSign;

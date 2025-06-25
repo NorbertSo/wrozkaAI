@@ -10,6 +10,7 @@ import '../widgets/haptic_button.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+
 class HoroskopMiesiecznyScreen extends StatefulWidget {
   final String userName;
   final String zodiacSign;
@@ -33,7 +34,9 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
   late Animation<double> _scaleAnimation;
   final HapticService _hapticService = HapticService();
   final HoroscopeService _horoscopeService = HoroscopeService();
-  List<HoroscopeData> _monthlyHoroscopes = [];
+  
+  List<HoroscopeData> _monthlyHoroscopes = []; // DODANE
+  HoroscopeData? horoscope; // Usuń final
   bool _isLoading = true;
 
   // Dates for the monthly horoscope
@@ -88,23 +91,39 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
   }
 
   Future<void> _initializeMonthlyData() async {
-    await _horoscopeService.initialize();
+    try {
+      await _horoscopeService.initialize();
 
-    // Załaduj horoskopy na każdy dzień miesiąca
-    final daysInMonth = _endDate.day;
-    for (int i = 0; i < daysInMonth; i++) {
-      final date = DateTime(_startDate.year, _startDate.month, i + 1);
-      final horoscope = await _horoscopeService.getDailyHoroscope(
-          _getZodiacSignFromName(widget.zodiacSign),
-          date: date);
-      if (horoscope != null) {
-        _monthlyHoroscopes.add(horoscope);
+      // Załaduj horoskopy na każdy dzień miesiąca
+      final daysInMonth = _endDate.day;
+      for (int i = 0; i < daysInMonth; i++) {
+        final date = DateTime(_startDate.year, _startDate.month, i + 1);
+        final fetchedHoroscope = await _horoscopeService.getDailyHoroscope(
+            _getZodiacSignFromName(widget.zodiacSign),
+            date: date);
+        
+        // Utwórz horoskop (nie przypisuj do zmiennej horoscope)
+        final dayHoroscope = fetchedHoroscope ?? HoroscopeData(
+          zodiacSign: widget.zodiacSign,
+          text: "Horoskop dla znaku ${widget.zodiacSign} na dzień ${date.day}/${date.month}/${date.year}",
+          date: date,
+          moonPhase: _horoscopeService.calculateMoonPhase(date),
+          isFromAI: false,
+          createdAt: DateTime.now(),
+        );
+        
+        _monthlyHoroscopes.add(dayHoroscope);
       }
-    }
 
-    setState(() {
-      _isLoading = false;
-    });
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Błąd inicjalizacji danych miesięcznych: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   // Helper method to convert zodiac sign name to enum or code
@@ -866,7 +885,7 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
       case 'ryby':
         return 'W tym miesiącu Twoja intuicja będzie szczególnie silna - warto jej zaufać, zwłaszcza w kwestiach zawodowych. Pojawi się możliwość rozwoju duchowego lub twórczego, która przyniesie Ci wiele satysfakcji. W drugiej połowie miesiąca możesz oczekiwać pozytywnych zmian w finansach, być może związanych z dodatkowym źródłem dochodu. Relacje rodzinne będą źródłem ciepła i wsparcia, szczególnie w trudniejszych momentach. W życiu uczuciowym czeka Cię głębokie porozumienie i wzajemne zrozumienie. Zadbaj o odpoczynek blisko natury - element wody przyniesie Ci ukojenie i regenerację.';
       case 'baran':
-        return 'Ten miesiąc będzie dla Ciebie czasem intensywnej energii i nowych początków. Pierwsza dekada przyniesie możliwości rozwoju zawodowego, które warto wykorzystać bez wahania. Twój entuzjazm i bezpośrednie podejście zjednają Ci sojuszników w ważnych projektach. W połowie miesiąca możliwa jest niespodziewana podróż lub zmiana planów, która ostatecznie okaże się korzystna. W sferze finansowej zachowaj ostrożność - unikaj impulsywnych wydatków i inwestycji wysokiego ryzyka. Twoje życie uczuciowe nabierze rumieńców, a single mają szansę na pasjonującą znajomość. Pod koniec miesiąca zwróć uwagę na zdrowie i zadbaj o regularną aktywność fizyczną.';
+        return 'Ten miesiąc będzie dla Ciebie czasem intensywnej energii i nowych początków. Pierwsza dekada przyniesie możliwości rozwoju zawodowego, które warto wykorzystać bez wahania. Twój entuzjazm i bezpośrednie podejście zjednają Ci sojuszników w ważnych projektach. W połowie miesiąca możliwa jest niespodziewana podróż lub zmiana planów, która ostatecznie okaże się korzystna. W sferze finansowej zachowaj ostrożność - unikaj impulsywnych wydatków i inwestycji wysokiego ryzyka. Twoje życie uczuciowe nabierze rumieńców, a single mają szansę na pasjonującą znajomość. Pod koniec miesiąca zwróć uwagę on zdrowie i zadbaj o regularną aktywność fizyczną.';
       case 'byk':
         return 'Nadchodzący miesiąc przyniesie Ci stabilizację finansową i zawodową, na którą czekałeś. Twoja cierpliwość i konsekwencja w działaniu zostaną nagrodzone, szczególnie w pierwszej połowie miesiąca. Pojawi się okazja do długoterminowej inwestycji związanej z nieruchomościami lub przedmiotami wartościowymi. W życiu osobistym czeka Cię okres harmonii i spokoju, idealny do pogłębiania relacji z bliskimi. Osoby samotne mogą spotkać kogoś, kto podziela ich wartości i pragnienie bezpieczeństwa. Zwróć uwagę na zdrowie - szczególnie na układ trawienny i gospodarkę hormonalną. Ostatni tydzień miesiąca sprzyja odpoczynkowi i cieszeniu się prostymi przyjemnościami.';
       case 'bliźnięta':

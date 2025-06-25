@@ -1,86 +1,76 @@
 // lib/models/horoscope_data.dart
-// 🔮 MODEL DANYCH HOROSKOPU - zgodny z Firebase Firestore
-// Zgodny z wytycznymi projektu AI Wróżka
+// 🔮 MODEL DANYCH HOROSKOPU
+// ✅ Zgodny z wytycznymi: Clean Code, Single Responsibility
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 class HoroscopeData {
-  final String zodiacSign; // Znak zodiaku (aries, taurus, itp.) lub 'lunar'
-  final String text; // Treść horoskopu
-  final DateTime date; // Data horoskopu
-  final String moonPhase; // Faza księżyca
-  final bool isFromAI; // Czy wygenerowany przez AI
-  final DateTime createdAt; // Kiedy został utworzony
-  final String? confidence; // Poziom pewności AI (opcjonalne)
+  final String? zodiacSign;
+  final String? text;
+  final DateTime? date;
+  final String? moonPhase;
+  final String? moonEmoji;
+  final int? luckyNumber;
+  final String? luckyColor;
+  final bool isFromAI;
+  final DateTime? createdAt;
+  final double? confidence;
 
-  const HoroscopeData({
-    required this.zodiacSign,
-    required this.text,
-    required this.date,
-    required this.moonPhase,
-    required this.isFromAI,
-    required this.createdAt,
+  HoroscopeData({
+    this.zodiacSign,
+    this.text,
+    this.date,
+    this.moonPhase,
+    this.moonEmoji,
+    this.luckyNumber,
+    this.luckyColor,
+    this.isFromAI = false,
+    this.createdAt,
     this.confidence,
   });
 
-  /// 🔥 Tworzenie z dokumentu Firestore
-  factory HoroscopeData.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+  // 🔥 KONSTRUKTOR Z DANYCH FIRESTORE
+  factory HoroscopeData.fromFirestore(Map<String, dynamic> data, String dateStr) {
+    DateTime? parsedDate;
+    try {
+      parsedDate = DateTime.parse(dateStr);
+    } catch (e) {
+      parsedDate = DateTime.now();
+    }
 
     return HoroscopeData(
-      zodiacSign: data['zodiacSign'] ?? doc.id,
-      text: data['text'] ?? '',
-      date: _parseDate(data['date']),
+      text: data['text'] ?? 'Brak horoskopu na dziś',
+      date: data['date'] != null ? parseDateTime(data['date']) : parsedDate,
+      zodiacSign: data['zodiacSign'] ?? 'Nieznany',
       moonPhase: data['moonPhase'] ?? 'Nieznana',
+      moonEmoji: data['moonEmoji'] ?? '🌙',
+      luckyNumber: data['luckyNumber'],
+      luckyColor: data['luckyColor'],
       isFromAI: data['isFromAI'] ?? false,
-      createdAt: _parseDateTime(data['createdAt']),
-      confidence: data['confidence'],
+      createdAt: data['createdAt'] != null ? parseDateTime(data['createdAt']) : DateTime.now(),
+      confidence: data['confidence']?.toDouble(),
     );
   }
 
-  /// 🔥 Konwersja do mapy dla Firestore
-  Map<String, dynamic> toFirestore() {
+  // 📋 KONWERSJA DO MAPY
+  Map<String, dynamic> toMap() {
     return {
-      'zodiacSign': zodiacSign,
       'text': text,
-      'date': Timestamp.fromDate(date),
+      'date': date?.toIso8601String(),
+      'zodiacSign': zodiacSign,
       'moonPhase': moonPhase,
+      'moonEmoji': moonEmoji,
+      'luckyNumber': luckyNumber,
+      'luckyColor': luckyColor,
       'isFromAI': isFromAI,
-      'createdAt': Timestamp.fromDate(createdAt),
-      if (confidence != null) 'confidence': confidence,
+      'createdAt': createdAt?.toIso8601String(),
+      'confidence': confidence,
     };
   }
 
-  /// 📅 Parsowanie daty z różnych formatów
-  static DateTime _parseDate(dynamic dateData) {
-    if (dateData == null) return DateTime.now();
-
-    if (dateData is Timestamp) {
-      return dateData.toDate();
-    }
-
-    if (dateData is String) {
-      try {
-        return DateTime.parse(dateData);
-      } catch (e) {
-        return DateTime.now();
-      }
-    }
-
-    if (dateData is DateTime) {
-      return dateData;
-    }
-
-    return DateTime.now();
-  }
-
   /// ⏰ Parsowanie czasu utworzenia
-  static DateTime _parseDateTime(dynamic dateTimeData) {
+  static DateTime parseDateTime(dynamic dateTimeData) {
     if (dateTimeData == null) return DateTime.now();
-
-    if (dateTimeData is Timestamp) {
-      return dateTimeData.toDate();
-    }
 
     if (dateTimeData is String) {
       try {
@@ -115,7 +105,7 @@ class HoroscopeData {
       'lunar': 'Kalendarz Księżycowy',
     };
 
-    return names[zodiacSign] ?? zodiacSign;
+    return names[zodiacSign] ?? (zodiacSign ?? 'Nieznany');
   }
 
   /// 🎨 Ikona znaku zodiaku
@@ -162,16 +152,18 @@ class HoroscopeData {
 
   /// 📊 Czy horoskop jest świeży (z dzisiaj)
   bool get isFresh {
+    if (date == null) return false;
     final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
+    return date?.year == now.year &&
+        date?.month == now.month &&
+        date?.day == now.day;
   }
 
   /// ⏱️ Czy horoskop jest aktualny (nie starszy niż 24h)
   bool get isCurrent {
+    if (date == null) return false;
     final now = DateTime.now();
-    final difference = now.difference(date);
+    final difference = now.difference(date!);
     return difference.inHours < 24;
   }
 
@@ -184,6 +176,8 @@ class HoroscopeData {
 
   /// 📝 Sformatowana data
   String get formattedDate {
+    if (date == null) return 'brak daty';
+    
     final months = [
       'stycznia',
       'lutego',
@@ -199,7 +193,7 @@ class HoroscopeData {
       'grudnia'
     ];
 
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
+    return '${date!.day} ${months[date!.month - 1]} ${date!.year}';
   }
 
   /// 🌙 Emoji fazy księżyca
@@ -224,45 +218,48 @@ class HoroscopeData {
     String? text,
     DateTime? date,
     String? moonPhase,
+    String? moonEmoji,
+    int? luckyNumber,
+    String? luckyColor,
     bool? isFromAI,
     DateTime? createdAt,
-    String? confidence,
+    double? confidence,
   }) {
     return HoroscopeData(
       zodiacSign: zodiacSign ?? this.zodiacSign,
       text: text ?? this.text,
       date: date ?? this.date,
       moonPhase: moonPhase ?? this.moonPhase,
+      moonEmoji: moonEmoji ?? this.moonEmoji,
+      luckyNumber: luckyNumber ?? this.luckyNumber,
+      luckyColor: luckyColor ?? this.luckyColor,
       isFromAI: isFromAI ?? this.isFromAI,
       createdAt: createdAt ?? this.createdAt,
       confidence: confidence ?? this.confidence,
     );
   }
 
-  /// 🔧 Debug String
-  @override
-  String toString() {
-    return 'HoroscopeData(zodiacSign: $zodiacSign, date: $formattedDate, moonPhase: $moonPhase, isFromAI: $isFromAI)';
-  }
-
   /// ⚖️ Equality operator
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-
     return other is HoroscopeData &&
         other.zodiacSign == zodiacSign &&
-        other.date.year == date.year &&
-        other.date.month == date.month &&
-        other.date.day == date.day;
+        other.date?.year == date?.year &&
+        other.date?.month == date?.month &&
+        other.date?.day == date?.day;
   }
 
   /// 🔢 Hash code
   @override
-  int get hashCode {
-    return zodiacSign.hashCode ^
-        date.year.hashCode ^
-        date.month.hashCode ^
-        date.day.hashCode;
+  int get hashCode =>
+      (zodiacSign?.hashCode ?? 0) ^
+      (date?.year.hashCode ?? 0) ^
+      (date?.month.hashCode ?? 0) ^
+      (date?.day.hashCode ?? 0);
+
+  @override
+  String toString() {
+    return 'HoroscopeData(zodiacSign: $zodiacSign, date: $formattedDate, moonPhase: $moonPhase, isFromAI: $isFromAI)';
   }
 }
