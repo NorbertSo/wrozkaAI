@@ -183,7 +183,7 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
               ),
               const SizedBox(width: 8),
               // Puste miejsce dla symetrii
-              SizedBox(width: 40),
+              const SizedBox(width: 40),
             ],
           ),
           const SizedBox(height: 12),
@@ -235,7 +235,7 @@ class _FortuneDetailScreenState extends State<FortuneDetailScreen>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.access_time,
                       size: 15,
                       color: Colors.white70,
@@ -491,7 +491,7 @@ class DetailBackgroundPainter extends CustomPainter {
       if (size.width > 80 && size.height > 80) {
         // Top decorative corners
         canvas.drawArc(
-          Rect.fromLTWH(15, 15, 30, 30),
+          const Rect.fromLTWH(15, 15, 30, 30),
           -math.pi,
           math.pi / 2,
           false,

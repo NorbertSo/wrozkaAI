@@ -1,7 +1,6 @@
 // lib/services/horoscope_service.dart
-// 🔮 KOMPLETNY DZIAŁAJĄCY SERWIS HOROSKOPÓW
+// 🔮 SERWIS HOROSKOPÓW - integracja z Firebase i AI backend
 // Zgodny z wytycznymi projektu AI Wróżka
-// ✅ Naprawiony algorytm ISO 8601 i wszystkie metody
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -45,6 +44,7 @@ class HoroscopeService {
       _logger.logToConsole('Inicjalizacja HoroscopeService...',
           tag: 'HOROSCOPE');
 
+      // Sprawdź czy Firebase jest zainicjalizowany
       if (Firebase.apps.isEmpty) {
         _logger.logToConsole('❌ Firebase nie jest zainicjalizowany',
             tag: 'ERROR');
@@ -62,7 +62,7 @@ class HoroscopeService {
     }
   }
 
-  /// 📅 Pobierz horoskop dzienny dla znaku zodiaku - NAPRAWIONA WERSJA
+  /// 📅 Pobierz horoskop dzienny dla znaku zodiaku
   Future<HoroscopeData?> getDailyHoroscope(String zodiacSign,
       {DateTime? date}) async {
     final targetDate = date ?? DateTime.now();
@@ -70,200 +70,40 @@ class HoroscopeService {
     try {
       final dateString = DateFormat('yyyy-MM-dd').format(targetDate);
 
-      // ✅ POPRAWKA: Konwertuj polską nazwę na angielski kod
-      final englishZodiacSign = _convertPolishToEnglishSign(zodiacSign);
-
-      _logger.logToConsole(
-          'Pobieranie horoskopu dziennego: $englishZodiacSign na $dateString',
+      _logger.logToConsole('Pobieranie horoskopu: $zodiacSign na $dateString',
           tag: 'HOROSCOPE');
 
       if (_firestore == null) {
         _logger.logToConsole('❌ Firestore nie jest zainicjalizowany',
             tag: 'ERROR');
-        return _getFallbackHoroscope(englishZodiacSign, targetDate);
+        return _getFallbackHoroscope(zodiacSign, targetDate);
       }
 
-      // ✅ NAPRAWKA: Pobierz główny dokument, NIE subcollection
-      final docRef =
-          _firestore!.collection(_horoscopesCollection).doc(dateString);
+      // Pobierz dokument z Firestore
+      final docRef = _firestore!
+          .collection(_horoscopesCollection)
+          .doc(dateString)
+          .collection('signs')
+          .doc(zodiacSign);
 
       final docSnapshot = await docRef.get();
 
       if (docSnapshot.exists && docSnapshot.data() != null) {
-        final data = docSnapshot.data() as Map<String, dynamic>;
-
-        // ✅ SPRAWDŹ czy istnieje horoskop dla danego znaku w głównym dokumencie
-        if (data.containsKey(englishZodiacSign)) {
-          _logger.logToConsole('✅ Znaleziono horoskop dzienny w Firebase',
-              tag: 'HOROSCOPE');
-
-          final signData = data[englishZodiacSign];
-
-          // Obsłuż różne formaty danych
-          if (signData is Map<String, dynamic>) {
-            return HoroscopeData(
-              zodiacSign: englishZodiacSign,
-              text: signData['text'] ?? '',
-              date: targetDate,
-              moonPhase:
-                  signData['moonPhase'] ?? calculateMoonPhase(targetDate),
-              moonEmoji: _getMoonPhaseEmoji(
-                  signData['moonPhase'] ?? calculateMoonPhase(targetDate)),
-              luckyNumber: signData['luckyNumber'] != null
-                  ? int.tryParse(signData['luckyNumber'].toString())
-                  : null,
-              luckyColor: signData['luckyColor']?.toString(),
-              isFromAI:
-                  signData['isFromAI'] ?? (signData['generatedBy'] == 'ai'),
-              createdAt: signData['createdAt'] != null
-                  ? (signData['createdAt'] as Timestamp).toDate()
-                  : DateTime.now(),
-            );
-          } else if (signData is String) {
-            // Jeśli dane to tylko tekst
-            return HoroscopeData(
-              zodiacSign: englishZodiacSign,
-              text: signData,
-              date: targetDate,
-              moonPhase: calculateMoonPhase(targetDate),
-              moonEmoji: _getMoonPhaseEmoji(calculateMoonPhase(targetDate)),
-              isFromAI: false,
-              createdAt: DateTime.now(),
-            );
-          }
-        }
-
-        _logger.logToConsole(
-            '⚠️ Brak horoskopu dla znaku $englishZodiacSign - używam fallback',
+        _logger.logToConsole('✅ Znaleziono horoskop w Firebase',
             tag: 'HOROSCOPE');
-        return _getFallbackHoroscope(englishZodiacSign, targetDate);
+        return HoroscopeData.fromFirestore(docSnapshot);
       } else {
-        _logger.logToConsole(
-            '⚠️ Brak dokumentu horoskopu dziennego - używam fallback',
+        _logger.logToConsole('⚠️ Brak horoskopu w Firebase - używam fallback',
             tag: 'HOROSCOPE');
-        return _getFallbackHoroscope(englishZodiacSign, targetDate);
+        return _getFallbackHoroscope(zodiacSign, targetDate);
       }
     } catch (e) {
-      _logger.logToConsole('❌ Błąd pobierania horoskopu dziennego: $e',
-          tag: 'ERROR');
-      final englishZodiacSign = _convertPolishToEnglishSign(zodiacSign);
-      return _getFallbackHoroscope(englishZodiacSign, targetDate);
+      _logger.logToConsole('❌ Błąd pobierania horoskopu: $e', tag: 'ERROR');
+      return _getFallbackHoroscope(zodiacSign, targetDate);
     }
   }
 
-  /// 📅 NOWA METODA: Pobierz horoskop tygodniowy
-  Future<HoroscopeData?> getWeeklyHoroscope(String zodiacSign,
-      {DateTime? date}) async {
-    final targetDate = date ?? DateTime.now();
-
-    try {
-      // Oblicz klucz tygodnia (format: YYYY-WXX)
-      final weekKey = _getWeekKey(targetDate);
-
-      // ✅ POPRAWKA: Konwertuj polską nazwę na angielski kod
-      final englishZodiacSign = _convertPolishToEnglishSign(zodiacSign);
-
-      _logger.logToConsole(
-          'Pobieranie horoskopu tygodniowego: $englishZodiacSign na $weekKey',
-          tag: 'HOROSCOPE');
-
-      if (_firestore == null) {
-        _logger.logToConsole('❌ Firestore nie jest zainicjalizowany',
-            tag: 'ERROR');
-        return _getFallbackWeeklyHoroscope(englishZodiacSign, targetDate);
-      }
-
-      // Pobierz dokument z kolekcji weekly
-      final docRef = _firestore!
-          .collection(_horoscopesCollection)
-          .doc('weekly')
-          .collection('weeks')
-          .doc(weekKey);
-
-      final docSnapshot = await docRef.get();
-
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        final data = docSnapshot.data()!;
-
-        // Sprawdź czy istnieje horoskop dla danego znaku
-        if (data.containsKey(englishZodiacSign)) {
-          _logger.logToConsole('✅ Znaleziono horoskop tygodniowy w Firebase',
-              tag: 'HOROSCOPE');
-
-          // Stwórz HoroscopeData z danych tygodniowych
-          return _createHoroscopeFromWeeklyData(
-              englishZodiacSign, data[englishZodiacSign], targetDate, weekKey);
-        }
-      }
-
-      _logger.logToConsole('⚠️ Brak horoskopu tygodniowego - używam fallback',
-          tag: 'HOROSCOPE');
-      return _getFallbackWeeklyHoroscope(englishZodiacSign, targetDate);
-    } catch (e) {
-      _logger.logToConsole('❌ Błąd pobierania horoskopu tygodniowego: $e',
-          tag: 'ERROR');
-      final englishZodiacSign = _convertPolishToEnglishSign(zodiacSign);
-      return _getFallbackWeeklyHoroscope(englishZodiacSign, targetDate);
-    }
-  }
-
-  /// 📅 NOWA METODA: Pobierz horoskop miesięczny
-  Future<HoroscopeData?> getMonthlyHoroscope(String zodiacSign,
-      {DateTime? date}) async {
-    final targetDate = date ?? DateTime.now();
-
-    try {
-      // Oblicz klucz miesiąca (format: YYYY-MM)
-      final monthKey = _getMonthKey(targetDate);
-
-      // ✅ POPRAWKA: Konwertuj polską nazwę na angielski kod
-      final englishZodiacSign = _convertPolishToEnglishSign(zodiacSign);
-
-      _logger.logToConsole(
-          'Pobieranie horoskopu miesięcznego: $englishZodiacSign na $monthKey',
-          tag: 'HOROSCOPE');
-
-      if (_firestore == null) {
-        _logger.logToConsole('❌ Firestore nie jest zainicjalizowany',
-            tag: 'ERROR');
-        return _getFallbackMonthlyHoroscope(englishZodiacSign, targetDate);
-      }
-
-      // Pobierz dokument z kolekcji monthly
-      final docRef = _firestore!
-          .collection(_horoscopesCollection)
-          .doc('monthly')
-          .collection('months')
-          .doc(monthKey);
-
-      final docSnapshot = await docRef.get();
-
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        final data = docSnapshot.data()!;
-
-        // Sprawdź czy istnieje horoskop dla danego znaku
-        if (data.containsKey(englishZodiacSign)) {
-          _logger.logToConsole('✅ Znaleziono horoskop miesięczny w Firebase',
-              tag: 'HOROSCOPE');
-
-          // Stwórz HoroscopeData z danych miesięcznych
-          return _createHoroscopeFromMonthlyData(
-              englishZodiacSign, data[englishZodiacSign], targetDate, monthKey);
-        }
-      }
-
-      _logger.logToConsole('⚠️ Brak horoskopu miesięcznego - używam fallback',
-          tag: 'HOROSCOPE');
-      return _getFallbackMonthlyHoroscope(englishZodiacSign, targetDate);
-    } catch (e) {
-      _logger.logToConsole('❌ Błąd pobierania horoskopu miesięcznego: $e',
-          tag: 'ERROR');
-      final englishZodiacSign = _convertPolishToEnglishSign(zodiacSign);
-      return _getFallbackMonthlyHoroscope(englishZodiacSign, targetDate);
-    }
-  }
-
-  /// 📅 Pobierz horoskop księżycowy (lunar) - NAPRAWIONA WERSJA
+  /// 📅 Pobierz horoskop księżycowy (lunar)
   Future<HoroscopeData?> getLunarHoroscope({DateTime? date}) async {
     final targetDate = date ?? DateTime.now();
 
@@ -277,63 +117,20 @@ class HoroscopeService {
         return _getFallbackLunarHoroscope(targetDate);
       }
 
-      // ✅ NAPRAWKA: Pobierz główny dokument, NIE subcollection
-      final docRef =
-          _firestore!.collection(_horoscopesCollection).doc(dateString);
+      final docRef = _firestore!
+          .collection(_horoscopesCollection)
+          .doc(dateString)
+          .collection('signs')
+          .doc('lunar');
 
       final docSnapshot = await docRef.get();
 
       if (docSnapshot.exists && docSnapshot.data() != null) {
-        final data = docSnapshot.data() as Map<String, dynamic>;
-
-        // ✅ SPRAWDŹ czy istnieje horoskop księżycowy w głównym dokumencie
-        if (data.containsKey('lunar')) {
-          _logger.logToConsole('✅ Znaleziono horoskop księżycowy w Firebase',
-              tag: 'HOROSCOPE');
-
-          final lunarData = data['lunar'];
-
-          // Obsłuż różne formaty danych
-          if (lunarData is Map<String, dynamic>) {
-            return HoroscopeData(
-              zodiacSign: 'lunar',
-              text: lunarData['text'] ?? '',
-              date: targetDate,
-              moonPhase:
-                  lunarData['moonPhase'] ?? calculateMoonPhase(targetDate),
-              moonEmoji: lunarData['moonEmoji'] ??
-                  _getMoonPhaseEmoji(
-                      lunarData['moonPhase'] ?? calculateMoonPhase(targetDate)),
-              lunarDescription: lunarData['lunarDescription']?.toString(),
-              recommendedCandle: lunarData['recommendedCandle']?.toString(),
-              recommendedCandleReason:
-                  lunarData['recommendedCandleReason']?.toString(),
-              isFromAI:
-                  lunarData['isFromAI'] ?? (lunarData['generatedBy'] == 'ai'),
-              createdAt: lunarData['createdAt'] != null
-                  ? (lunarData['createdAt'] as Timestamp).toDate()
-                  : DateTime.now(),
-            );
-          } else if (lunarData is String) {
-            // Jeśli dane to tylko tekst
-            return HoroscopeData(
-              zodiacSign: 'lunar',
-              text: lunarData,
-              date: targetDate,
-              moonPhase: calculateMoonPhase(targetDate),
-              moonEmoji: _getMoonPhaseEmoji(calculateMoonPhase(targetDate)),
-              isFromAI: false,
-              createdAt: DateTime.now(),
-            );
-          }
-        }
-
-        _logger.logToConsole('⚠️ Brak horoskopu księżycowego - używam fallback',
+        _logger.logToConsole('✅ Znaleziono horoskop księżycowy w Firebase',
             tag: 'HOROSCOPE');
-        return _getFallbackLunarHoroscope(targetDate);
+        return HoroscopeData.fromFirestore(docSnapshot);
       } else {
-        _logger.logToConsole(
-            '⚠️ Brak dokumentu horoskopu księżycowego - używam fallback',
+        _logger.logToConsole('⚠️ Brak horoskopu księżycowego - używam fallback',
             tag: 'HOROSCOPE');
         return _getFallbackLunarHoroscope(targetDate);
       }
@@ -344,308 +141,7 @@ class HoroscopeService {
     }
   }
 
-  /// 🗓️ HELPER: Oblicz klucz tygodnia (YYYY-WXX) - NAPRAWIONY ISO 8601
-  String _getWeekKey(DateTime date) {
-    // ✅ NAPRAWIONY ALGORYTM - używa standardowej biblioteki Dart
-
-    // Znajdź poniedziałek tego tygodnia
-    final monday = date.subtract(Duration(days: date.weekday - 1));
-
-    // Oblicz numer tygodnia według ISO 8601
-    final jan4 = DateTime(monday.year, 1, 4);
-    final firstMonday = jan4.subtract(Duration(days: jan4.weekday - 1));
-    final weekNumber =
-        ((monday.difference(firstMonday).inDays) / 7).floor() + 1;
-
-    // ✅ SPECJALNA OBSŁUGA dla czerwca 2025 (gdy wiemy że powinno być W26)
-    String resultKey;
-    if (date.year == 2025 &&
-        date.month == 6 &&
-        date.day >= 23 &&
-        date.day <= 29) {
-      resultKey = '2025-W26';
-    } else {
-      resultKey = '${monday.year}-W${weekNumber.toString().padLeft(2, '0')}';
-    }
-
-    _logger.logToConsole(
-        'ISO 8601 Week calculation: ${date.toString()} -> $resultKey',
-        tag: 'HOROSCOPE');
-
-    return resultKey;
-  }
-
-  /// 🗓️ HELPER: Oblicz klucz miesiąca (YYYY-MM)
-  String _getMonthKey(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}';
-  }
-
-  /// 🔧 HELPER: Stwórz HoroscopeData z danych tygodniowych
-  HoroscopeData _createHoroscopeFromWeeklyData(
-      String zodiacSign, dynamic weeklyData, DateTime date, String weekKey) {
-    String text = '';
-    String moonPhase = calculateMoonPhase(date);
-    bool isFromAI = false;
-    DateTime createdAt = DateTime.now();
-
-    // Obsłuż różne formaty danych z Firebase
-    if (weeklyData is Map<String, dynamic>) {
-      text = weeklyData['text'] ?? weeklyData.toString();
-      moonPhase = weeklyData['moonPhase'] ?? moonPhase;
-      isFromAI = weeklyData['isFromAI'] ??
-          (weeklyData['generatedBy'] == 'ai') ??
-          false;
-
-      // Próbuj sparsować createdAt
-      if (weeklyData['createdAt'] != null) {
-        try {
-          if (weeklyData['createdAt'] is Timestamp) {
-            createdAt = (weeklyData['createdAt'] as Timestamp).toDate();
-          } else if (weeklyData['createdAt'] is String) {
-            createdAt = DateTime.parse(weeklyData['createdAt']);
-          }
-        } catch (e) {
-          _logger.logToConsole('⚠️ Błąd parsowania createdAt: $e',
-              tag: 'HOROSCOPE');
-          // Użyj domyślnej daty
-        }
-      }
-    } else if (weeklyData is String) {
-      // Jeśli dane to tylko string (stary format)
-      text = weeklyData;
-    } else {
-      // Fallback - konwertuj na string
-      text = weeklyData?.toString() ?? '';
-    }
-
-    // Upewnij się, że text nie jest pusty
-    if (text.isEmpty) {
-      text = 'Horoskop tygodniowy będzie dostępny wkrótce.';
-    }
-
-    return HoroscopeData(
-      zodiacSign: zodiacSign,
-      text: text,
-      date: date,
-      moonPhase: moonPhase,
-      isFromAI: isFromAI,
-      createdAt: createdAt,
-    );
-  }
-
-  /// 🔧 HELPER: Stwórz HoroscopeData z danych miesięcznych
-  HoroscopeData _createHoroscopeFromMonthlyData(
-      String zodiacSign, dynamic monthlyData, DateTime date, String monthKey) {
-    String text = '';
-    String moonPhase = calculateMoonPhase(date);
-    bool isFromAI = false;
-    DateTime createdAt = DateTime.now();
-
-    // Obsłuż różne formaty danych z Firebase
-    if (monthlyData is Map<String, dynamic>) {
-      text = monthlyData['text'] ?? monthlyData.toString();
-      moonPhase = monthlyData['moonPhase'] ?? moonPhase;
-      isFromAI = monthlyData['isFromAI'] ??
-          (monthlyData['generatedBy'] == 'ai') ??
-          false;
-
-      // Próbuj sparsować createdAt
-      if (monthlyData['createdAt'] != null) {
-        try {
-          if (monthlyData['createdAt'] is Timestamp) {
-            createdAt = (monthlyData['createdAt'] as Timestamp).toDate();
-          } else if (monthlyData['createdAt'] is String) {
-            createdAt = DateTime.parse(monthlyData['createdAt']);
-          }
-        } catch (e) {
-          _logger.logToConsole('⚠️ Błąd parsowania createdAt: $e',
-              tag: 'HOROSCOPE');
-          // Użyj domyślnej daty
-        }
-      }
-    } else if (monthlyData is String) {
-      // Jeśli dane to tylko string (stary format)
-      text = monthlyData;
-    } else {
-      // Fallback - konwertuj na string
-      text = monthlyData?.toString() ?? '';
-    }
-
-    // Upewnij się, że text nie jest pusty
-    if (text.isEmpty) {
-      text = 'Horoskop miesięczny będzie dostępny wkrótce.';
-    }
-
-    return HoroscopeData(
-      zodiacSign: zodiacSign,
-      text: text,
-      date: date,
-      moonPhase: moonPhase,
-      isFromAI: isFromAI,
-      createdAt: createdAt,
-    );
-  }
-
-  /// 🛡️ FALLBACK: Horoskop tygodniowy
-  HoroscopeData _getFallbackWeeklyHoroscope(String zodiacSign, DateTime date) {
-    final moonPhase = calculateMoonPhase(date);
-
-    final fallbackWeeklyTexts = {
-      'aries':
-          'Ten tydzień przyniesie Ci nową energię i motywację. Poniedziałek rozpocznij od śmiałych planów, środa może przynieść ważne decyzje. Weekend wykorzystaj na aktywny odpoczynek. Twoja determinacja otworzy nowe możliwości.',
-      'taurus':
-          'Stabilność i wytrwałość będą Twoimi atutami w tym tygodniu. Początek tygodnia sprzyja finansowym decyzjom, piątek może przynieść przyjemne niespodzianki. Weekend poświęć na relaks i przyjemności. Twoja cierpliwość zostanie nagrodzona.',
-      'gemini':
-          'Komunikacja i elastyczność będą kluczowe w tym tygodniu. Wtorek może przynieść ważne rozmowy, czwartek sprzyja podróżom lub nauce. Weekend wykorzystaj na spotkania z przyjaciółmi. Twoja ciekawość świata otworzy nowe perspektywy.',
-      'cancer':
-          'Intuicja będzie Twoim przewodnikiem w tym tygodniu. Poniedziałek skoncentruj na sprawach domowych, środa może przynieść emocjonalne odkrycia. Weekend poświęć rodzinie. Twoja wrażliwość pomoże zrozumieć potrzeby innych.',
-      'leo':
-          'Kreatywność i pewność siebie będą Twoimi mocnymi stronami. Wtorek może przynieść uznanie za Twoją pracę, piątek sprzyja artystycznym przedsięwzięciom. Weekend wykorzystaj na zabawę i rozrywkę. Twoja charyzma przyciągnie pozytywną uwagę.',
-      'virgo':
-          'Precyzja i organizacja będą kluczowe w tym tygodniu. Początek tygodnia sprzyja porządkowaniu spraw, czwartek może przynieść ważne ustalenia. Weekend poświęć na samodoskonalenie. Twoja skrupulatność przyniesie doskonałe rezultaty.',
-      'libra':
-          'Harmonia i współpraca będą priorytetem tego tygodnia. Środa może przynieść ważne partnerstwo, piątek sprzyja estetycznym decyzjom. Weekend wykorzystaj na kulturalne wydarzenia. Twoja dyplomacja pomoże rozwiązać konflikty.',
-      'scorpio':
-          'Głębokość i transformacja będą tematami tego tygodnia. Poniedziałek może przynieść ważne odkrycia, czwartek sprzyja duchowemu rozwojowi. Weekend poświęć na intensywne doświadczenia. Twoja intuicja poprowadzi Cię właściwą drogą.',
-      'sagittarius':
-          'Przygoda i ekspansja będą charakteryzować ten tydzień. Wtorek może przynieść możliwość podróży, piątek sprzyja edukacji. Weekend wykorzystaj na odkrywanie nowych miejsc. Twój optymizm otworzy nieoczekiwane możliwości.',
-      'capricorn':
-          'Ambicja i systematyczność będą Twoimi narzędziami sukcesu. Początek tygodnia sprzyja karierze, czwartek może przynieść ważne ustalenia. Weekend poświęć na planowanie przyszłości. Twoja wytrwałość przyniesie trwałe rezultaty.',
-      'aquarius':
-          'Innowacyjność i niezależność będą kluczowe w tym tygodniu. Środa może przynieść rewolucyjne pomysły, piątek sprzyja grupowym projektom. Weekend wykorzystaj na eksperymenty. Twoja oryginalność znajdzie uznanie.',
-      'pisces':
-          'Intuicja i kreatywność będą Twoimi przewodnikami. Poniedziałek skoncentruj się na wewnętrznej refleksji, piątek sprzyja artystycznym projektom. Weekend wykorzystaj na medytację i odpoczynek. Twoja wrażliwość będzie darem dla innych.',
-    };
-
-    return HoroscopeData(
-      zodiacSign: zodiacSign,
-      text: fallbackWeeklyTexts[zodiacSign] ??
-          'Ten tydzień będzie pełen możliwości rozwoju i pozytywnych zmian. Pozostań otwarty na nowe doświadczenia.',
-      date: date,
-      moonPhase: moonPhase,
-      isFromAI: false,
-      createdAt: DateTime.now(),
-    );
-  }
-
-  /// 🛡️ FALLBACK: Horoskop miesięczny
-  HoroscopeData _getFallbackMonthlyHoroscope(String zodiacSign, DateTime date) {
-    final moonPhase = calculateMoonPhase(date);
-
-    final fallbackMonthlyTexts = {
-      'aries':
-          'Ten miesiąc będzie pełen energii i nowych możliwości. Początek okresu sprzyja rozpoczynaniu ambitnych projektów. W relacjach osobistych pokażesz swoją przywódczą naturę. Finanse mogą ulec poprawie dzięki odważnym decyzjom. Koniec miesiąca przyniesie uznanie za Twoją determinację.',
-      'taurus':
-          'Stabilność i konsekwencja będą Twoimi atutami w tym miesiącu. Pierwsze tygodnie sprzyjają inwestycjom długoterminowym. W życiu osobistym możesz liczyć na spokój i harmonię. Twoja wytrwałość w pracy zostanie doceniona. Ostatnie dni miesiąca przyniosą konkretne rezultaty.',
-      'gemini':
-          'Komunikacja i nauka będą w centrum Twojej uwagi. Początek miesiąca może przynieść interesujące kontakty. W pracy Twoja wszechstronność będzie bardzo ceniona. Finanse stabilizują się dzięki przemyślanym decyzjom. Koniec okresu sprzyja kreatywnym projektom.',
-      'cancer':
-          'Rodzina i emocje będą priorytetem tego miesiąca. Pierwsze tygodnie sprzyjają domowym przedsięwzięciom. Twoja intuicja pomoże w ważnych decyzjach. W sprawach finansowych zachowaj ostrożność. Ostatnie dni miesiąca przyniosą emocjonalne spełnienie.',
-      'leo':
-          'Kreatywność i rozrywka zdominują ten miesiąc. Początek okresu może przynieść artystyczne sukcesy. W relacjach pokażesz swoją hojność i ciepło. Finanse mogą być wspierane przez kreatywne przedsięwzięcia. Koniec miesiąca przyniesie zasłużone uznanie.',
-      'virgo':
-          'Organizacja i perfekcja będą kluczowe w tym miesiącu. Pierwsze tygodnie sprzyjają porządkowaniu wszystkich sfer życia. W pracy Twoja skrupulatność przyniesie doskonałe rezultaty. Zdrowie wymaga systematycznej troski. Ostatnie dni miesiąca pokażą efekty Twojej pracy.',
-      'libra':
-          'Harmonia i partnerstwo będą głównymi tematami. Początek miesiąca sprzyja nawiązywaniu nowych relacji. W sprawach estetycznych masz doskonały gust. Finanse stabilizują się dzięki współpracy. Koniec okresu przyniesie równowagę we wszystkich dziedzinach.',
-      'scorpio':
-          'Transformacja i głębokość charakteryzują ten miesiąc. Pierwsze tygodnie mogą przynieść ważne odkrycia o sobie. W relacjach oczekuj intensywnych doświadczeń. Finanse mogą ulec znacznej zmianie. Ostatnie dni miesiąca przyniosą duchowe odrodzenie.',
-      'sagittarius':
-          'Przygoda i ekspansja będą motywem przewodnim. Początek miesiąca może zaowocować podróżami lub edukacją. Twój optymizm będzie zaraźliwy dla otoczenia. W finansach oczekuj pozytywnych zmian. Koniec okresu otworzy nowe horyzonty.',
-      'capricorn':
-          'Ambicja i systematyczność będą Twoimi narzędziami sukcesu. Początek miesiąca może zaowocować karierą lub edukacją. Twój optymizm będzie zaraźliwy dla otoczenia. W finansach oczekuj pozytywnych zmian. Koniec okresu otworzy nowe horyzonty.',
-      'aquarius':
-          'Innowacyjność i przyjaźń będą centralne w tym miesiącu. Pierwsze tygodnie sprzyjają rewolucyjnym pomysłom. W grupach będziesz naturalnym liderem. Finanse mogą być wspierane przez nietypowe rozwiązania. Koniec miesiąca otworzy przyszłościowe możliwości.',
-      'pisces':
-          'Intuicja i kreatywność będą Twoimi przewodnikami. Pierwsze tygodnie sprzyjają duchowemu rozwojowi. W sztuce możesz osiągnąć znaczące sukcesy. Finanse będą wspierane przez intuicyjne decyzje. Ostatnie dni miesiąca przyniosą spełnienie marzeń.',
-    };
-
-    return HoroscopeData(
-      zodiacSign: zodiacSign,
-      text: fallbackMonthlyTexts[zodiacSign] ??
-          'Ten miesiąc będzie okresem rozwoju i nowych możliwości. Pozostań otwarty na zmiany i ufaj swojej intuicji.',
-      date: date,
-      moonPhase: moonPhase,
-      isFromAI: false,
-      createdAt: DateTime.now(),
-    );
-  }
-
-  /// 🛡️ FALLBACK: Horoskop dzienny
-  HoroscopeData _getFallbackHoroscope(String zodiacSign, DateTime date) {
-    final moonPhase = calculateMoonPhase(date);
-
-    final fallbackTexts = {
-      'aries':
-          'Dzisiaj Twoja energia i determinacja będą kluczowe. Podejmij odważne decyzje, ale pamiętaj o dyplomacji w kontaktach z innymi.',
-      'taurus':
-          'Stabilność i cierpliwość przyniosą Ci dziś korzyści. Skoncentruj się na praktycznych sprawach i unikaj pośpiechu.',
-      'gemini':
-          'Komunikacja będzie dziś bardzo ważna. Twoja wszechstronność pomoże w rozwiązaniu różnych problemów.',
-      'cancer':
-          'Słuchaj swojej intuicji i emocji. Dzisiaj rodzina i dom będą dla Ciebie szczególnie ważne.',
-      'leo':
-          'Twoja kreatywność i charyzma będą dziś w centrum uwagi. To dobry dzień na wyrażenie siebie.',
-      'virgo':
-          'Precyzja i organizacja będą dzisiaj kluczowe. Skoncentruj się na szczegółach i metodycznym działaniu.',
-      'libra':
-          'Szukaj dziś równowagi i harmonii. Twoja dyplomacja pomoże w rozwiązaniu konfliktów.',
-      'scorpio':
-          'Zaufaj swojej intuicji i nie bój się głębokich zmian. Dzisiaj możesz odkryć coś ważnego o sobie.',
-      'sagittarius':
-          'Optymizm i otwartość na nowe doświadczenia będą Twoimi atutami. Myśl szeroko i pozytywnie.',
-      'capricorn':
-          'Systematyczność i wytrwałość przyniosą dziś rezultaty. Skoncentruj się na długoterminowych celach.',
-      'aquarius':
-          'Niezależność i innowacyjne myślenie będą dzisiaj szczególnie ważne. Bądź otwarty na nietypowe rozwiązania.',
-      'pisces':
-          'Kreatywność i wrażliwość będą Twoimi przewodnikami. Słuchaj swojego serca i intuicji.',
-    };
-
-    return HoroscopeData(
-      zodiacSign: zodiacSign,
-      text: fallbackTexts[zodiacSign] ??
-          'Dzisiaj jest dobry dzień na rozwój osobisty i pozytywne zmiany.',
-      date: date,
-      moonPhase: moonPhase,
-      isFromAI: false,
-      createdAt: DateTime.now(),
-    );
-  }
-
-  /// 🌙 Fallback horoskop księżycowy
-  HoroscopeData _getFallbackLunarHoroscope(DateTime date) {
-    final moonPhase = calculateMoonPhase(date);
-
-    final lunarTexts = {
-      'Nów Księżyca':
-          'Czas nowych początków i świeżych intencji. Zasiej ziarna swoich marzeń.',
-      'Przybywający sierp':
-          'Twoje plany nabierają kształtu. Pozostań cierpliwy i wytrwały.',
-      'Pierwsza kwadra':
-          'Moment podejmowania ważnych decyzji. Przezwyciężaj przeszkody z determinacją.',
-      'Przybywający garb':
-          'Kontynuuj wytrwale swoją pracę. Efekty będą wkrótce widoczne.',
-      'Pełnia':
-          'Szczyt energii lunalnej. Czas manifestacji i celebrowania osiągnięć.',
-      'Ubywający garb':
-          'Refleksja nad tym, co zostało osiągnięte. Czas na wdzięczność.',
-      'Ostatnia kwadra':
-          'Puść to, co Ci już nie służy. Przygotuj miejsce na nowe.',
-      'Ubywający sierp': 'Okres oczyszczenia i przygotowań do nowego cyklu.',
-    };
-
-    return HoroscopeData(
-      zodiacSign: 'lunar',
-      text: lunarTexts[moonPhase] ??
-          'Księżyc wpływa na nasze emocje i energię. Żyj w zgodzie z jego cyklem.',
-      date: date,
-      moonPhase: moonPhase,
-      isFromAI: false,
-      createdAt: DateTime.now(),
-    );
-  }
-
-  /// 📊 Pobierz wszystkie horoskopy dzienne
+  /// 📊 Pobierz wszystkie horoskopy na dany dzień
   Future<List<HoroscopeData>> getAllDailyHoroscopes({DateTime? date}) async {
     final targetDate = date ?? DateTime.now();
 
@@ -706,52 +202,6 @@ class HoroscopeService {
     }
   }
 
-  /// 🔍 NOWA METODA: Sprawdź czy horoskopy tygodniowe są dostępne
-  Future<bool> areWeeklyHoroscopesAvailable({DateTime? date}) async {
-    try {
-      final targetDate = date ?? DateTime.now();
-      final weekKey = _getWeekKey(targetDate);
-
-      if (_firestore == null) return false;
-
-      final docRef = _firestore!
-          .collection(_horoscopesCollection)
-          .doc('weekly')
-          .collection('weeks')
-          .doc(weekKey);
-
-      final docSnapshot = await docRef.get();
-      return docSnapshot.exists;
-    } catch (e) {
-      _logger.logToConsole('❌ Błąd sprawdzania dostępności tygodniowej: $e',
-          tag: 'ERROR');
-      return false;
-    }
-  }
-
-  /// 🔍 NOWA METODA: Sprawdź czy horoskopy miesięczne są dostępne
-  Future<bool> areMonthlyHoroscopesAvailable({DateTime? date}) async {
-    try {
-      final targetDate = date ?? DateTime.now();
-      final monthKey = _getMonthKey(targetDate);
-
-      if (_firestore == null) return false;
-
-      final docRef = _firestore!
-          .collection(_horoscopesCollection)
-          .doc('monthly')
-          .collection('months')
-          .doc(monthKey);
-
-      final docSnapshot = await docRef.get();
-      return docSnapshot.exists;
-    } catch (e) {
-      _logger.logToConsole('❌ Błąd sprawdzania dostępności miesięcznej: $e',
-          tag: 'ERROR');
-      return false;
-    }
-  }
-
   /// 🌙 Oblicz fazę księżyca
   String calculateMoonPhase(DateTime date) {
     // Uproszczony algorytm - w pełnej wersji można użyć dokładniejszych obliczeń
@@ -769,21 +219,79 @@ class HoroscopeService {
     return 'Nów Księżyca';
   }
 
-  /// 🌙 Pobierz emoji fazy księżyca
-  String _getMoonPhaseEmoji(String moonPhase) {
-    const emojis = {
-      'Nów': '🌑',
-      'Nów Księżyca': '🌑',
-      'Przybywający sierp': '🌒',
-      'Pierwsza kwadra': '🌓',
-      'Przybywający garb': '🌔',
-      'Pełnia': '🌕',
-      'Ubywający garb': '🌖',
-      'Ostatnia kwadra': '🌗',
-      'Ubywający sierp': '🌘',
+  /// 🛡️ Fallback horoskop gdy Firebase nie działa
+  HoroscopeData _getFallbackHoroscope(String zodiacSign, DateTime date) {
+    final moonPhase = calculateMoonPhase(date);
+
+    final fallbackTexts = {
+      'aries':
+          'Dzisiaj Twoja energia i determinacja będą kluczowe. Podejmij odważne decyzje, ale pamiętaj o dyplomacji w kontaktach z innymi.',
+      'taurus':
+          'Stabilność i wytrwałość to Twoje atuty dzisiaj. Skoncentruj się na praktycznych sprawach i nie spiesz się z ważnymi decyzjami.',
+      'gemini':
+          'Komunikacja będzie dzisiaj szczególnie ważna. Wykorzystaj swoją naturalną ciekawość i umiejętność nawiązywania kontaktów.',
+      'cancer':
+          'Intuicja prowadzi Cię we właściwym kierunku. Zaufaj swoim przeczuciom, szczególnie w sprawach osobistych.',
+      'leo':
+          'Twoja charyzma i pewność siebie będą dzisiaj szczególnie widoczne. To dobry czas na prezentację swoich pomysłów.',
+      'virgo':
+          'Precyzja i uwaga na szczegóły pomogą Ci dzisiaj osiągnąć cele. Systematyczne podejście przyniesie najlepsze rezultaty.',
+      'libra':
+          'Harmonia i równowaga są dziś kluczowe. Staraj się unikać konfliktów i szukaj kompromisów w trudnych sytuacjach.',
+      'scorpio':
+          'Głęboka analiza i intuicja pomogą Ci odkryć ukryte prawdy. Nie bój się spojrzeć na sprawy z nowej perspektywy.',
+      'sagittarius':
+          'Optymizm i otwartość na nowe doświadczenia będą Twoimi przewodnikami. To dobry dzień na podróże lub naukę.',
+      'capricorn':
+          'Ambicja i pracowitość przyniosą dziś konkretne rezultaty. Skoncentruj się na długoterminowych celach.',
+      'aquarius':
+          'Innowacyjność i niezależność myślenia będą dzisiaj szczególnie cenne. Nie bój się być inny.',
+      'pisces':
+          'Empatia i intuicja to Twoje największe atuty dzisiaj. Zaufaj swoim odczuciom w relacjach z innymi.',
     };
 
-    return emojis[moonPhase] ?? '🌙';
+    return HoroscopeData(
+      zodiacSign: zodiacSign,
+      text: fallbackTexts[zodiacSign] ??
+          'Dzisiaj jest dobry dzień na refleksję i podejmowanie pozytywnych działań.',
+      date: date,
+      moonPhase: moonPhase,
+      isFromAI: false,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  /// 🌙 Fallback horoskop księżycowy
+  HoroscopeData _getFallbackLunarHoroscope(DateTime date) {
+    final moonPhase = calculateMoonPhase(date);
+
+    final lunarTexts = {
+      'Nów Księżyca':
+          'Czas nowych początków i zamierzeń. Idealna pora na sadzenie ziaren przyszłych sukcesów.',
+      'Przybywający sierp':
+          'Energia rośnie wraz z Księżycem. Czas na działanie i realizację planów.',
+      'Pierwsza kwadra':
+          'Moment podejmowania ważnych decyzji. Przezwyciężaj przeszkody z determinacją.',
+      'Przybywający garb':
+          'Kontynuuj wytrwale swoją pracę. Efekty będą wkrótce widoczne.',
+      'Pełnia':
+          'Szczyt energii lunalnej. Czas manifestacji i celebrowania osiągnięć.',
+      'Ubywający garb':
+          'Refleksja nad tym, co zostało osiągnięte. Czas na wdzięczność.',
+      'Ostatnia kwadra':
+          'Puść to, co Ci już nie służy. Przygotuj miejsce na nowe.',
+      'Ubywający sierp': 'Okres oczyszczenia i przygotowań do nowego cyklu.',
+    };
+
+    return HoroscopeData(
+      zodiacSign: 'lunar',
+      text: lunarTexts[moonPhase] ??
+          'Księżyc wpływa na nasze emocje i energię. Żyj w zgodzie z jego cyklem.',
+      date: date,
+      moonPhase: moonPhase,
+      isFromAI: false,
+      createdAt: DateTime.now(),
+    );
   }
 
   /// 📋 Wszystkie fallback horoskopy
@@ -813,85 +321,6 @@ class HoroscopeService {
     } catch (e) {
       _logger.logToConsole('❌ Brak połączenia z Firebase: $e', tag: 'ERROR');
       return false;
-    }
-  }
-
-  /// 🔧 HELPER: Konwertuj polską nazwę znaku na angielski kod
-  String _convertPolishToEnglishSign(String polishSign) {
-    final Map<String, String> zodiacMap = {
-      'koziorożec': 'capricorn',
-      'wodnik': 'aquarius',
-      'ryby': 'pisces',
-      'baran': 'aries',
-      'byk': 'taurus',
-      'bliźnięta': 'gemini',
-      'rak': 'cancer',
-      'lew': 'leo',
-      'panna': 'virgo',
-      'waga': 'libra',
-      'skorpion': 'scorpio',
-      'strzelec': 'sagittarius',
-      // Dodaj również angielskie nazwy (jeśli już są angielskie)
-      'capricorn': 'capricorn',
-      'aquarius': 'aquarius',
-      'pisces': 'pisces',
-      'aries': 'aries',
-      'taurus': 'taurus',
-      'gemini': 'gemini',
-      'cancer': 'cancer',
-      'leo': 'leo',
-      'virgo': 'virgo',
-      'libra': 'libra',
-      'scorpio': 'scorpio',
-      'sagittarius': 'sagittarius',
-    };
-
-    final result =
-        zodiacMap[polishSign.toLowerCase()] ?? polishSign.toLowerCase();
-    _logger.logToConsole('Konwersja znaku: $polishSign -> $result',
-        tag: 'HOROSCOPE');
-    return result;
-  }
-
-  /// 🔧 NOWA METODA: Debug struktury Firebase
-  Future<void> debugFirebaseStructure({DateTime? date}) async {
-    final targetDate = date ?? DateTime.now();
-    final dateString = DateFormat('yyyy-MM-dd').format(targetDate);
-
-    try {
-      if (_firestore == null) {
-        _logger.logToConsole('❌ Firestore nie zainicjalizowany', tag: 'DEBUG');
-        return;
-      }
-
-      _logger.logToConsole('🔍 Debugowanie struktury Firebase dla $dateString',
-          tag: 'DEBUG');
-
-      final docRef =
-          _firestore!.collection(_horoscopesCollection).doc(dateString);
-      final docSnapshot = await docRef.get();
-
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        final data = docSnapshot.data() as Map<String, dynamic>;
-        _logger.logToConsole(
-            '📋 Dostępne klucze w dokumencie: ${data.keys.toList()}',
-            tag: 'DEBUG');
-
-        for (String key in data.keys) {
-          if (data[key] is Map) {
-            final subData = data[key] as Map<String, dynamic>;
-            _logger.logToConsole('🔑 $key: ${subData.keys.toList()}',
-                tag: 'DEBUG');
-          } else {
-            _logger.logToConsole('🔑 $key: ${data[key].runtimeType}',
-                tag: 'DEBUG');
-          }
-        }
-      } else {
-        _logger.logToConsole('❌ Dokument nie istnieje', tag: 'DEBUG');
-      }
-    } catch (e) {
-      _logger.logToConsole('❌ Błąd debugowania: $e', tag: 'ERROR');
     }
   }
 }

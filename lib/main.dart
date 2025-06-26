@@ -8,17 +8,15 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'firebase_options.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/main_menu_screen.dart';
-import 'screens/onboarding_screen.dart';
 import 'services/user_preferences_service.dart';
 import 'services/haptic_service.dart';
 import 'services/background_music_service.dart';
 import 'services/firebase_remote_config_service.dart';
 import 'services/logging_service.dart';
-import 'models/user_data.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // 📝 Inicjalizuj LoggingService
   final logger = LoggingService();
 
@@ -27,21 +25,23 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    logger.logToConsole('✅ Firebase zainicjalizowany pomyślnie', tag: 'FIREBASE');
-    
+    logger.logToConsole('✅ Firebase zainicjalizowany pomyślnie',
+        tag: 'FIREBASE');
+
     // ✅ WYŁĄCZ AUTOMATYCZNE DATA COLLECTION w debug
     if (kDebugMode) {
       await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(false);
-      logger.logToConsole('📊 Analytics wyłączone w debug mode', tag: 'FIREBASE');
+      logger.logToConsole('📊 Analytics wyłączone w debug mode',
+          tag: 'FIREBASE');
     } else {
       await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
-      logger.logToConsole('📊 Analytics włączone w release mode', tag: 'FIREBASE');
+      logger.logToConsole('📊 Analytics włączone w release mode',
+          tag: 'FIREBASE');
     }
-    
+
     // Debug info
     print('✅ Firebase Project ID: ${Firebase.app().options.projectId}');
     print('✅ Firebase App Name: ${Firebase.app().name}');
-    
   } catch (e) {
     logger.logToConsole('❌ Błąd Firebase: $e', tag: 'ERROR');
     // ✅ Aplikacja powinna dalej działać bez Firebase

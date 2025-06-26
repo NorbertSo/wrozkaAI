@@ -363,7 +363,7 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
         onTapDown: (_) => _startHolding(),
         onTapUp: (_) => _stopHolding(),
         onTapCancel: () => _stopHolding(),
-        child: Container(
+        child: SizedBox(
           width: double.infinity,
           height: double.infinity,
           child: Stack(
@@ -457,14 +457,14 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
     return AnimatedBuilder(
       animation: _loading2Animation,
       builder: (context, child) {
-        return Container(
+        return SizedBox(
           width: 300,
           height: 300,
           child: Stack(
             alignment: Alignment.center,
             children: [
               // Loading1 - zawsze widoczne, STATYCZNA gdy nie trzymamy
-              Container(
+              SizedBox(
                 width: 5500,
                 height: 550,
                 child: Lottie.asset(
@@ -501,7 +501,7 @@ class _FortuneLoadingScreenState extends State<FortuneLoadingScreen>
               if (_hasStartedLoading2)
                 Opacity(
                   opacity: _loading2Animation.value,
-                  child: Container(
+                  child: SizedBox(
                     width: 280,
                     height: 280,
                     child: Stack(

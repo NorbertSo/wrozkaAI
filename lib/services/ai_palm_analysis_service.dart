@@ -132,7 +132,7 @@ class SimpleAIPalmService {
       }
     } catch (e) {
       print('❌ Błąd analizy obrazu: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -150,7 +150,7 @@ class SimpleAIPalmService {
     return '''
 Jesteś duchowym przewodnikiem i mistrzem CHIROMANCJI (Hast Rekha Shastra). Twoja główna specjalizacja to ANALIZA DŁONI. Inne metody (astrologia) używasz tylko jako wsparcie lub gdy nie można analizować dłoni.
 
-${extendedUserInfo}
+$extendedUserInfo
 
 Analizowana dłoń: $handName
 Obecna data: ${_formatPolishDate(currentDate)}
@@ -309,7 +309,7 @@ Niestety, nie mogę wyraźnie dostrzec linii na Twojej dłoni z tego zdjęcia, a
 
 🌟 TWOJA NATURA I OSOBOWOŚĆ
 
-${userData.name}, jako ${zodiacSign}, nosisz w sobie ${spiritualProfile['spiritual_essence']}. Przez Twoje ${age} lat życia, ta energia kształtowała Twoją duchową ścieżkę.
+${userData.name}, jako $zodiacSign, nosisz w sobie ${spiritualProfile['spiritual_essence']}. Przez Twoje $age lat życia, ta energia kształtowała Twoją duchową ścieżkę.
 
 ${spiritualProfile['personality_insight']}
 
@@ -319,7 +319,7 @@ Twoja $handName dłoń, choć niewidoczna dla oczu, emanuje energią ${_getEnerg
 
 Energia serca wokół Ciebie ${_getSpiritualLoveReading(age, zodiacSign)}. ${_getSpiritualLoveGuidance(age, gender)}
 
-W nadchodzących miesiącach, szczególnie w ${currentMonth} i ${nextMonth}, energia miłosna będzie intensywnie pracować nad Twoimi relacjami. ${_getLoveChallenge(age)}, ale pamiętaj - każde wyzwanie to lekcja duszy.
+W nadchodzących miesiącach, szczególnie w $currentMonth i $nextMonth, energia miłosna będzie intensywnie pracować nad Twoimi relacjami. ${_getLoveChallenge(age)}, ale pamiętaj - każde wyzwanie to lekcja duszy.
 
 🚀 KARIERA I SUKCES
 
@@ -343,7 +343,7 @@ Przede wszystkim słuchaj swojego ciała - to świątynia Twojej duszy. ${_getSe
 
 ${_getSpiritualMonthlyPrediction(currentDate, zodiacSign, age)}
 
-${nextMonth} będzie kluczowy dla Twojego duchowego rozwoju. Gwiazdy szykują test Twojej cierpliwości, ale również otwierają drzwi do nowych możliwości. Zaufaj procesowi, nawet gdy droga wydaje się niepewna.
+$nextMonth będzie kluczowy dla Twojego duchowego rozwoju. Gwiazdy szykują test Twojej cierpliwości, ale również otwierają drzwi do nowych możliwości. Zaufaj procesowi, nawet gdy droga wydaje się niepewna.
 
 ✨ SPECJALNE PRZESŁANIE
 
@@ -493,10 +493,12 @@ Twoja dusza wybrała tę ścieżkę nieprzypadkowo. Zaufaj sobie, a Wszechświat
 
   // ... pozostałe metody duchowe ...
   String _getSpiritualCareerGuidance(int age, String zodiac) {
-    if (age < 30)
+    if (age < 30) {
       return 'okres eksperymentowania i odkrywania prawdziwego powołania';
-    if (age < 50)
+    }
+    if (age < 50) {
       return 'czas wykorzystania nabytej wiedzy dla służenia wyższemu celowi';
+    }
     return 'fazę dzielenia się mądrością i wspierania młodszych na ich ścieżce';
   }
 
@@ -529,11 +531,13 @@ Twoja dusza wybrała tę ścieżkę nieprzypadkowo. Zaufaj sobie, a Wszechświat
   }
 
   String _getSpiritualCareerTimeline(int age) {
-    if (age < 25)
+    if (age < 25) {
       return 'gdy zaczniesz słuchać głosu swojego serca, a nie oczekiwań innych';
+    }
     if (age < 35) return 'gdy połączysz swoją pasję z służbą innym';
-    if (age < 50)
+    if (age < 50) {
       return 'gdy znajdziesz równowagę między sukcesem materialnym a duchowym spełnieniem';
+    }
     return 'gdy zaczniesz przekazywać swoją mądrość młodszym pokoleniom';
   }
 
@@ -581,10 +585,12 @@ Twoja dusza wybrała tę ścieżkę nieprzypadkowo. Zaufaj sobie, a Wszechświat
   }
 
   String _getSpiritualHealthReading(int age, String zodiac) {
-    if (age < 30)
+    if (age < 30) {
       return 'pełna potencjału, ale czasem nadwyrężana przez młodzieńczy brak umiaru';
-    if (age < 50)
+    }
+    if (age < 50) {
       return 'w fazie uczenia się równowagi między ambitnymi celami a potrzebami ciała';
+    }
     return 'mądra i doświadczona, ale wymagająca większej uwagi i szacunku';
   }
 

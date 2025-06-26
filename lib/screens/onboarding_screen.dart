@@ -113,7 +113,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.security, color: AppColors.cyan, size: 48),
+            const Icon(Icons.security, color: AppColors.cyan, size: 48),
             const SizedBox(height: 16),
             Text(
               'Prywatność Twoich Danych',
@@ -1180,10 +1180,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           ),
           child: Theme(
             data: Theme.of(context).copyWith(
-              colorScheme: ColorScheme.dark(
+              colorScheme: const ColorScheme.dark(
                 primary: AppColors.cyan,
                 onPrimary: Colors.white,
-                surface: const Color(0xFF1A2332),
+                surface: Color(0xFF1A2332),
                 onSurface: Colors.white,
               ),
             ),

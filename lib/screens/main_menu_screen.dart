@@ -44,21 +44,21 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
   // Tab Controller
   late TabController _tabController;
-  
+
   // Data fields
   String _userName = '';
   String _userGender = '';
   String? _dominantHand;
   DateTime? _birthDate;
-  
+
   // State
   int _fortuneCount = 0;
-  
+
   // ✅ DODAJ HOROSCOPE DATA
   String _currentMoonPhase = '';
   List<int> _luckyNumbers = [];
   bool _isLoadingHoroscope = true;
-  
+
   // Animations
   late AnimationController _pulseController;
   late AnimationController _starController;
@@ -72,7 +72,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     _userGender = widget.userGender;
     _dominantHand = widget.dominantHand;
     _birthDate = widget.birthDate;
-    
+
     _tabController = TabController(length: 4, vsync: this);
     _initializeAnimations();
     _loadFortuneCount();
@@ -129,10 +129,10 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             .collection('horoscopes')
             .doc(dateString)
             .get();
-            
+
         if (docSnapshot.exists) {
-          final data = docSnapshot.data() as Map<String, dynamic>? ?? {};
-          
+          final data = docSnapshot.data() ?? {};
+
           // ✅ TERAZ - pobiera JEDNĄ liczbę z Firebase:
           if (zodiacSign != null) {
             final signKey = zodiacSign.toLowerCase();
@@ -143,7 +143,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               }
             }
           }
-          
+
           if (data.containsKey('lunar')) {
             final lunarData = data['lunar'] as Map<String, dynamic>? ?? {};
             final firebaseMoonPhase = lunarData['moonPhase'] as String?;
@@ -160,13 +160,13 @@ class _MainMenuScreenState extends State<MainMenuScreen>
       if (mounted) {
         setState(() {
           // Ustaw fazę księżyca
-          _currentMoonPhase = moonPhase.isNotEmpty 
-              ? moonPhase 
-              : _calculateSimpleMoonPhase();
-          
+          _currentMoonPhase =
+              moonPhase.isNotEmpty ? moonPhase : _calculateSimpleMoonPhase();
+
           // ✅ Wyświetla jako pojedyncza liczba:
-          _luckyNumbers = luckyNumber > 0 ? [luckyNumber] : [Random().nextInt(99) + 1];
-          
+          _luckyNumbers =
+              luckyNumber > 0 ? [luckyNumber] : [Random().nextInt(99) + 1];
+
           _isLoadingHoroscope = false;
         });
       }
@@ -185,14 +185,15 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   // ✅ HELPER - wyciągnij szczęśliwe liczby z tekstu horoskopu (POPRAWIONE)
   List<int> _extractLuckyNumbersFromText(String text) {
     final numbers = <int>[];
-    
+
     // ✅ NAJPIERW: Szukaj konkretnych fraz o szczęśliwych liczbach
     final luckyNumberPatterns = [
-      RegExp(r'szczęśliw[a-ząęćłńóśźż]*\s+liczb[a-ząęćłńóśźż]*:?\s*(\d{1,2})', caseSensitive: false),
+      RegExp(r'szczęśliw[a-ząęćłńóśźż]*\s+liczb[a-ząęćłńóśźż]*:?\s*(\d{1,2})',
+          caseSensitive: false),
       RegExp(r'liczb[a-ząęćłńóśźż]*:?\s*(\d{1,2})', caseSensitive: false),
       RegExp(r'number:?\s*(\d{1,2})', caseSensitive: false),
     ];
-    
+
     for (final pattern in luckyNumberPatterns) {
       final matches = pattern.allMatches(text);
       for (final match in matches) {
@@ -203,28 +204,30 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         }
       }
     }
-    
+
     // ✅ JEŚLI ZNALEZIONO - zwróć tylko te konkretne
     if (numbers.isNotEmpty) {
       return numbers.take(3).toList();
     }
-    
+
     // ✅ FALLBACK: Jeśli nie ma explicite szczęśliwych liczb, wygeneruj losowe
-    debugPrint('⚠️ Nie znaleziono szczęśliwych liczb w tekście, generuję losowe');
+    debugPrint(
+        '⚠️ Nie znaleziono szczęśliwych liczb w tekście, generuję losowe');
     return _generateRandomLuckyNumbers();
   }
 
   // ✅ HELPER - wygeneruj losowe szczęśliwe liczby (BEZ POWTÓRZEŃ)
   List<int> _generateRandomLuckyNumbers() {
     final random = Random();
-    return [random.nextInt(99) + 1];  // ✅ Tylko jedna liczba
+    return [random.nextInt(99) + 1]; // ✅ Tylko jedna liczba
   }
 
   // ✅ HELPER - prosta kalkulacja fazy księżyca (fallback)
   String _calculateSimpleMoonPhase() {
     final now = DateTime.now();
-    final daysSinceNewMoon = now.difference(DateTime(2000, 1, 6)).inDays % 29.53;
-    
+    final daysSinceNewMoon =
+        now.difference(DateTime(2000, 1, 6)).inDays % 29.53;
+
     if (daysSinceNewMoon < 7.4) return 'Nów Księżyca';
     if (daysSinceNewMoon < 14.8) return 'Pierwsza Kwadra';
     if (daysSinceNewMoon < 22.1) return 'Pełnia';
@@ -304,19 +307,19 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     } catch (e) {
       debugPrint('Error disposing _tabController: $e');
     }
-    
+
     try {
       _pulseController.dispose();
     } catch (e) {
       debugPrint('Error disposing _pulseController: $e');
     }
-    
+
     try {
       _starController.dispose();
     } catch (e) {
       debugPrint('Error disposing _starController: $e');
     }
-    
+
     super.dispose();
   }
 
@@ -374,7 +377,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const Icon(Icons.error_outline, color: Colors.red, size: 48),
               const SizedBox(height: 16),
               Text(
                 'Ups! Coś poszło nie tak',
@@ -404,7 +407,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   backgroundColor: Colors.red,
                   foregroundColor: Colors.white,
                 ),
-                child: Text('Zamknij aplikację'),
+                child: const Text('Zamknij aplikację'),
               ),
             ],
           ),
@@ -469,11 +472,11 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 await _hapticService.trigger(HapticType.light);
                 _showSearchDialog();
               },
-              icon: Icon(Icons.search, color: AppColors.cyan),
+              icon: const Icon(Icons.search, color: AppColors.cyan),
             ),
           ),
           const SizedBox(width: 12),
-          
+
           // App Title
           Expanded(
             child: Text(
@@ -487,9 +490,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               textAlign: TextAlign.center,
             ),
           ),
-          
+
           const SizedBox(width: 12),
-          
+
           // User Menu Button
           Container(
             decoration: BoxDecoration(
@@ -501,7 +504,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 await _hapticService.trigger(HapticType.light);
                 _navigateToUserData();
               },
-              icon: Icon(Icons.account_circle_outlined, color: AppColors.cyan),
+              icon: const Icon(Icons.account_circle_outlined,
+                  color: AppColors.cyan),
             ),
           ),
         ],
@@ -559,7 +563,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   Widget _buildTodayTab() {
     String? zodiacSign;
     String zodiacEmoji = '⭐';
-    
+
     if (_birthDate != null) {
       zodiacSign = getZodiacSign(_birthDate!);
       zodiacEmoji = getZodiacEmoji(zodiacSign);
@@ -572,32 +576,32 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         children: [
           // Welcome Header
           _buildWelcomeCard(),
-          
+
           const SizedBox(height: 16), // Zmniejszone z 20
-          
+
           // Daily Horoscope (Main Feature)
           _buildDailyHoroscope(zodiacSign, zodiacEmoji),
-          
+
           const SizedBox(height: 12), // Zmniejszone z 16
-          
+
           // Tarot Card of the Day
           _buildTarotCardOfDay(),
-          
+
           const SizedBox(height: 12), // Zmniejszone z 16
-          
+
           // Moon Phase
           _buildMoonPhase(),
-          
+
           const SizedBox(height: 12), // Zmniejszone z 16
-          
+
           // Lucky Numbers
           _buildLuckyNumbers(),
-          
+
           const SizedBox(height: 12), // Zmniejszone z 16
-          
+
           // Quick Ritual
           _buildQuickRitual(),
-          
+
           const SizedBox(height: 80), // ✅ Dodaj bottom padding dla tab bar
         ],
       ),
@@ -630,7 +634,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             builder: (context, child) {
               return Transform.scale(
                 scale: _pulseAnimation.value,
-                child: Icon(
+                child: const Icon(
                   Icons.auto_awesome,
                   color: AppColors.cyan,
                   size: 32,
@@ -719,7 +723,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    zodiacSign != null 
+                    zodiacSign != null
                         ? 'Twój znak: $zodiacSign'
                         : 'Sprawdź swoją przepowiednię',
                     style: GoogleFonts.cinzelDecorative(
@@ -755,7 +759,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
   Widget _buildMoonPhase() {
     final moonIcon = _getMoonPhaseEmoji(_currentMoonPhase);
-    
+
     return GestureDetector(
       onTap: () => _showComingSoon('Kalendarz Lunarny'),
       child: Container(
@@ -816,9 +820,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _isLoadingHoroscope 
-                        ? 'Ładowanie...' 
-                        : (_currentMoonPhase.isNotEmpty 
+                    _isLoadingHoroscope
+                        ? 'Ładowanie...'
+                        : (_currentMoonPhase.isNotEmpty
                             ? '$moonIcon $_currentMoonPhase'
                             : 'Sprawdź kalendarz lunar'),
                     style: GoogleFonts.cinzelDecorative(
@@ -880,10 +884,10 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   width: 1,
                 ),
               ),
-              child: Center(
+              child: const Center(
                 child: Text(
                   '🍀',
-                  style: const TextStyle(fontSize: 24),
+                  style: TextStyle(fontSize: 24),
                 ),
               ),
             ),
@@ -902,9 +906,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _isLoadingHoroscope 
-                        ? 'Ładowanie...' 
-                        : (_luckyNumbers.isNotEmpty 
+                    _isLoadingHoroscope
+                        ? 'Ładowanie...'
+                        : (_luckyNumbers.isNotEmpty
                             ? '🍀 ${_luckyNumbers.first}'
                             : 'Sprawdź numerologię'),
                     style: GoogleFonts.cinzelDecorative(
@@ -954,7 +958,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             ),
           ),
           const SizedBox(height: 16), // Zmniejszone z 20
-          
+
           // Grid of features
           GridView.count(
             crossAxisCount: 2,
@@ -1083,7 +1087,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               ),
             ),
             const SizedBox(height: 8), // Zmniejszone z 12
-            Flexible( // ✅ WRAP W FLEXIBLE
+            Flexible(
+              // ✅ WRAP W FLEXIBLE
               child: Text(
                 title,
                 style: GoogleFonts.cinzelDecorative(
@@ -1097,7 +1102,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               ),
             ),
             const SizedBox(height: 2), // Zmniejszone z 4
-            Flexible( // ✅ WRAP W FLEXIBLE
+            Flexible(
+              // ✅ WRAP W FLEXIBLE
               child: Text(
                 subtitle,
                 style: GoogleFonts.cinzelDecorative(
@@ -1113,7 +1119,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             if (!isAvailable) ...[
               const SizedBox(height: 6), // Zmniejszone z 8
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), // Zmniejszone
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 6, vertical: 2), // Zmniejszone
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(6),
                   color: Colors.orange.withOpacity(0.8),
@@ -1150,12 +1157,12 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // Profile info
           _buildProfileInfo(),
-          
+
           const SizedBox(height: 20),
-          
+
           // Profile options
           _buildProfileOption(
             title: 'Moje Dane',
@@ -1164,9 +1171,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             color: Colors.orange,
             onTap: () => _navigateToUserData(),
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           _buildProfileOption(
             title: 'Historia Wróżb',
             subtitle: _fortuneCount > 0
@@ -1177,9 +1184,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             badge: _fortuneCount > 0 ? _fortuneCount.toString() : null,
             onTap: () => _navigateToFortuneHistory(),
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           _buildProfileOption(
             title: 'Moje Rytuały',
             subtitle: 'Personalne praktyki',
@@ -1187,9 +1194,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             color: Colors.teal,
             onTap: () => _showComingSoon('Moje Rytuały'),
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           _buildProfileOption(
             title: 'Kalendarz Lunarny',
             subtitle: 'Nadchodzące wydarzenia',
@@ -1197,9 +1204,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             color: Colors.amber,
             onTap: () => _showComingSoon('Kalendarz Lunarny'),
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           _buildProfileOption(
             title: 'Ustawienia',
             subtitle: 'Preferencje i powiadomienia',
@@ -1215,7 +1222,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   Widget _buildProfileInfo() {
     String? zodiacSign;
     String zodiacEmoji = '⭐';
-    
+
     if (_birthDate != null) {
       zodiacSign = getZodiacSign(_birthDate!);
       zodiacEmoji = getZodiacEmoji(zodiacSign);
@@ -1405,7 +1412,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             ),
           ),
           const SizedBox(height: 20),
-          
           _buildFeatureCard(
             title: 'Zgodność Partnerska',
             subtitle: 'Sprawdź dopasowanie',
@@ -1414,9 +1420,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             isAvailable: false,
             onTap: () => _showComingSoon('Zgodność Partnerska'),
           ),
-          
           const SizedBox(height: 16),
-          
           _buildFeatureCard(
             title: 'Znajomi',
             subtitle: 'Porównaj horoskopy',
@@ -1425,9 +1429,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             isAvailable: false,
             onTap: () => _showComingSoon('Znajomi'),
           ),
-          
           const SizedBox(height: 16),
-          
           _buildFeatureCard(
             title: 'Udostępnij Wróżbę',
             subtitle: 'Podziel się przepowiednią',
@@ -1436,9 +1438,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             isAvailable: false,
             onTap: () => _showComingSoon('Udostępnianie'),
           ),
-          
           const SizedBox(height: 16),
-          
           _buildFeatureCard(
             title: 'Społeczność',
             subtitle: 'Forum i dyskusje',
@@ -1514,9 +1514,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                             ],
                           )
                         : null,
-                    color: isAvailable
-                        ? null
-                        : Colors.grey.withOpacity(0.2),
+                    color: isAvailable ? null : Colors.grey.withOpacity(0.2),
                     border: Border.all(
                       color: isAvailable
                           ? color.withOpacity(0.6)
@@ -1571,7 +1569,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 top: 0,
                 right: 0,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(6),
                     color: Colors.orange.withOpacity(0.8),
@@ -1593,7 +1592,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   }
 
   // ==================== NAVIGATION METHODS ====================
-  
+
   void _navigateToPalmScan() async {
     await _hapticService.trigger(HapticType.success);
     Navigator.of(context).push(
@@ -1754,40 +1753,56 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   }
 
   // ==================== HELPER METHODS ====================
-  
+
   String getZodiacSign(DateTime birthDate) {
     final day = birthDate.day;
     final month = birthDate.month;
-    
+
     if ((month == 1 && day >= 20) || (month == 2 && day <= 18)) return 'Wodnik';
     if ((month == 2 && day >= 19) || (month == 3 && day <= 20)) return 'Ryby';
     if ((month == 3 && day >= 21) || (month == 4 && day <= 19)) return 'Baran';
     if ((month == 4 && day >= 20) || (month == 5 && day <= 20)) return 'Byk';
-    if ((month == 5 && day >= 21) || (month == 6 && day <= 20)) return 'Bliźnięta';
+    if ((month == 5 && day >= 21) || (month == 6 && day <= 20))
+      return 'Bliźnięta';
     if ((month == 6 && day >= 21) || (month == 7 && day <= 22)) return 'Rak';
     if ((month == 7 && day >= 23) || (month == 8 && day <= 22)) return 'Lew';
     if ((month == 8 && day >= 23) || (month == 9 && day <= 22)) return 'Panna';
     if ((month == 9 && day >= 23) || (month == 10 && day <= 22)) return 'Waga';
-    if ((month == 10 && day >= 23) || (month == 11 && day <= 21)) return 'Skorpion';
-    if ((month == 11 && day >= 22) || (month == 12 && day <= 21)) return 'Strzelec';
+    if ((month == 10 && day >= 23) || (month == 11 && day <= 21))
+      return 'Skorpion';
+    if ((month == 11 && day >= 22) || (month == 12 && day <= 21))
+      return 'Strzelec';
     return 'Koziorożec';
   }
 
   String getZodiacEmoji(String zodiacSign) {
     switch (zodiacSign.toLowerCase()) {
-      case 'koziorożec': return '♑';
-      case 'wodnik': return '♒';
-      case 'ryby': return '♓';
-      case 'baran': return '♈';
-      case 'byk': return '♉';
-      case 'bliźnięta': return '♊';
-      case 'rak': return '♋';
-      case 'lew': return '♌';
-      case 'panna': return '♍';
-      case 'waga': return '♎';
-      case 'skorpion': return '♏';
-      case 'strzelec': return '♐';
-      default: return '⭐';
+      case 'koziorożec':
+        return '♑';
+      case 'wodnik':
+        return '♒';
+      case 'ryby':
+        return '♓';
+      case 'baran':
+        return '♈';
+      case 'byk':
+        return '♉';
+      case 'bliźnięta':
+        return '♊';
+      case 'rak':
+        return '♋';
+      case 'lew':
+        return '♌';
+      case 'panna':
+        return '♍';
+      case 'waga':
+        return '♎';
+      case 'skorpion':
+        return '♏';
+      case 'strzelec':
+        return '♐';
+      default:
+        return '⭐';
     }
   }
 
@@ -1800,7 +1815,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
+            gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
@@ -1809,12 +1824,13 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               ],
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.cyan.withOpacity(0.5), width: 1),
+            border:
+                Border.all(color: AppColors.cyan.withOpacity(0.5), width: 1),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.search, color: AppColors.cyan, size: 48),
+              const Icon(Icons.search, color: AppColors.cyan, size: 48),
               const SizedBox(height: 16),
               Text(
                 'Wyszukiwanie - Wkrótce',
@@ -1859,7 +1875,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
+            gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
@@ -1880,7 +1896,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.auto_awesome, color: Colors.orange, size: 48),
+              const Icon(Icons.auto_awesome, color: Colors.orange, size: 48),
               const SizedBox(height: 16),
               Text(
                 '$featureName - Wkrótce',
@@ -1949,9 +1965,14 @@ class MenuBackgroundPainter extends CustomPainter {
         final x = centerX + radius * math.cos(angle * 0.4);
         final y = centerY + radius * math.sin(angle * 0.3);
 
-        if (x >= -30 && x <= size.width + 30 && y >= -30 && y <= size.height + 30) {
-          final orbSize = 1.2 + math.sin(animationValue * 2 * math.pi + i) * 0.6;
-          final opacity = 0.08 + math.sin(animationValue * 3 * math.pi + i * 0.5) * 0.04;
+        if (x >= -30 &&
+            x <= size.width + 30 &&
+            y >= -30 &&
+            y <= size.height + 30) {
+          final orbSize =
+              1.2 + math.sin(animationValue * 2 * math.pi + i) * 0.6;
+          final opacity =
+              0.08 + math.sin(animationValue * 3 * math.pi + i * 0.5) * 0.04;
 
           if (orbSize > 0) {
             paint.color = AppColors.cyan.withOpacity(opacity.clamp(0.02, 0.12));
@@ -1968,7 +1989,7 @@ class MenuBackgroundPainter extends CustomPainter {
 
       if (size.width > 100 && size.height > 100) {
         canvas.drawArc(
-          Rect.fromLTWH(20, 20, 30, 30),
+          const Rect.fromLTWH(20, 20, 30, 30),
           -math.pi,
           math.pi / 2,
           false,

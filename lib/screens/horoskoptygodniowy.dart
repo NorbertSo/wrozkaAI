@@ -1,8 +1,3 @@
-// lib/screens/horoskoptygodniowy.dart
-// 📅 NAPRAWIONY EKRAN HOROSKOPU TYGODNIOWEGO
-// ✅ Rozwiązane problemy: UI overflow, locale initialization, poprawne pobieranie danych
-// Zgodny z wytycznymi projektu AI Wróżka
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
@@ -10,11 +5,9 @@ import 'package:lottie/lottie.dart';
 import '../utils/constants.dart';
 import '../services/haptic_service.dart';
 import '../services/horoscope_service.dart';
-import '../services/logging_service.dart';
 import '../models/horoscope_data.dart';
 import '../widgets/haptic_button.dart';
 import 'package:intl/intl.dart';
-import 'package:intl/date_symbol_data_local.dart';
 
 class HoroskopTygodniowyScreen extends StatefulWidget {
   final String userName;
@@ -37,18 +30,12 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
-  
-  // ✅ Zgodnie z wytycznymi
   final HapticService _hapticService = HapticService();
   final HoroscopeService _horoscopeService = HoroscopeService();
-  final LoggingService _logger = LoggingService();
-  
-  // Stan ekranu
-  HoroscopeData? _weeklyHoroscope;
+  List<HoroscopeData> _weeklyHoroscopes = [];
   bool _isLoading = true;
-  bool _hasError = false;
 
-  // Daty dla horoskopu tygodniowego
+  // Dates for the weekly horoscope
   late DateTime _startDate;
   late DateTime _endDate;
   late DateTime _creationDate;
@@ -57,13 +44,6 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
   @override
   void initState() {
     super.initState();
-    
-    // ✅ NAPRAWKA: Inicjalizacja lokalizacji
-    _initializeLocale();
-    
-    _logger.logToConsole('Inicjalizacja HoroskopTygodniowyScreen dla ${widget.zodiacSign}',
-        tag: 'WEEKLY_HOROSCOPE');
-
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 10),
@@ -79,128 +59,54 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
       ),
     );
 
-    // Oblicz daty
+    // Calculate the dates
     _calculateDates();
 
-    // Załaduj dane tygodniowe
+    // Initialize weekly data
     _initializeWeeklyData();
   }
 
-  /// ✅ NAPRAWKA: Bezpieczna inicjalizacja lokalizacji
-  Future<void> _initializeLocale() async {
-    try {
-      await initializeDateFormatting('pl_PL');
-    } catch (e) {
-      _logger.logToConsole('⚠️ Błąd inicjalizacji lokalizacji: $e', tag: 'WEEKLY_HOROSCOPE');
-      // Kontynuuj bez polskiej lokalizacji
+  Future<void> _initializeWeeklyData() async {
+    await _horoscopeService.initialize();
+
+    // Załaduj horoskopy na każdy dzień tygodnia
+    for (int i = 0; i < 7; i++) {
+      final date = _startDate.add(Duration(days: i));
+      final horoscope = await _horoscopeService.getDailyHoroscope(
+          _getZodiacSignFromName(widget.zodiacSign),
+          date: date);
+      if (horoscope != null) {
+        _weeklyHoroscopes.add(horoscope);
+      }
     }
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  void _calculateDates() {
+    final now = DateTime.now();
+
+    // Find the current week's Monday
+    final int weekday = now.weekday;
+    final DateTime monday = now.subtract(Duration(days: weekday - 1));
+
+    // Set start date (Monday) and end date (Sunday)
+    _startDate = DateTime(monday.year, monday.month, monday.day);
+    _endDate = _startDate.add(const Duration(days: 6));
+
+    // Creation date is last Monday
+    _creationDate = _startDate;
+
+    // Next update is next Monday
+    _nextUpdateDate = _startDate.add(const Duration(days: 7));
   }
 
   @override
   void dispose() {
     _animationController.dispose();
     super.dispose();
-  }
-
-  /// 🗓️ Oblicz daty tygodnia
-  void _calculateDates() {
-    final now = DateTime.now();
-
-    // Znajdź poniedziałek tego tygodnia
-    final int weekday = now.weekday;
-    final DateTime monday = now.subtract(Duration(days: weekday - 1));
-
-    // Ustaw datę rozpoczęcia (poniedziałek) i zakończenia (niedziela)
-    _startDate = DateTime(monday.year, monday.month, monday.day);
-    _endDate = _startDate.add(const Duration(days: 6));
-
-    // Data utworzenia to poniedziałek
-    _creationDate = _startDate;
-
-    // Następna aktualizacja to kolejny poniedziałek
-    _nextUpdateDate = _startDate.add(const Duration(days: 7));
-
-    _logger.logToConsole(
-        'Obliczono daty tygodnia: ${DateFormat('yyyy-MM-dd').format(_startDate)} - ${DateFormat('yyyy-MM-dd').format(_endDate)}',
-        tag: 'WEEKLY_HOROSCOPE');
-  }
-
-  /// 🚀 Załaduj dane tygodniowe
-  Future<void> _initializeWeeklyData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _hasError = false;
-      });
-
-      _logger.logToConsole('Inicjalizacja serwisu horoskopów...', tag: 'WEEKLY_HOROSCOPE');
-      
-      final initialized = await _horoscopeService.initialize();
-      if (!initialized) {
-        throw Exception('Nie udało się zainicjalizować serwisu horoskopów');
-      }
-
-      // ✅ POPRAWNIE: Używamy getWeeklyHoroscope
-      final zodiacSignEn = _getZodiacSignFromName(widget.zodiacSign);
-      _logger.logToConsole('Pobieranie horoskopu tygodniowego dla: $zodiacSignEn', 
-          tag: 'WEEKLY_HOROSCOPE');
-
-      final horoscope = await _horoscopeService.getWeeklyHoroscope(
-        zodiacSignEn,
-        date: _startDate,
-      );
-
-      if (mounted) {
-        setState(() {
-          _weeklyHoroscope = horoscope;
-          _isLoading = false;
-          _hasError = horoscope == null;
-        });
-
-        if (horoscope != null) {
-          _logger.logToConsole('✅ Pomyślnie załadowano horoskop tygodniowy', 
-              tag: 'WEEKLY_HOROSCOPE');
-        } else {
-          _logger.logToConsole('⚠️ Nie udało się załadować horoskopu tygodniowego', 
-              tag: 'WEEKLY_HOROSCOPE');
-        }
-      }
-    } catch (e) {
-      _logger.logToConsole('❌ Błąd inicjalizacji danych tygodniowych: $e', 
-          tag: 'ERROR');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _hasError = true;
-        });
-      }
-    }
-  }
-
-  /// 🔄 Odśwież horoskop
-  Future<void> _refreshHoroscope() async {
-    await _hapticService.trigger(HapticType.light);
-    await _initializeWeeklyData();
-  }
-
-  /// 🔧 Konwertuj nazwę znaku z polskiego na angielski
-  String _getZodiacSignFromName(String polishName) {
-    final mapping = {
-      'BARAN': 'aries',
-      'BYK': 'taurus',
-      'BLIŹNIĘTA': 'gemini',
-      'RAK': 'cancer',
-      'LEW': 'leo',
-      'PANNA': 'virgo',
-      'WAGA': 'libra',
-      'SKORPION': 'scorpio',
-      'STRZELEC': 'sagittarius',
-      'KOZIOROŻEC': 'capricorn',
-      'WODNIK': 'aquarius',
-      'RYBY': 'pisces',
-    };
-
-    return mapping[polishName.toUpperCase()] ?? 'aries';
   }
 
   @override
@@ -219,8 +125,8 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
           ),
         ),
         centerTitle: true,
-        leading: HapticIconButton(
-          icon: Icons.arrow_back_ios_new,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.cyan),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -233,130 +139,44 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
 
           // Content
           SafeArea(
-            child: _buildContent(),
-          ),
-        ],
-      ),
-    );
-  }
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 16),
 
-  Widget _buildContent() {
-    if (_isLoading) {
-      return _buildLoadingState();
-    }
-    
-    if (_hasError || _weeklyHoroscope == null) {
-      return _buildErrorState();
-    }
+                    // Zodiac Header
+                    _buildZodiacHeader(),
 
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 16),
+                    const SizedBox(height: 30),
 
-            // Zodiac Header
-            _buildZodiacHeader(),
+                    // Weekly Preview (Free content)
+                    _buildWeeklyPreview(),
 
-            const SizedBox(height: 30),
+                    const SizedBox(height: 30),
 
-            // Weekly Horoscope Content
-            _buildWeeklyContent(),
+                    // Lunar Calendar for the week (replaces date info)
+                    _buildWeeklyLunarCalendar(),
 
-            const SizedBox(height: 30),
+                    const SizedBox(height: 40),
 
-            // Lunar Calendar for the week
-            _buildWeeklyLunarCalendar(),
+                    // Premium Button
+                    _buildPremiumButton(
+                      title: 'Sprawdź Co Szepczą Tylko Do Ciebie',
+                      color: Colors.amber,
+                      icon: Icons.visibility,
+                      onTap: () => _showPremiumDialog('personalny'),
+                    ),
 
-            const SizedBox(height: 40),
-
-            // Premium Button
-            _buildPremiumButton(
-              title: 'Sprawdź Co Szepczą Tylko Do Ciebie',
-              color: Colors.amber,
-              icon: Icons.visibility,
-              onTap: () => _showPremiumDialog('personalny'),
-            ),
-
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 🔄 Stan ładowania
-  Widget _buildLoadingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 120,
-            height: 120,
-            child: Lottie.asset(
-              'assets/lottie/crystal_ball.json',
-              repeat: true,
-              errorBuilder: (context, error, stackTrace) {
-                return CircularProgressIndicator(color: AppColors.cyan);
-              },
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Konsultuję się z gwiazdami...',
-            style: GoogleFonts.cinzelDecorative(
-              fontSize: 16,
-              color: Colors.white70,
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  /// ❌ Stan błędu
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              color: Colors.orange,
-              size: 64,
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Gwiazdy są dziś niekomunikatywne...',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 18,
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Spróbuj ponownie za chwilę',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 14,
-                color: Colors.white70,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            HapticButton(
-              text: 'Spróbuj ponownie',
-              hapticType: HapticType.light,
-              onPressed: _refreshHoroscope,
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -379,28 +199,16 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
           ),
         ),
 
-        // ✅ NAPRAWKA: Bezpieczne ładowanie animacji Lottie
-        _buildLottieAnimation(),
+        // Stars animation
+        Opacity(
+          opacity: 0.7,
+          child: Lottie.asset(
+            'assets/animations/star_bg.json',
+            fit: BoxFit.cover,
+          ),
+        ),
       ],
     );
-  }
-
-  /// ✅ NOWA METODA: Bezpieczne ładowanie animacji
-  Widget _buildLottieAnimation() {
-    try {
-      return Opacity(
-        opacity: 0.7,
-        child: Lottie.asset(
-          'assets/animations/star_bg.json',
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Container(); // Fallback gdy brak animacji
-          },
-        ),
-      );
-    } catch (e) {
-      return Container(); // Fallback gdy brak animacji
-    }
   }
 
   Widget _buildZodiacHeader() {
@@ -450,7 +258,9 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                   child: Center(
                     child: Text(
                       widget.zodiacEmoji,
-                      style: const TextStyle(fontSize: 40),
+                      style: const TextStyle(
+                        fontSize: 40,
+                      ),
                     ),
                   ),
                 ),
@@ -460,8 +270,8 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
 
           const SizedBox(width: 20),
 
-          // ✅ NAPRAWKA: Flexible zapobiega overflow
-          Flexible(
+          // Zodiac sign and week info
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -471,8 +281,6 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                     fontSize: 14,
                     color: Colors.white70,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -482,8 +290,6 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                     color: AppColors.cyan,
                     fontWeight: FontWeight.w600,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -493,8 +299,6 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
                 ),
               ],
             ),
@@ -504,78 +308,52 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
     );
   }
 
-  /// 🔮 Główny horoskop tygodniowy
-  Widget _buildWeeklyContent() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: Colors.black.withOpacity(0.5),
-        border: Border.all(
-          color: Colors.purple.withOpacity(0.3),
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ✅ NAPRAWKA: Wrap Row in Flexible to prevent overflow
-          Row(
-            children: [
-              Icon(
-                Icons.calendar_view_week,
-                color: Colors.purple,
-                size: 24,
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  'Horoskop tygodniowy',
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 20,
-                    color: Colors.purple,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _weeklyHoroscope?.text ?? _getWeeklyHoroscopePreview(),
-            style: AppTextStyles.fortuneText.copyWith(
-              fontSize: 16,
-              color: Colors.white,
-              height: 1.8,
+  Widget _buildWeeklyPreview() {
+    return GestureDetector(
+      onTap: () {
+        // Navigate to the detailed weekly horoscope screen
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => DetailedWeeklyHoroscopeScreen(
+              zodiacSign: widget.zodiacSign,
+              startDate: _startDate,
+              endDate: _endDate,
             ),
           ),
-          const SizedBox(height: 16),
-          
-          // ✅ NAPRAWKA: Bezpieczne formatowanie daty
-          _buildUpdateInfo(),
-        ],
-      ),
-    );
-  }
-
-  /// ✅ NAPRAWKA: Bezpieczne formatowanie daty
-  Widget _buildUpdateInfo() {
-    String nextUpdateText;
-    try {
-      nextUpdateText = DateFormat('d MMMM yyyy', 'pl_PL').format(_nextUpdateDate);
-    } catch (e) {
-      // Fallback bez polskiej lokalizacji
-      nextUpdateText = DateFormat('d MMMM yyyy').format(_nextUpdateDate);
-    }
-
-    return Text(
-      'Następna aktualizacja: $nextUpdateText',
-      style: GoogleFonts.cinzelDecorative(
-        fontSize: 12,
-        color: Colors.white60,
-        fontStyle: FontStyle.italic,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: Colors.black.withOpacity(0.5),
+          border: Border.all(
+            color: Colors.purple.withOpacity(0.3),
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Horoskop tygodniowy',
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 20,
+                color: Colors.purple,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _getWeeklyHoroscopePreview(),
+              style: AppTextStyles.fortuneText.copyWith(
+                fontSize: 16,
+                color: Colors.white,
+                height: 1.8,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -591,11 +369,86 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Premium button for extended horoscope
-        _buildPremiumButton(
-          title: 'Sprawdź Rozbudowany Horoskop',
-          color: Colors.deepPurple,
-          icon: Icons.auto_awesome,
-          onTap: () => _showPremiumDialog('rozbudowany'),
+        GestureDetector(
+          onTap: () async {
+            await _hapticService.trigger(HapticType.light);
+            _showPremiumDialog('rozbudowany');
+          },
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.deepPurple.withOpacity(0.3),
+                  Colors.deepPurple.withOpacity(0.1),
+                ],
+              ),
+              border: Border.all(
+                color: Colors.deepPurple.withOpacity(0.4),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.deepPurple.withOpacity(0.1),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.deepPurple.withOpacity(0.2),
+                    border: Border.all(
+                      color: Colors.deepPurple.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome,
+                    color: Colors.deepPurple,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Sprawdź Rozbudowany Horoskop',
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 16,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Funkcja premium',
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 12,
+                          color: Colors.deepPurple.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.lock_outline,
+                  color: Colors.deepPurple.withOpacity(0.7),
+                  size: 22,
+                ),
+              ],
+            ),
+          ),
         ),
 
         const SizedBox(height: 24),
@@ -637,8 +490,19 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                 ),
               ),
               const SizedBox(height: 16),
-              
-              // Current moon phase description
+              // Days of the week with moon phases
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: weekDays.map((day) {
+                    final moonPhase = _getMoonPhaseForDay(day);
+                    return _buildDayMoonPhase(day, moonPhase);
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Current moon phase description - shortened to 3-4 sentences
               Text(
                 'Aktualna faza: ${_getCurrentMoonPhase()}',
                 style: GoogleFonts.cinzelDecorative(
@@ -698,7 +562,9 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
             child: Center(
               child: Text(
                 _getMoonPhaseEmoji(moonPhase),
-                style: const TextStyle(fontSize: 24),
+                style: const TextStyle(
+                  fontSize: 24,
+                ),
               ),
             ),
           ),
@@ -719,19 +585,28 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
 
   String _getDayName(int weekday) {
     switch (weekday) {
-      case 1: return 'Pon';
-      case 2: return 'Wt';
-      case 3: return 'Śr';
-      case 4: return 'Czw';
-      case 5: return 'Pt';
-      case 6: return 'Sob';
-      case 7: return 'Nd';
-      default: return '';
+      case 1:
+        return 'Pon';
+      case 2:
+        return 'Wt';
+      case 3:
+        return 'Śr';
+      case 4:
+        return 'Czw';
+      case 5:
+        return 'Pt';
+      case 6:
+        return 'Sob';
+      case 7:
+        return 'Nd';
+      default:
+        return '';
     }
   }
 
   String _getMoonPhaseForDay(DateTime day) {
-    // Uproszczony algorytm faz księżyca
+    // In a real app, you would calculate the actual moon phase for each day
+    // For this example, we'll use a simplified approach based on the day of the month
     final int moonCycle = (day.day % 28);
 
     if (moonCycle < 2) return 'Nów';
@@ -745,24 +620,42 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
   }
 
   String _getCurrentMoonPhase() {
+    // In a real app, this would be calculated based on current date
+    // For now, just return a random phase for demonstration
     final phases = [
-      'Nów', 'Przybywający sierp', 'Pierwsza kwadra', 'Przybywający garb',
-      'Pełnia', 'Ubywający garb', 'Ostatnia kwadra', 'Ubywający sierp'
+      'Nów',
+      'Przybywający sierp',
+      'Pierwsza kwadra',
+      'Przybywający garb',
+      'Pełnia',
+      'Ubywający garb',
+      'Ostatnia kwadra',
+      'Ubywający sierp'
     ];
+
     return phases[DateTime.now().day % phases.length];
   }
 
   String _getMoonPhaseEmoji(String phase) {
     switch (phase) {
-      case 'Nów': return '🌑';
-      case 'Przybywający sierp': return '🌒';
-      case 'Pierwsza kwadra': return '🌓';
-      case 'Przybywający garb': return '🌔';
-      case 'Pełnia': return '🌕';
-      case 'Ubywający garb': return '🌖';
-      case 'Ostatnia kwadra': return '🌗';
-      case 'Ubywający sierp': return '🌘';
-      default: return '🌙';
+      case 'Nów':
+        return '🌑';
+      case 'Przybywający sierp':
+        return '🌒';
+      case 'Pierwsza kwadra':
+        return '🌓';
+      case 'Przybywający garb':
+        return '🌔';
+      case 'Pełnia':
+        return '🌕';
+      case 'Ubywający garb':
+        return '🌖';
+      case 'Ostatnia kwadra':
+        return '🌗';
+      case 'Ubywający sierp':
+        return '🌘';
+      default:
+        return '🌙';
     }
   }
 
@@ -821,9 +714,7 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
               ),
             ),
             const SizedBox(width: 16),
-            
-            // ✅ NAPRAWKA: Flexible zamiast Expanded dla lepszej kontroli
-            Flexible(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -834,8 +725,6 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                       color: Colors.white,
                       fontWeight: FontWeight.w500,
                     ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 2,
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -844,15 +733,10 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
                       fontSize: 12,
                       color: color.withOpacity(0.7),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
                   ),
                 ],
               ),
             ),
-            
-            const SizedBox(width: 8),
-            
             Icon(
               Icons.lock_outline,
               color: color.withOpacity(0.7),
@@ -925,10 +809,29 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                child: HapticButton(
-                  text: 'Rozumiem',
-                  hapticType: HapticType.light,
-                  onPressed: () => Navigator.of(context).pop(),
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber.withOpacity(0.2),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                      side: BorderSide(
+                        color: Colors.amber.withOpacity(0.6),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    'Rozumiem',
+                    style: GoogleFonts.cinzelDecorative(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -970,6 +873,7 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
     }
   }
 
+  // Add the missing method to the _HoroskopTygodniowyScreenState class
   String _getLunarCalendarShortDescription(String phase) {
     switch (phase) {
       case 'Nów':
@@ -993,36 +897,26 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
     }
   }
 
-  // ✅ DODAJ BRAKUJĄCĄ METODĘ: Helper method to get zodiac emoji
-  String _getZodiacEmoji(String sign) {
-    switch (sign.toLowerCase()) {
-      case 'koziorożec':
-        return '♑';
-      case 'wodnik':
-        return '♒';
-      case 'ryby':
-        return '♓';
-      case 'baran':
-        return '♈';
-      case 'byk':
-        return '♉';
-      case 'bliźnięta':
-        return '♊';
-      case 'rak':
-        return '♋';
-      case 'lew':
-        return '♌';
-      case 'panna':
-        return '♍';
-      case 'waga':
-        return '♎';
-      case 'skorpion':
-        return '♏';
-      case 'strzelec':
-        return '♐';
-      default:
-        return '⭐';
-    }
+  // Helper method to get zodiac sign from name
+  String _getZodiacSignFromName(String name) {
+    // Mapping of zodiac sign names to their corresponding symbols
+    const zodiacSigns = {
+      'koziorożec': '♑',
+      'wodnik': '♒',
+      'ryby': '♓',
+      'baran': '♈',
+      'byk': '♉',
+      'bliźnięta': '♊',
+      'rak': '♋',
+      'lew': '♌',
+      'panna': '♍',
+      'waga': '♎',
+      'skorpion': '♏',
+      'strzelec': '♐',
+    };
+
+    return zodiacSigns[name.toLowerCase()] ??
+        '♑'; // Default to Capricorn if not found
   }
 }
 
@@ -1103,8 +997,9 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
 
             // Navigation buttons
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Flexible(
+                Expanded(
                   child: ElevatedButton(
                     onPressed: () {
                       // Navigate to the previous week
@@ -1130,16 +1025,14 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
                     child: Text(
                       'Poprzedni Tydzień',
                       style: GoogleFonts.cinzelDecorative(
-                        fontSize: 14,
+                        fontSize: 16,
                         fontWeight: FontWeight.w500,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
                     ),
                   ),
                 ),
                 const SizedBox(width: 16),
-                Flexible(
+                Expanded(
                   child: ElevatedButton(
                     onPressed: () {
                       // Navigate to the next week
@@ -1164,11 +1057,9 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
                     child: Text(
                       'Następny Tydzień',
                       style: GoogleFonts.cinzelDecorative(
-                        fontSize: 14,
+                        fontSize: 16,
                         fontWeight: FontWeight.w500,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
                     ),
                   ),
                 ),
@@ -1234,8 +1125,8 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
 
           const SizedBox(width: 20),
 
-          // ✅ NAPRAWKA: Flexible zamiast Expanded
-          Flexible(
+          // Zodiac sign and date range
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1245,8 +1136,6 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
                     fontSize: 14,
                     color: Colors.white70,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -1256,8 +1145,6 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
                     color: AppColors.cyan,
                     fontWeight: FontWeight.w600,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -1267,8 +1154,6 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
                 ),
               ],
             ),

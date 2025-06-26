@@ -5,7 +5,6 @@ import 'package:lottie/lottie.dart';
 import '../utils/constants.dart';
 import '../services/haptic_service.dart';
 import '../services/horoscope_service.dart';
-import '../services/logging_service.dart';
 import '../models/horoscope_data.dart';
 import '../widgets/haptic_button.dart';
 import 'package:intl/intl.dart';
@@ -34,12 +33,8 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
   late Animation<double> _scaleAnimation;
   final HapticService _hapticService = HapticService();
   final HoroscopeService _horoscopeService = HoroscopeService();
-  final LoggingService _logger = LoggingService();
-  
-  // ✅ POPRAWKA: Używamy pojedynczy horoskop miesięczny zamiast listy dziennych
-  HoroscopeData? _monthlyHoroscope;
+  List<HoroscopeData> _monthlyHoroscopes = [];
   bool _isLoading = true;
-  bool _hasError = false;
 
   // Dates for the monthly horoscope
   late DateTime _startDate;
@@ -51,8 +46,8 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
   void initState() {
     super.initState();
 
-    // ✅ NAPRAWKA: Inicjalizacja lokalizacji
-    _initializeLocale();
+    // Initialize date formatting for Polish locale
+    initializeDateFormatting('pl_PL', null);
 
     _animationController = AnimationController(
       vsync: this,
@@ -72,18 +67,8 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
     // Calculate the dates
     _calculateDates();
 
-    // ✅ POPRAWKA: Inicjalizuj miesięczne dane
+    // Initialize monthly data
     _initializeMonthlyData();
-  }
-
-  /// ✅ NAPRAWKA: Bezpieczna inicjalizacja lokalizacji
-  Future<void> _initializeLocale() async {
-    try {
-      await initializeDateFormatting('pl_PL');
-    } catch (e) {
-      _logger.logToConsole('⚠️ Błąd inicjalizacji lokalizacji: $e', tag: 'MONTHLY_HOROSCOPE');
-      // Kontynuuj bez polskiej lokalizacji
-    }
   }
 
   void _calculateDates() {
@@ -102,70 +87,31 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
     _nextUpdateDate = DateTime(now.year, now.month + 1, 1);
   }
 
-  // ✅ POPRAWKA: Używaj getMonthlyHoroscope zamiast pobierania dziennych
   Future<void> _initializeMonthlyData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _hasError = false;
-      });
+    await _horoscopeService.initialize();
 
-      _logger.logToConsole('Inicjalizacja horoskopu miesięcznego dla ${widget.zodiacSign}', 
-          tag: 'MONTHLY_HOROSCOPE');
-
-      await _horoscopeService.initialize();
-
-      // ✅ POPRAWKA: Pobierz horoskop miesięczny
-      final fetchedHoroscope = await _horoscopeService.getMonthlyHoroscope(
-        _getZodiacSignFromName(widget.zodiacSign),
-        date: _startDate,
-      );
-
-      if (mounted) {
-        setState(() {
-          _monthlyHoroscope = fetchedHoroscope;
-          _isLoading = false;
-          _hasError = fetchedHoroscope == null;
-        });
-
-        if (fetchedHoroscope != null) {
-          _logger.logToConsole('✅ Pomyślnie załadowano horoskop miesięczny', 
-              tag: 'MONTHLY_HOROSCOPE');
-        } else {
-          _logger.logToConsole('⚠️ Nie udało się załadować horoskopu miesięcznego', 
-              tag: 'MONTHLY_HOROSCOPE');
-        }
-      }
-    } catch (e) {
-      _logger.logToConsole('❌ Błąd inicjalizacji danych miesięcznych: $e', 
-          tag: 'ERROR');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _hasError = true;
-        });
+    // Załaduj horoskopy na każdy dzień miesiąca
+    final daysInMonth = _endDate.day;
+    for (int i = 0; i < daysInMonth; i++) {
+      final date = DateTime(_startDate.year, _startDate.month, i + 1);
+      final horoscope = await _horoscopeService.getDailyHoroscope(
+          _getZodiacSignFromName(widget.zodiacSign),
+          date: date);
+      if (horoscope != null) {
+        _monthlyHoroscopes.add(horoscope);
       }
     }
+
+    setState(() {
+      _isLoading = false;
+    });
   }
 
-  // ✅ POPRAWKA: Konwertuj polską nazwę znaku na kod
+  // Helper method to convert zodiac sign name to enum or code
   String _getZodiacSignFromName(String name) {
-    final Map<String, String> zodiacMap = {
-      'koziorożec': 'capricorn',
-      'wodnik': 'aquarius',
-      'ryby': 'pisces',
-      'baran': 'aries',
-      'byk': 'taurus',
-      'bliźnięta': 'gemini',
-      'rak': 'cancer',
-      'lew': 'leo',
-      'panna': 'virgo',
-      'waga': 'libra',
-      'skorpion': 'scorpio',
-      'strzelec': 'sagittarius',
-    };
-    
-    return zodiacMap[name.toLowerCase()] ?? name.toLowerCase();
+    // This would depend on how your HoroscopeService is implemented
+    // Here's a simple implementation that assumes the service accepts the Polish names
+    return name.toLowerCase();
   }
 
   @override
@@ -192,10 +138,7 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.cyan),
-          onPressed: () async {
-            await _hapticService.trigger(HapticType.light);
-            Navigator.of(context).pop();
-          },
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: Stack(
@@ -207,121 +150,44 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
 
           // Content
           SafeArea(
-            child: _buildContent(),
-          ),
-        ],
-      ),
-    );
-  }
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 16),
 
-  // ✅ POPRAWKA: Obsługa różnych stanów
-  Widget _buildContent() {
-    if (_isLoading) {
-      return _buildLoadingState();
-    }
-    
-    if (_hasError || _monthlyHoroscope == null) {
-      return _buildErrorState();
-    }
+                    // Zodiac Header
+                    _buildZodiacHeader(),
 
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 16),
+                    const SizedBox(height: 30),
 
-            // Zodiac Header
-            _buildZodiacHeader(),
+                    // Monthly Preview (Free content)
+                    _buildMonthlyPreview(),
 
-            const SizedBox(height: 30),
+                    const SizedBox(height: 30),
 
-            // Monthly Horoscope Content
-            _buildMonthlyContent(),
+                    // Lunar Calendar for the month (replaces date info)
+                    _buildMonthlyLunarCalendar(),
 
-            const SizedBox(height: 30),
+                    const SizedBox(height: 40),
 
-            // Lunar Calendar for the month
-            _buildMonthlyLunarCalendar(),
+                    // Premium Button
+                    _buildPremiumButton(
+                      title: 'Sprawdź Co Szepczą Tylko Do Ciebie',
+                      color: Colors.amber,
+                      icon: Icons.visibility,
+                      onTap: () => _showPremiumDialog('personalny'),
+                    ),
 
-            const SizedBox(height: 40),
-
-            // Premium Button
-            _buildPremiumButton(
-              title: 'Sprawdź Co Szepczą Tylko Do Ciebie',
-              color: Colors.amber,
-              icon: Icons.visibility,
-              onTap: () => _showPremiumDialog('personalny'),
-            ),
-
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ✅ NOWY: Stan ładowania
-  Widget _buildLoadingState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(color: AppColors.cyan),
-          const SizedBox(height: 20),
-          Text(
-            'Przywołuję mądrość gwiazd...',
-            style: GoogleFonts.cinzelDecorative(
-              fontSize: 16,
-              color: Colors.white70,
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // ✅ NOWY: Stan błędu
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              color: Colors.orange,
-              size: 64,
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Gwiazdy są dziś nieczytelne...',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 18,
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Spróbuj ponownie za chwilę',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 14,
-                color: Colors.white70,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            HapticButton(
-              text: 'Spróbuj ponownie',
-              hapticType: HapticType.light,
-              onPressed: _initializeMonthlyData,
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -426,8 +292,8 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
 
           const SizedBox(width: 20),
 
-          // ✅ NAPRAWKA: Flexible zapobiega overflow
-          Flexible(
+          // Zodiac sign and month info
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -437,8 +303,6 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
                     fontSize: 14,
                     color: Colors.white70,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -448,8 +312,6 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
                     color: AppColors.cyan,
                     fontWeight: FontWeight.w600,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -459,8 +321,6 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
                 ),
               ],
             ),
@@ -470,77 +330,52 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
     );
   }
 
-  // ✅ POPRAWKA: Wyświetlaj rzeczywisty horoskop miesięczny
-  Widget _buildMonthlyContent() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: Colors.black.withOpacity(0.5),
-        border: Border.all(
-          color: Colors.purple.withOpacity(0.3),
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ✅ NAPRAWKA: Wrap Row to prevent overflow
-          Row(
-            children: [
-              Icon(
-                Icons.auto_awesome,
-                color: Colors.purple,
-                size: 24,
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  'Horoskop miesięczny',
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 20,
-                    color: Colors.purple,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _monthlyHoroscope?.text ?? _getMonthlyHoroscopePreview(),
-            style: AppTextStyles.fortuneText.copyWith(
-              fontSize: 16,
-              color: Colors.white,
-              height: 1.8,
+  Widget _buildMonthlyPreview() {
+    return GestureDetector(
+      onTap: () {
+        // Navigate to the detailed monthly horoscope screen
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => DetailedMonthlyHoroscopeScreen(
+              zodiacSign: widget.zodiacSign,
+              startDate: _startDate,
+              endDate: _endDate,
             ),
           ),
-          const SizedBox(height: 16),
-          // Info o aktualizacji
-          _buildUpdateInfo(),
-        ],
-      ),
-    );
-  }
-
-  /// ✅ NAPRAWKA: Bezpieczne formatowanie daty
-  Widget _buildUpdateInfo() {
-    String nextUpdateText;
-    try {
-      nextUpdateText = DateFormat('d MMMM yyyy', 'pl_PL').format(_nextUpdateDate);
-    } catch (e) {
-      // Fallback bez polskiej lokalizacji
-      nextUpdateText = DateFormat('d MMMM yyyy').format(_nextUpdateDate);
-    }
-
-    return Text(
-      'Następna aktualizacja: $nextUpdateText',
-      style: GoogleFonts.cinzelDecorative(
-        fontSize: 12,
-        color: Colors.white60,
-        fontStyle: FontStyle.italic,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: Colors.black.withOpacity(0.5),
+          border: Border.all(
+            color: Colors.purple.withOpacity(0.3),
+            width: 1.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Horoskop miesięczny',
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 20,
+                color: Colors.purple,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _getMonthlyHoroscopePreview(),
+              style: AppTextStyles.fortuneText.copyWith(
+                fontSize: 16,
+                color: Colors.white,
+                height: 1.8,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1025,21 +860,21 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
     // Return different content based on zodiac sign - longer, 5-6 sentences
     switch (widget.zodiacSign.toLowerCase()) {
       case 'koziorożec':
-        return 'Ten miesiąc przyniesie znaczące możliwości rozwoju w sferze zawodowej. Twoja ambicja i wytrwałość zostaną dostrzeżone przez przełożonych, co może skutkować awansem lub podwyżką. W drugiej połowie miesiąca skupisz się na stabilizacji finansowej i długoterminowych inwestycjach. W relacjach osobistych czeka Cię okres spokoju i harmonii, choć pewna osoba z przeszłości może nieoczekiwanie wrócić do Twojego życia. Zadbaj o zdrowie, szczególnie o układ odpornościowy.';
+        return 'Ten miesiąc przyniesie znaczące możliwości rozwoju w sferze zawodowej. Twoja ambicja i wytrwałość zostaną dostrzeżone przez przełożonych, co może skutkować awansem lub podwyżką. W drugiej połowie miesiąca skupisz się na stabilizacji finansowej i długoterminowych inwestycjach. W relacjach osobistych czeka Cię okres spokoju i harmonii, choć pewna osoba z przeszłości może nieoczekiwanie wrócić do Twojego życia. Zadbaj o zdrowie, szczególnie o układ odpornościowy. Weekend pod koniec miesiąca będzie idealny na regenerację sił.';
       case 'wodnik':
-        return 'Nadchodzący miesiąc będzie czasem rozwoju Twojej kreatywności i oryginalnych pomysłów. Osoby z Twojego otoczenia zawodowego docenią Twoją innowacyjność, co może przynieść niespodziewane propozycje współpracy. W połowie miesiąca pojawi się szansa na realizację długo odkładanego projektu. Twoje życie towarzyskie rozkwitnie, a nowe znajomości mogą okazać się niezwykle wartościowe.';
+        return 'Nadchodzący miesiąc będzie czasem rozwoju Twojej kreatywności i oryginalnych pomysłów. Osoby z Twojego otoczenia zawodowego docenią Twoją innowacyjność, co może przynieść niespodziewane propozycje współpracy. W połowie miesiąca pojawi się szansa na realizację długo odkładanego projektu. Twoje życie towarzyskie rozkwitnie, a nowe znajomości mogą okazać się niezwykle wartościowe. W relacji partnerskiej unikaj podejmowania pochopnych decyzji pod wpływem emocji. Zadbaj o odpowiednią ilość snu i aktywność fizyczną, która pomoże Ci utrzymać wysoki poziom energii.';
       case 'ryby':
-        return 'W tym miesiącu Twoja intuicja będzie szczególnie silna - warto jej zaufać, zwłaszcza w kwestiach zawodowych. Pojawi się możliwość rozwoju duchowego lub twórczego, która przyniesie Ci wiele satysfakcji. W drugiej połowie miesiąca możesz oczekiwać pozytywnych zmian w finansach, być może związanych z dodatkowym źródłem dochodu. Relacje rodzinne będą źródłem ciepła i wsparcia.';
+        return 'W tym miesiącu Twoja intuicja będzie szczególnie silna - warto jej zaufać, zwłaszcza w kwestiach zawodowych. Pojawi się możliwość rozwoju duchowego lub twórczego, która przyniesie Ci wiele satysfakcji. W drugiej połowie miesiąca możesz oczekiwać pozytywnych zmian w finansach, być może związanych z dodatkowym źródłem dochodu. Relacje rodzinne będą źródłem ciepła i wsparcia, szczególnie w trudniejszych momentach. W życiu uczuciowym czeka Cię głębokie porozumienie i wzajemne zrozumienie. Zadbaj o odpoczynek blisko natury - element wody przyniesie Ci ukojenie i regenerację.';
       case 'baran':
-        return 'Ten miesiąc będzie dla Ciebie czasem intensywnej energii i nowych początków. Pierwsza dekada przyniesie możliwości rozwoju zawodowego, które warto wykorzystać bez wahania. Twój entuzjazm i bezpośrednie podejście zjednają Ci sojuszników w ważnych projektach. W połowie miesiąca możliwa jest niespodziewana podróż lub zmiana planów, która ostatecznie okaże się korzystna.';
+        return 'Ten miesiąc będzie dla Ciebie czasem intensywnej energii i nowych początków. Pierwsza dekada przyniesie możliwości rozwoju zawodowego, które warto wykorzystać bez wahania. Twój entuzjazm i bezpośrednie podejście zjednają Ci sojuszników w ważnych projektach. W połowie miesiąca możliwa jest niespodziewana podróż lub zmiana planów, która ostatecznie okaże się korzystna. W sferze finansowej zachowaj ostrożność - unikaj impulsywnych wydatków i inwestycji wysokiego ryzyka. Twoje życie uczuciowe nabierze rumieńców, a single mają szansę na pasjonującą znajomość. Pod koniec miesiąca zwróć uwagę na zdrowie i zadbaj o regularną aktywność fizyczną.';
       case 'byk':
-        return 'Nadchodzący miesiąc przyniesie Ci stabilizację finansową i zawodową, na którą czekałeś. Twoja cierpliwość i konsekwencja w działaniu zostaną nagrodzone, szczególnie w pierwszej połowie miesiąca. Pojawi się okazja do długoterminowej inwestycji związanej z nieruchomościami lub przedmiotami wartościowymi. W życiu osobistym czeka Cię okres harmonii i spokoju.';
+        return 'Nadchodzący miesiąc przyniesie Ci stabilizację finansową i zawodową, na którą czekałeś. Twoja cierpliwość i konsekwencja w działaniu zostaną nagrodzone, szczególnie w pierwszej połowie miesiąca. Pojawi się okazja do długoterminowej inwestycji związanej z nieruchomościami lub przedmiotami wartościowymi. W życiu osobistym czeka Cię okres harmonii i spokoju, idealny do pogłębiania relacji z bliskimi. Osoby samotne mogą spotkać kogoś, kto podziela ich wartości i pragnienie bezpieczeństwa. Zwróć uwagę na zdrowie - szczególnie na układ trawienny i gospodarkę hormonalną. Ostatni tydzień miesiąca sprzyja odpoczynkowi i cieszeniu się prostymi przyjemnościami.';
       case 'bliźnięta':
-        return 'Ten miesiąc będzie dla Ciebie czasem intensywnej komunikacji i nowych znajomości, które mogą przekształcić się w wartościowe relacje zawodowe lub prywatne. Twoja naturalna ciekawość i elastyczność pomogą Ci poradzić sobie z nieoczekiwanymi zmianami planów. W drugiej dekadzie miesiąca pojawi się szansa na podniesienie kwalifikacji lub rozpoczęcie nowego kursu.';
+        return 'Ten miesiąc będzie dla Ciebie czasem intensywnej komunikacji i nowych znajomości, które mogą przekształcić się w wartościowe relacje zawodowe lub prywatne. Twoja naturalna ciekawość i elastyczność pomogą Ci poradzić sobie z nieoczekiwanymi zmianami planów. W drugiej dekadzie miesiąca pojawi się szansa na podniesienie kwalifikacji lub rozpoczęcie nowego kursu. Finanse będą stabilne, choć warto unikać podejmowania kilku zobowiązań jednocześnie. W życiu uczuciowym czeka Cię ożywienie - być może powrót dawnych uczuć lub nowa fascynująca znajomość. Zadbaj o zdrowie psychiczne i unikaj przemęczenia. Znajdź czas na hobby i aktywności, które naprawdę sprawiają Ci przyjemność.';
       case 'rak':
-        return 'Nadchodzący miesiąc będzie dla Ciebie czasem refleksji i emocjonalnego pogłębienia ważnych relacji. Twoja intuicja pomoże Ci podejmować trafne decyzje, szczególnie w sprawach rodzinnych i domowych. W pierwszej połowie miesiąca możesz odczuwać większą potrzebę bezpieczeństwa i stabilizacji, co skłoni Cię do reorganizacji przestrzeni domowej.';
+        return 'Nadchodzący miesiąc będzie dla Ciebie czasem refleksji i emocjonalnego pogłębienia ważnych relacji. Twoja intuicja pomoże Ci podejmować trafne decyzje, szczególnie w sprawach rodzinnych i domowych. W pierwszej połowie miesiąca możesz odczuwać większą potrzebę bezpieczeństwa i stabilizacji, co skłoni Cię do reorganizacji przestrzeni domowej lub finansów. W pracy doceniona zostanie Twoja lojalność i zaangażowanie, co może przełożyć się na poprawę sytuacji materialnej. Życie uczuciowe będzie intensywne - głębokie rozmowy i wzajemne zrozumienie wzmocnią więzi z partnerem. Samotne Raki mogą spotkać kogoś, kto zrozumie ich wrażliwość. Zadbaj o równowagę emocjonalną poprzez regularne praktyki relaksacyjne i kontakt z wodą.';
       case 'lew':
-        return 'Ten miesiąc będzie czasem, gdy Twoja naturalna charyzma i zdolności przywódcze zostaną dostrzeżone i docenione. W pierwszej dekadzie pojawią się okazje do zaprezentowania swoich umiejętności szerszemu gronu, co może przynieść uznanie i nowe możliwości zawodowe. Finanse będą sprzyjające, szczególnie jeśli zdecydujesz się zainwestować w swój rozwój.';
+        return 'Ten miesiąc będzie czasem, gdy Twoja naturalna charyzma i zdolności przywódcze zostaną dostrzeżone i docenione. W pierwszej dekadzie pojawią się okazje do zaprezentowania swoich umiejętności szerszemu gronu, co może przynieść uznanie i nowe możliwości zawodowe. Finanse będą sprzyjające, szczególnie jeśli zdecydujesz się zainwestować w swój rozwój osobisty lub zawodowy. W życiu towarzyskim będziesz błyszczeć - liczne zaproszenia i spotkania wypełnią Twój kalendarz. Relacje uczuciowe nabiorą blasku, a Twoja hojność i ciepło przyciągną do Ciebie innych. Pod koniec miesiąca zadbaj o odpoczynek i regenerację - mimo energetycznej natury, potrzebujesz czasu dla siebie. Zwróć uwagę na zdrowie serca i krążenie.';
       case 'panna':
         return 'Nadchodzący miesiąc będzie dla Ciebie czasem porządkowania spraw i wprowadzania ulepszeń zarówno w życiu zawodowym, jak i osobistym. Twoje analityczne podejście i dbałość o szczegóły pozwolą Ci dostrzec możliwości optymalizacji, których inni nie zauważają. W pierwszej połowie miesiąca skupisz się on sprawach zawodowych - możliwe, że otrzymasz propozycję udziału w projekcie wymagającym precyzji i dokładności. Finanse będą stabilne, choć warto przemyśleć długoterminową strategię oszczędzania. W życiu osobistym zadbasz o jakość relacji, eliminując niepotrzebne napięcia i nieporozumienia. Zdrowie będzie dobre, ale pamiętaj o regularnym odpoczynku od obowiązków. Końcówka miesiąca sprzyja wprowadzaniu nowych, zdrowszych nawyków żywieniowych.';
       case 'waga':
@@ -1054,7 +889,7 @@ class _HoroskopMiesiecznyScreenState extends State<HoroskopMiesiecznyScreen>
   }
 
   String _getLunarMonthlyDescription() {
-    // Lunar calendar monthly influence for the zodiac sign
+    // Lunar calendar monthly influence description for the zodiac sign
     return 'W tym miesiącu fazy Księżyca będą miały szczególny wpływ na Twój znak. Nów (8-go) to idealny czas na wyznaczanie nowych celów i rozpoczynanie projektów. Pierwsza kwadra (15-go) sprzyja przezwyciężaniu przeszkód i podejmowaniu decyzji. Pełnia (22-go) przyniesie kulminację energii - warto wtedy celebrować osiągnięcia i dostrzegać pełny obraz sytuacji. Ostatnia kwadra (29-go) to czas na refleksję i zamknięcie spraw przed nowym cyklem.';
   }
 }
@@ -1351,25 +1186,29 @@ class DetailedMonthlyHoroscopeScreen extends StatelessWidget {
   }
 
   String _getDetailedHoroscope() {
-    String monthName;
-    try {
-      monthName = DateFormat('MMMM', 'pl_PL').format(startDate);
-      monthName = monthName[0].toUpperCase() + monthName.substring(1);
-    } catch (e) {
-      monthName = DateFormat('MMMM').format(startDate);
-    }
+    String monthName = DateFormat('MMMM', 'pl_PL').format(startDate);
+    monthName = monthName[0].toUpperCase() + monthName.substring(1);
 
-    // Return detailed horoscope based on zodiac sign and date range
-    return 'Szczegółowy horoskop dla znaku $zodiacSign na miesiąc $monthName ${startDate.year}\n\n' +
-        'Ogólny zarys miesiąca:\n' +
-        'Ten miesiąc przyniesie Ci wyjątkową możliwość dostrzeżenia szerszej perspektywy w sprawach, które od dawna zaprzątały Twoją uwagę. Gwiazdy sprzyjają refleksji i podejmowaniu przemyślanych decyzji, które zaowocują w przyszłości. Układ planet wzmacnia Twoją naturalną intuicję - warto jej zaufać, szczególnie w drugiej połowie miesiąca. Pojawi się okazja do zamknięcia pewnego rozdziału w Twoim życiu i otwarcia się na nowe możliwości.\n\n' +
-        'Kariera i finanse:\n' +
-        'W sferze zawodowej czeka Cię stabilizacja i stopniowy rozwój. Pierwsza dekada miesiąca będzie sprzyjać planowaniu długoterminowych strategii i nawiązywaniu wartościowych kontaktów biznesowych. Około połowy miesiąca możesz otrzymać propozycję, która początkowo wyda Ci się ryzykowna, ale warto ją dokładnie rozważyć - może przynieść nieoczekiwane korzyści.\n\n' +
-        'Miłość i relacje:\n' +
-        'W życiu uczuciowym czeka Cię czas pogłębiania relacji i budowania trwałych więzi. Osoby w związkach doświadczą nowego poziomu zrozumienia i bliskości, szczególnie jeśli poświęcą czas na szczere rozmowy o wspólnej przyszłości. Single mają szansę na spotkanie osoby, która podziela ich wartości i aspiracje - szczególnie sprzyjający będzie okres między 10 a 20 dniem miesiąca. W relacjach rodzinnych może pojawić się napięcie związane z dawnym nieporozumieniem - szczerość i empatia pomogą rozwiązać ten problem.\n\n' +
-        'Zdrowie i energia:\n' +
-        'Twoje samopoczucie będzie dobre, choć możesz odczuwać wahania energii, szczególnie w pierwszej połowie miesiąca. Zadbaj o regularny odpoczynek i zdrowy sen - to podstawa Twojej witalności. Układ planet sprzyja rozpoczęciu nowych praktyk zdrowotnych, szczególnie związanych z aktywnością fizyczną na świeżym powietrzu. Druga połowa miesiąca to dobry czas na detoks i oczyszczenie organizmu. Zwróć szczególną uwagę na sygnały, które wysyła Ci ciało - mogą zawierać ważne informacje o Twoich potrzebach.\n\n' +
-        'Rozwój osobisty:\n' +
-        'Ten miesiąc stwarza doskonałe warunki do inwestowania w swój rozwój osobisty i duchowy. Medytacja, praktyki uważności czy lektura inspirujących książek przyniosą Ci wiele korzyści. Około 20 dnia miesiąca możesz doświadczyć ważnego olśnienia lub odkrycia, które zmieni Twoją perspektywę. To również dobry czas na przewartościowanie priorytetów i zastanowienie się nad kierunkiem, w którym zmierza Twoje życie.';
+    // Return detailed horoscope based on zodiac sign and date range - this is a longer, more comprehensive version
+    return '''Szczegółowy horoskop dla znaku $zodiacSign na miesiąc $monthName ${startDate.year}
+
+Ogólny zarys miesiąca:
+Ten miesiąc przyniesie Ci wyjątkową możliwość dostrzeżenia szerszej perspektywy w sprawach, które od dawna zaprzątały Twoją uwagę. Gwiazdy sprzyjają refleksji i podejmowaniu przemyślanych decyzji, które zaowocują w przyszłości. Układ planet wzmacnia Twoją naturalną intuicję - warto jej zaufać, szczególnie w drugiej połowie miesiąca. Pojawi się okazja do zamknięcia pewnego rozdziału w Twoim życiu i otwarcia się na nowe możliwości.
+
+Kariera i finanse:
+W sferze zawodowej czeka Cię stabilizacja i stopniowy rozwój. Pierwsza dekada miesiąca będzie sprzyjać planowaniu długoterminowych strategii i nawiązywaniu wartościowych kontaktów biznesowych. Około połowy miesiąca możesz otrzymać propozycję, która początkowo wyda Ci się ryzykowna, ale warto ją dokładnie rozważyć - może przynieść nieoczekiwane korzyści. W kwestiach finansowych zachowaj ostrożność, szczególnie między 15 a 20 dniem miesiąca. To dobry czas na rewizję budżetu i eliminację zbędnych wydatków. Końcówka miesiąca może przynieść dodatkowe źródło dochodu.
+
+Miłość i relacje:
+W życiu uczuciowym czeka Cię czas pogłębiania relacji i budowania trwałych więzi. Osoby w związkach doświadczą nowego poziomu zrozumienia i bliskości, szczególnie jeśli poświęcą czas na szczere rozmowy o wspólnej przyszłości. Single mają szansę na spotkanie osoby, która podziela ich wartości i aspiracje - szczególnie sprzyjający będzie okres między 10 a 20 dniem miesiąca. W relacjach rodzinnych może pojawić się napięcie związane z dawnym nieporozumieniem - szczerość i empatia pomogą rozwiązać ten problem.
+
+Zdrowie i energia:
+Twoje samopoczucie będzie dobre, choć możesz odczuwać wahania energii, szczególnie w pierwszej połowie miesiąca. Zadbaj o regularny odpoczynek i zdrowy sen - to podstawa Twojej witalności. Układ planet sprzyja rozpoczęciu nowych praktyk zdrowotnych, szczególnie związanych z aktywnością fizyczną na świeżym powietrzu. Druga połowa miesiąca to dobry czas na detoks i oczyszczenie organizmu. Zwróć szczególną uwagę na sygnały, które wysyła Ci ciało - mogą zawierać ważne informacje o Twoich potrzebach.
+
+Rozwój osobisty:
+Ten miesiąc stwarza doskonałe warunki do inwestowania w swój rozwój osobisty i duchowy. Medytacja, praktyki uważności czy lektura inspirujących książek przyniosą Ci wiele korzyści. Około 20 dnia miesiąca możesz doświadczyć ważnego olśnienia lub odkrycia, które zmieni Twoją perspektywę. To również dobry czas na przewartościowanie priorytetów i zastanowienie się nad kierunkiem, w którym zmierza Twoje życie.
+
+Szczęśliwe dni: 5, 14, 23
+Dni wymagające uważności: 8, 17, 26
+''';
   }
 }

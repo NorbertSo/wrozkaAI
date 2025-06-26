@@ -42,7 +42,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   bool _isCameraInitialized = false;
   bool _showCamera = false;
   bool _isFlashOn = false;
-  bool _isFrontCamera = false;
+  final bool _isFrontCamera = false;
   List<CameraDescription> _cameras = [];
 
   // ===== FLAGI ZABEZPIECZAJĄCE =====
@@ -514,7 +514,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.camera_alt_outlined, color: Colors.red, size: 48),
+            const Icon(Icons.camera_alt_outlined, color: Colors.red, size: 48),
             const SizedBox(height: 16),
             Text(
               'Nie mogę wykonać wróżby z dłoni.\nSprawdź uprawnienia do kamery lub wybierz zdjęcie z galerii.',
@@ -709,7 +709,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
 
   // ✅ PEŁNY EKRAN NA DETEKCJĘ
   Widget _buildFullScreenDetection() {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       height: double.infinity,
       child: Stack(
@@ -903,7 +903,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
                       color: Colors.white,
                       strokeWidth: 3,
                     )
-                  : Icon(
+                  : const Icon(
                       Icons.camera_alt,
                       color: Colors.white,
                       size: 30,

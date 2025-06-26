@@ -78,12 +78,15 @@ class _UserDataScreenState extends State<UserDataScreen> {
   void _onDataChanged() {
     bool hasChanges = false;
 
-    if (_nameController.text.trim() != _currentSavedUserData.name)
+    if (_nameController.text.trim() != _currentSavedUserData.name) {
       hasChanges = true;
+    }
     if ((_birthPlaceController.text.trim().isEmpty
             ? null
             : _birthPlaceController.text.trim()) !=
-        _currentSavedUserData.birthPlace) hasChanges = true;
+        _currentSavedUserData.birthPlace) {
+      hasChanges = true;
+    }
     if (_birthDate != _currentSavedUserData.birthDate) hasChanges = true;
     if (_gender != _currentSavedUserData.gender) hasChanges = true;
     if (_dominantHand != _currentSavedUserData.dominantHand) hasChanges = true;
@@ -119,10 +122,10 @@ class _UserDataScreenState extends State<UserDataScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
+            colorScheme: const ColorScheme.dark(
               primary: AppColors.cyan,
               onPrimary: Colors.white,
-              surface: const Color(0xFF1A2332),
+              surface: Color(0xFF1A2332),
               onSurface: Colors.white,
             ),
           ),
@@ -149,10 +152,10 @@ class _UserDataScreenState extends State<UserDataScreen> {
           ),
           child: Theme(
             data: Theme.of(context).copyWith(
-              colorScheme: ColorScheme.dark(
+              colorScheme: const ColorScheme.dark(
                 primary: AppColors.cyan,
                 onPrimary: Colors.white,
-                surface: const Color(0xFF1A2332),
+                surface: Color(0xFF1A2332),
                 onSurface: Colors.white,
               ),
             ),
@@ -290,7 +293,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
         content: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: AppColors.cyan),
+            const CircularProgressIndicator(color: AppColors.cyan),
             const SizedBox(width: 20),
             Text(
               'Zapisuję zmiany...',
@@ -485,7 +488,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.person, color: AppColors.cyan, size: 24),
+              const Icon(Icons.person, color: AppColors.cyan, size: 24),
               const SizedBox(width: 12),
               Text(
                 'Zapisane dane',
@@ -522,7 +525,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.edit, color: Colors.orange, size: 16),
+                  const Icon(Icons.edit, color: Colors.orange, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -663,7 +666,7 @@ class _UserDataScreenState extends State<UserDataScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.cyan),
+              borderSide: const BorderSide(color: AppColors.cyan),
             ),
           ),
         ),
@@ -698,7 +701,8 @@ class _UserDataScreenState extends State<UserDataScreen> {
                     style: AppTextStyles.bodyText,
                   ),
                 ),
-                Icon(Icons.calendar_today, color: AppColors.cyan, size: 20),
+                const Icon(Icons.calendar_today,
+                    color: AppColors.cyan, size: 20),
               ],
             ),
           ),
@@ -866,14 +870,14 @@ class _UserDataScreenState extends State<UserDataScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (_hasUnsavedChanges) ...[
-              Icon(Icons.save, color: Colors.black, size: 20),
+              const Icon(Icons.save, color: Colors.black, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Zapisz zmiany',
                 style: AppTextStyles.buttonText.copyWith(color: Colors.black),
               ),
             ] else ...[
-              Icon(Icons.check, color: Colors.white, size: 20),
+              const Icon(Icons.check, color: Colors.white, size: 20),
               const SizedBox(width: 8),
               Text(
                 'Brak zmian',

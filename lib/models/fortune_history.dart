@@ -164,7 +164,7 @@ class FortuneHistory {
     if (fortuneText.length <= 80) {
       return fortuneText;
     }
-    return fortuneText.substring(0, 80) + '...';
+    return '${fortuneText.substring(0, 80)}...';
   }
 
   // Metoda do kopiowania z nowymi danymi

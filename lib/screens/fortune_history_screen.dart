@@ -284,7 +284,7 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
             builder: (context, child) {
               return Transform.rotate(
                 angle: _mysticalAnimation.value * 2 * math.pi,
-                child: Icon(
+                child: const Icon(
                   Icons.auto_awesome,
                   size: 48,
                   color: AppColors.cyan,
@@ -323,7 +323,7 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
+            const Icon(
               Icons.error_outline,
               color: Colors.red,
               size: 48,
@@ -391,7 +391,7 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
                         width: 2,
                       ),
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.auto_awesome,
                       size: 40,
                       color: AppColors.cyan,
@@ -623,7 +623,7 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
       builder: (context) => Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
+          gradient: const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
@@ -724,7 +724,7 @@ class _FortuneHistoryScreenState extends State<FortuneHistoryScreen>
       builder: (context) => Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
+          gradient: const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
@@ -806,7 +806,7 @@ Odkryj swoją przyszłość z AI Wróżka!
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Color(0xFF1A2332),
+        backgroundColor: const Color(0xFF1A2332),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(
@@ -872,7 +872,7 @@ Odkryj swoją przyszłość z AI Wróżka!
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Color(0xFF1A2332),
+        backgroundColor: const Color(0xFF1A2332),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(
@@ -983,7 +983,7 @@ class HistoryBackgroundPainter extends CustomPainter {
       if (size.width > 100 && size.height > 100) {
         // Decorative corners
         canvas.drawArc(
-          Rect.fromLTWH(20, 20, 25, 25),
+          const Rect.fromLTWH(20, 20, 25, 25),
           -math.pi,
           math.pi / 2,
           false,

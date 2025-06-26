@@ -50,7 +50,7 @@ class _PalmAnalysisScreenState extends State<PalmAnalysisScreen>
   late Animation<double> _glowAnimation;
 
   // ===== STAN =====
-  int _currentSection = 0;
+  final int _currentSection = 0;
   bool _showScrollIndicator = true;
   List<FortuneSection> _fortuneSections = [];
 
@@ -609,7 +609,7 @@ class _PalmAnalysisScreenState extends State<PalmAnalysisScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              const Icon(
                 Icons.keyboard_arrow_down,
                 color: AppColors.cyan,
                 size: 16,
@@ -711,7 +711,7 @@ class _PalmAnalysisScreenState extends State<PalmAnalysisScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.warning_amber_outlined,
                       color: Colors.orange,
                       size: 64,
@@ -808,7 +808,7 @@ class _PalmAnalysisScreenState extends State<PalmAnalysisScreen>
 
 👤 ${widget.userName}
 
-${_fortuneSections.isNotEmpty ? _fortuneSections.first.content.substring(0, math.min(200, _fortuneSections.first.content.length)) + '...' : ''}
+${_fortuneSections.isNotEmpty ? '${_fortuneSections.first.content.substring(0, math.min(200, _fortuneSections.first.content.length))}...' : ''}
 
 Odkryj swoją przyszłość z AI Wróżka!
 ''';
@@ -908,7 +908,7 @@ class EnhancedMysticalPainter extends CustomPainter {
           (math.pi / 2) * (0.5 + 0.5 * math.sin(animationValue * 2 * math.pi));
 
       canvas.drawArc(
-        Rect.fromLTWH(20, 20, 40, 40),
+        const Rect.fromLTWH(20, 20, 40, 40),
         -math.pi,
         animatedExtent,
         false,

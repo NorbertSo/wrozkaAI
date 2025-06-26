@@ -94,12 +94,12 @@ class HapticButton extends StatelessWidget {
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.3),
     ).copyWith(
-      overlayColor: MaterialStateProperty.resolveWith<Color?>(
-        (Set<MaterialState> states) {
-          if (states.contains(MaterialState.pressed)) {
+      overlayColor: WidgetStateProperty.resolveWith<Color?>(
+        (Set<WidgetState> states) {
+          if (states.contains(WidgetState.pressed)) {
             return Colors.white.withOpacity(0.1);
           }
-          if (states.contains(MaterialState.hovered)) {
+          if (states.contains(WidgetState.hovered)) {
             return Colors.white.withOpacity(0.05);
           }
           return null;

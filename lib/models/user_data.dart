@@ -62,18 +62,22 @@ class UserData {
 
     if ((month == 3 && day >= 21) || (month == 4 && day <= 19)) return 'Baran';
     if ((month == 4 && day >= 20) || (month == 5 && day <= 20)) return 'Byk';
-    if ((month == 5 && day >= 21) || (month == 6 && day <= 20))
+    if ((month == 5 && day >= 21) || (month == 6 && day <= 20)) {
       return 'Bliźnięta';
+    }
     if ((month == 6 && day >= 21) || (month == 7 && day <= 22)) return 'Rak';
     if ((month == 7 && day >= 23) || (month == 8 && day <= 22)) return 'Lew';
     if ((month == 8 && day >= 23) || (month == 9 && day <= 22)) return 'Panna';
     if ((month == 9 && day >= 23) || (month == 10 && day <= 22)) return 'Waga';
-    if ((month == 10 && day >= 23) || (month == 11 && day <= 21))
+    if ((month == 10 && day >= 23) || (month == 11 && day <= 21)) {
       return 'Skorpion';
-    if ((month == 11 && day >= 22) || (month == 12 && day <= 21))
+    }
+    if ((month == 11 && day >= 22) || (month == 12 && day <= 21)) {
       return 'Strzelec';
-    if ((month == 12 && day >= 22) || (month == 1 && day <= 19))
+    }
+    if ((month == 12 && day >= 22) || (month == 1 && day <= 19)) {
       return 'Koziorożec';
+    }
     if ((month == 1 && day >= 20) || (month == 2 && day <= 18)) return 'Wodnik';
     return 'Ryby';
   }

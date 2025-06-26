@@ -99,9 +99,9 @@ class HandPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     // Prosty kształt dłoni
-    final handWidth = 80.0;
-    final handHeight = 120.0;
-    final fingerHeight = 60.0;
+    const handWidth = 80.0;
+    const handHeight = 120.0;
+    const fingerHeight = 60.0;
 
     // Dłoń (prostokąt z zaokrąglonymi rogami)
     final handRect = RRect.fromRectAndRadius(
@@ -116,7 +116,7 @@ class HandPainter extends CustomPainter {
     canvas.drawRRect(handRect, paint);
 
     // Palce
-    final fingerWidth = 12.0;
+    const fingerWidth = 12.0;
     final fingerPositions = [
       -30.0, -10.0, 10.0, 30.0, // pozycje X dla palców
     ];
