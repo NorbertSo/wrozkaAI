@@ -1,14 +1,18 @@
+// lib/screens/horoskopmenu.dart
+// 🔮 MENU HOROSKOPÓW - zaktualizowane z nowymi polami Firebase
+// Zgodny z wytycznymi projektu AI Wróżka - KOMPLETNY KOD
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
-import 'package:lottie/lottie.dart';
 import '../utils/constants.dart';
-import 'horoskoptygodniowy.dart';
-import 'horoskopmiesieczny.dart';
 import '../services/horoscope_service.dart';
 import '../services/haptic_service.dart';
 import '../models/horoscope_data.dart';
 import '../widgets/haptic_button.dart';
+import 'horoskoptygodniowy.dart';
+import 'horoskopmiesieczny.dart';
+import 'package:lottie/lottie.dart';
 
 class HoroskopeMenuScreen extends StatefulWidget {
   final String userName;
@@ -32,6 +36,15 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
   late Animation<double> _rotationAnimation;
   late Animation<double> _scaleAnimation;
 
+  // Serwisy
+  final HoroscopeService _horoscopeService = HoroscopeService();
+  final HapticService _hapticService = HapticService();
+
+  // Stan
+  HoroscopeData? _todayHoroscope;
+  HoroscopeData? _lunarHoroscope;
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +67,37 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
         curve: Curves.easeInOut,
       ),
     );
+
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    await _horoscopeService.initialize();
+    await _loadTodayHoroscope();
+  }
+
+  Future<void> _loadTodayHoroscope() async {
+    try {
+      final zodiacSign = _getZodiacSign();
+      if (zodiacSign != 'Nieznany') {
+        final horoscope = await _horoscopeService.getDailyHoroscope(zodiacSign);
+        final lunarHoroscope =
+            await _horoscopeService.getDailyHoroscope('lunar');
+        setState(() {
+          _todayHoroscope = horoscope;
+          _lunarHoroscope = lunarHoroscope;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -98,8 +142,8 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Dzisiejszy horoskop z symbolem zodiaku
-                    _buildDailyHoroscopeCard(),
+                    // Dzisiejszy horoskop z symbolem zodiaku i NOWYMI POLAMI
+                    _buildEnhancedDailyHoroscopeCard(),
 
                     const SizedBox(height: 20),
 
@@ -162,262 +206,362 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 16),
                   ],
                 ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 🔮 Rozbudowana karta dzisiejszego horoskopu z NOWYMI POLAMI
+  Widget _buildEnhancedDailyHoroscopeCard() {
+    final zodiacSign = _getZodiacSign();
+    final zodiacEmoji = _getZodiacEmoji(zodiacSign);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Card(
+        color: Colors.grey[900]?.withOpacity(0.8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: AppColors.cyan.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header z datą i znakiem zodiaku
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Dziś • ${DateTime.now().day}.${DateTime.now().month.toString().padLeft(2, '0')}',
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 14,
+                          color: AppColors.cyan,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        zodiacSign,
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 20,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.cyan.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: AppColors.cyan.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      zodiacEmoji,
+                      style: const TextStyle(fontSize: 32),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Faza księżyca z emoji
+              if (_todayHoroscope != null) ...[
+                Row(
+                  children: [
+                    Text(
+                      _todayHoroscope!.moonEmoji ?? '🌙',
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _todayHoroscope!.moonPhase ?? 'Faza księżyca',
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 14,
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Treść horoskopu
+              if (_isLoading)
+                const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.cyan,
+                    strokeWidth: 2,
+                  ),
+                )
+              else if (_todayHoroscope != null) ...[
+                Text(
+                  _todayHoroscope!.text,
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 14,
+                    color: Colors.white,
+                    height: 1.6,
+                  ),
+                ),
+
+                // 🆕 NOWE SEKCJE - Opis księżycowy
+                if (_todayHoroscope!.lunarDescription != null &&
+                    _todayHoroscope!.lunarDescription!.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.indigo.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text('🌙', style: TextStyle(fontSize: 16)),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Wpływ Księżyca',
+                              style: GoogleFonts.cinzelDecorative(
+                                fontSize: 14,
+                                color: Colors.indigo[300],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _todayHoroscope!.lunarDescription!,
+                          style: GoogleFonts.cinzelDecorative(
+                            fontSize: 12,
+                            color: Colors.white70,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // 🆕 NOWA SEKCJA - Rekomendowana świeca
+                if (_todayHoroscope!.recommendedCandle != null &&
+                    _todayHoroscope!.recommendedCandle!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.amber.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text('🕯️', style: TextStyle(fontSize: 16)),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Świeca dnia: ${_todayHoroscope!.recommendedCandle}',
+                              style: GoogleFonts.cinzelDecorative(
+                                fontSize: 14,
+                                color: Colors.amber[300],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_todayHoroscope!.recommendedCandleReason != null &&
+                            _todayHoroscope!
+                                .recommendedCandleReason!.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            _todayHoroscope!.recommendedCandleReason!,
+                            style: GoogleFonts.cinzelDecorative(
+                              fontSize: 12,
+                              color: Colors.white70,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ] else
+                Text(
+                  _getDailyHoroscopePreview(zodiacSign),
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 14,
+                    color: Colors.white,
+                    height: 1.6,
+                  ),
+                ),
+
+              const SizedBox(height: 16),
+
+              // Przycisk "Zobacz więcej"
+              SizedBox(
+                width: double.infinity,
+                child: HapticButton(
+                  text: 'Zobacz szczegóły',
+                  onPressed: () => _navigateToHoroscope('daily'),
+                  hapticType: HapticType.light,
+                  backgroundColor: AppColors.cyan.withOpacity(0.1),
+                  foregroundColor: AppColors.cyan,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 🌙 Kalendarz księżycowy
+  Widget _buildLunarCalendarCard() {
+    return Card(
+      color: Colors.grey[900]?.withOpacity(0.8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: Colors.purple.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                AnimatedBuilder(
+                  animation: _scaleAnimation,
+                  builder: (context, child) {
+                    return Transform.scale(
+                      scale: _scaleAnimation.value,
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: Colors.purple.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          _lunarHoroscope?.moonEmoji ?? '🌙',
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Kalendarz Księżycowy',
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _lunarHoroscope?.moonPhase ?? 'Faza księżyca',
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 14,
+                          color: Colors.purple,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _lunarHoroscope?.text ?? _getLunarHoroscopePreview(),
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 14,
+                color: Colors.white70,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: HapticButton(
+                text: 'Zobacz kalendarz księżycowy',
+                onPressed: () => _navigateToHoroscope('lunar'),
+                hapticType: HapticType.light,
+                backgroundColor: Colors.purple.withOpacity(0.1),
+                foregroundColor: Colors.purple,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildMysticalBackground() {
-    return Stack(
-      children: [
-        // Background gradient
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 1.5,
               colors: [
-                Color(0xFF1A1A2E),
-                Color(0xFF0F0E1C),
-                Color(0xFF080612),
+                Colors.deepPurple.withOpacity(0.1),
+                Colors.black,
+                Colors.indigo.withOpacity(0.05),
               ],
             ),
           ),
-        ),
-
-        // Stars animation
-        Opacity(
-          opacity: 0.7,
-          child: Lottie.asset(
-            'assets/animations/star_bg.json',
-            fit: BoxFit.cover,
+          child: CustomPaint(
+            painter: StarsPainter(_rotationAnimation.value),
+            size: Size.infinite,
           ),
-        ),
-
-        // Animated cosmic background
-        AnimatedBuilder(
-          animation: _animationController,
-          builder: (context, child) {
-            return CustomPaint(
-              painter: CosmicPainter(
-                animation: _animationController.value,
-              ),
-              size: Size.infinite,
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDailyHoroscopeCard() {
-    final String zodiacSign = _getZodiacSign();
-    final String zodiacEmoji = _getZodiacEmoji(zodiacSign);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.indigo.withOpacity(0.3),
-            Colors.purple.withOpacity(0.3),
-          ],
-        ),
-        border: Border.all(
-          color: AppColors.cyan.withOpacity(0.4),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.cyan.withOpacity(0.2),
-            blurRadius: 15,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title now at the top
-          Text(
-            'Horoskop codzienny dla:',
-            style: GoogleFonts.cinzelDecorative(
-              fontSize: 14,
-              color: Colors.white70,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Content row with zodiac icon and details
-          Row(
-            children: [
-              // Zodiac symbol
-              AnimatedBuilder(
-                animation: _scaleAnimation,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _scaleAnimation.value,
-                    child: Container(
-                      width: 70,
-                      height: 70,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.black.withOpacity(0.4),
-                        border: Border.all(
-                          color: AppColors.cyan.withOpacity(0.6),
-                          width: 2,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          zodiacEmoji,
-                          style: const TextStyle(
-                            fontSize: 40,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              const SizedBox(width: 20),
-
-              // Zodiac sign text and daily horoscope info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      zodiacSign.toUpperCase(),
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 24,
-                        color: AppColors.cyan,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _getDailyHoroscopePreview(zodiacSign),
-                      style: AppTextStyles.fortuneText.copyWith(
-                        fontSize: 11, // Smaller font size
-                        color: Colors.white70,
-                        height: 1.4, // Reduced line height
-                      ),
-                      maxLines: 5, // Increased max lines
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLunarCalendarCard() {
-    // Get current moon phase
-    final String moonPhase = _getCurrentMoonPhase();
-    final String moonEmoji = _getMoonPhaseEmoji(moonPhase);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.blueGrey.withOpacity(0.3),
-            Colors.indigo.withOpacity(0.2),
-          ],
-        ),
-        border: Border.all(
-          color: Colors.blueGrey.withOpacity(0.4),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blueGrey.withOpacity(0.2),
-            blurRadius: 15,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Moon phase symbol - matched size with zodiac icon
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.black.withOpacity(0.4),
-              border: Border.all(
-                color: Colors.blueGrey.withOpacity(0.6),
-                width: 2,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                moonEmoji,
-                style: const TextStyle(
-                  fontSize: 40,
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 20),
-
-          // Moon phase info - matched styling with zodiac
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Kalendarz księżycowy:',
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 14,
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  moonPhase.toUpperCase(),
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 24,
-                    color: Colors.blueGrey,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _getLunarCalendarDescription(moonPhase),
-                  style: AppTextStyles.fortuneText.copyWith(
-                    fontSize: 12,
-                    color: Colors.white70,
-                    height: 1.5,
-                  ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -428,74 +572,68 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
     required Color color,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.black.withOpacity(0.5),
-          border: Border.all(
-            color: color.withOpacity(0.4),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 10,
-              spreadRadius: 1,
-            ),
-          ],
+    return Card(
+      color: Colors.grey[900]?.withOpacity(0.6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: color.withOpacity(0.3),
+          width: 1,
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color.withOpacity(0.1),
-                border: Border.all(
-                  color: color.withOpacity(0.4),
-                  width: 1,
+      ),
+      child: InkWell(
+        onTap: () {
+          _hapticService.trigger(HapticType.light);
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: 24,
                 ),
               ),
-              child: Icon(
-                icon,
-                color: color,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.cinzelDecorative(
-                      fontSize: 18,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 16,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: GoogleFonts.cinzelDecorative(
-                      fontSize: 12,
-                      color: Colors.white70,
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 12,
+                        color: Colors.white60,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Icon(
-              Icons.arrow_forward_ios,
-              color: color,
-              size: 16,
-            ),
-          ],
+              Icon(
+                Icons.arrow_forward_ios,
+                color: color.withOpacity(0.7),
+                size: 16,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -507,64 +645,79 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
     required Color color,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.black.withOpacity(0.5),
-          border: Border.all(
-            color: color.withOpacity(0.4),
-            width: 1,
-          ),
+    return Card(
+      color: Colors.grey[900]?.withOpacity(0.6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: color.withOpacity(0.3),
+          width: 1,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: color,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
+      ),
+      child: InkWell(
+        onTap: () {
+          _hapticService.trigger(HapticType.light);
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
                 title,
                 style: GoogleFonts.cinzelDecorative(
                   fontSize: 14,
                   color: Colors.white,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                 ),
-                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   void _navigateToHoroscope(String type) {
+    final zodiacSign = _getZodiacSign();
+    final zodiacEmoji = _getZodiacEmoji(zodiacSign);
+
     switch (type) {
       case 'weekly':
-        Navigator.of(context).push(
+        Navigator.push(
+          context,
           MaterialPageRoute(
             builder: (context) => HoroskopTygodniowyScreen(
               userName: widget.userName,
-              zodiacSign: _getZodiacSign(),
-              zodiacEmoji: _getZodiacEmoji(_getZodiacSign()),
+              zodiacSign: zodiacSign,
+              zodiacEmoji: zodiacEmoji,
             ),
           ),
         );
         break;
       case 'monthly':
-        Navigator.of(context).push(
+        Navigator.push(
+          context,
           MaterialPageRoute(
             builder: (context) => HoroskopMiesiecznyScreen(
               userName: widget.userName,
-              zodiacSign: _getZodiacSign(),
-              zodiacEmoji: _getZodiacEmoji(_getZodiacSign()),
+              zodiacSign: zodiacSign,
+              zodiacEmoji: zodiacEmoji,
             ),
           ),
         );
@@ -572,111 +725,79 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
       case 'daily':
       case 'extended':
       case 'personal':
-        // For other types, show "coming soon" dialog or placeholder
-        _showComingSoonDialog(type);
+      case 'lunar':
+        _showComingSoonDialog();
         break;
     }
   }
 
-  void _showComingSoonDialog(String type) {
-    String title = '';
-    switch (type) {
-      case 'daily':
-        title = 'Horoskop Dzienny';
-        break;
-      case 'extended':
-        title = 'Horoskop Rozbudowany';
-        break;
-      case 'personal':
-        title = 'Specjalny Horoskop';
-        break;
-      default:
-        title = 'Ta Funkcja';
-    }
-
+  void _showComingSoonDialog() {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF1A2332),
-                Color(0xFF0B1426),
-              ],
-            ),
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.grey[900],
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.orange.withOpacity(0.5),
+            side: BorderSide(
+              color: Colors.orange.withOpacity(0.3),
               width: 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.orange.withOpacity(0.2),
-                blurRadius: 20,
-                spreadRadius: 2,
-              ),
-            ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.hourglass_bottom, color: Colors.orange, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                '$title - Wkrótce',
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.orange,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome,
+                    color: Colors.orange,
+                    size: 32,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Ta funkcja będzie dostępna w najbliższej aktualizacji. Pracujemy nad jej udoskonaleniem!',
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w300,
-                  color: Colors.white70,
-                  height: 1.5,
+                const SizedBox(height: 20),
+                Text(
+                  'Wkrótce dostępne!',
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: ElevatedButton.styleFrom(
+                const SizedBox(height: 12),
+                Text(
+                  'Ta funkcja jest obecnie w fazie rozwoju.\nPracujemy nad jej udoskonaleniem!',
+                  style: GoogleFonts.cinzelDecorative(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w300,
+                    color: Colors.white70,
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: HapticButton(
+                    text: 'Rozumiem',
+                    onPressed: () => Navigator.of(context).pop(),
+                    hapticType: HapticType.light,
                     backgroundColor: Colors.orange.withOpacity(0.2),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                      side: BorderSide(
-                        color: Colors.orange.withOpacity(0.6),
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  child: Text(
-                    'Rozumiem',
-                    style: GoogleFonts.cinzelDecorative(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white,
-                    ),
+                    foregroundColor: Colors.white,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -717,7 +838,7 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
     }
 
     // If we don't have a birth date, return a placeholder
-    return 'Nieznany';
+    return 'Strzelec'; // Default dla testów
   }
 
   String _getZodiacEmoji(String zodiacSign) {
@@ -782,149 +903,66 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
     }
   }
 
-  // Helper methods for new features
   String _getDailyHoroscopePreview(String zodiacSign) {
-    // This would normally come from an API or database
+    // Fallback gdy nie ma danych z Firebase
     switch (zodiacSign) {
       case 'Koziorożec':
         return 'Dzisiaj jest dobry dzień na planowanie przyszłości. Twoja ambicja i cierpliwość zostaną wynagrodzone. Szczęśliwy kolor: granatowy.';
       case 'Wodnik':
         return 'Twoja kreatywność osiąga dzisiaj szczyt. Wykorzystaj ten czas na innowacyjne pomysły. Możliwe niespodziewane spotkanie. Szczęśliwa liczba: 7.';
       case 'Ryby':
-        return 'Intuicja podpowiada Ci właściwe rozwiązania. Dzień sprzyja refleksji i duchowemu rozwojowi. Unikaj nadmiernej krytyki. Szczęśliwy kolor: morski.';
+        return 'Intuicja podpowiada Ci właściwe rozwiązania. Zaufaj swoim uczuciom i nie ignoruj snów. Dziś szczególnie ważna będzie medytacja.';
       case 'Baran':
-        return 'Energia i zapał do działania będą Ci dzisiaj towarzyszyć. Dobry moment na rozpoczęcie nowych projektów. Uważaj na impulsywne decyzje.';
+        return 'Energia i determinacja są Twoimi atutami. Podejmij odważne działania, ale uważaj na impulsywność. Czerwień przyniesie szczęście.';
       case 'Byk':
-        return 'Stabilność finansowa jest w zasięgu ręki. Zwróć uwagę na szczegóły w dokumentach. Wieczór sprzyja relaksowi. Szczęśliwa liczba: 6.';
+        return 'Stabilność i praktyczność pomogą Ci osiągnąć cele. Buduj na solidnych podstawach. Dobry dzień na finanse i inwestycje.';
       case 'Bliźnięta':
-        return 'Komunikacja jest dzisiaj Twoją mocną stroną. Wykorzystaj to w rozmowach zawodowych. Możliwe nieoczekiwane wiadomości od dawno niewidzianej osoby.';
+        return 'Komunikatywność i adaptacyjność otwierają nowe możliwości. Wykorzystaj swoje talenty oratorskie. Możliwa ważna wiadomość.';
       case 'Rak':
-        return 'Emocje mogą dzisiaj falować. Znajdź czas na odpoczynek w domowym zaciszu. Bliscy będą potrzebować Twojego wsparcia. Szczęśliwy kolor: srebrny.';
+        return 'Empatia i intuicja są dzisiaj szczególnie silne. Zadbaj o bliskich i nie zaniedbuj życia rodzinnego. Dom to Twoja siła.';
       case 'Lew':
-        return 'Blask Twojej osobowości przyciąga innych. Dobry dzień na spotkania towarzyskie i prezentacje. Możliwe pochwały i uznanie. Szczęśliwa liczba: 1.';
+        return 'Twoje przywództwo i charyzma znajdą uznanie. Inspiruj innych swoją kreatywnością. Złoty kolor przyniesie szczęście.';
       case 'Panna':
-        return 'Precyzja w działaniu pomoże Ci osiągnąć sukces. Zwróć uwagę na zdrowie i dietę. Wieczór sprzyja porządkowaniu myśli. Szczęśliwy kolor: zielony.';
+        return 'Uwaga na szczegóły i metodyczność przyniosą doskonałe rezultaty. Organizacja i planowanie to klucze do sukcesu.';
       case 'Waga':
-        return 'Harmonijne relacje są dzisiaj najważniejsze. Dobry moment na rozwiązanie konfliktów. Ktoś czeka na Twoją decyzję. Szczęśliwa liczba: 4.';
+        return 'Harmonia i dyplomacja pomogą rozwiązać trudne sytuacje. Sprawiedliwość i równowaga są dzisiaj kluczowe.';
       case 'Skorpion':
-        return 'Intensywność emocji może Cię zaskoczyć. Wykorzystaj tę energię do transformacji. Unikaj zazdrości i kontroli. Szczęśliwy kolor: burgundowy.';
+        return 'Intensywność i determinacja poprowadzą Cię do sukcesu. Transformacja przyniesie pozytywne zmiany. Zaufaj intuicji.';
       case 'Strzelec':
-        return 'Optymizm i entuzjazm to Twoje atuty. Możliwa inspirująca podróż lub spotkanie. Rozwijaj swoje zainteresowania. Szczęśliwa liczba: 3.';
+        return 'Optymizm i poszukiwanie przygód otworzą nowe horyzonty. Podróże i nauka przyniosą inspirację. Szczęśliwa liczba: 9.';
       default:
-        return 'Dziś gwiazdy przygotowały dla Ciebie specjalną wiadomość. Sprawdź pełen horoskop, aby poznać szczegóły.';
+        return 'Dzisiaj jest dobry dzień na nowe początki i pozytywne zmiany. Energia planet sprzyja Twoim planom.';
     }
   }
 
-  String _getCurrentMoonPhase() {
-    // In a real app, this would be calculated based on current date
-    // For now, just return a random phase for demonstration
-    final phases = [
-      'Nów',
-      'Przybywający sierp',
-      'Pierwsza kwadra',
-      'Przybywający garb',
-      'Pełnia',
-      'Ubywający garb',
-      'Ostatnia kwadra',
-      'Ubywający sierp'
-    ];
-
-    return phases[DateTime.now().day % phases.length];
-  }
-
-  String _getMoonPhaseEmoji(String phase) {
-    switch (phase) {
-      case 'Nów':
-        return '🌑';
-      case 'Przybywający sierp':
-        return '🌒';
-      case 'Pierwsza kwadra':
-        return '🌓';
-      case 'Przybywający garb':
-        return '🌔';
-      case 'Pełnia':
-        return '🌕';
-      case 'Ubywający garb':
-        return '🌖';
-      case 'Ostatnia kwadra':
-        return '🌗';
-      case 'Ubywający sierp':
-        return '🌘';
-      default:
-        return '🌙';
-    }
-  }
-
-  String _getLunarCalendarDescription(String phase) {
-    switch (phase) {
-      case 'Nów':
-        return 'Czas nowych początków i planowania. Energia sprzyja wyciszeniu i refleksji. Dobry moment na wyznaczanie celów i intencji.';
-      case 'Przybywający sierp':
-        return 'Okres wzrostu energii i realizacji planów. Sprzyjający czas na początek nowych projektów i nawiązywanie kontaktów.';
-      case 'Pierwsza kwadra':
-        return 'Moment działania i przezwyciężania przeszkód. Energia sprzyja podejmowaniu decyzji i rozwiązywaniu problemów.';
-      case 'Przybywający garb':
-        return 'Czas intensywnego rozwoju i transformacji. Sprzy';
-      case 'Pełnia':
-        return 'Kulminacja energii, emocje są na powierzchni. Idealny czas na celebrowanie osiągnięć i manifestację pragnień.';
-      case 'Ubywający garb':
-        return 'Okres wdzięczności i dzielenia się z innymi. Dobry czas na działalność społeczną i pomaganie innym.';
-      case 'Ostatnia kwadra':
-        return 'Moment rozliczenia i odpuszczania. Energia sprzyja podsumowaniom i przygotowaniu się na nowy cykl.';
-      case 'Ubywający sierp':
-        return 'Czas wyciszenia i regeneracji. Sprzyjający okres dla odpoczynku, medytacji i praktyk duchowych.';
-      default:
-        return 'Fazy Księżyca wpływają na nasze emocje i energię. Świadome życie w zgodzie z cyklem księżycowym pomaga osiągnąć harmonię.';
-    }
+  String _getLunarHoroscopePreview() {
+    return 'Księżyc w obecnej fazie wpływa na nasze emocje i intuicję. To doskonały czas na refleksję '
+        'i kontakt z wewnętrzną mądrością. Skorzystaj z energii lunalnej do realizacji swoich marzeń.';
   }
 }
 
-class CosmicPainter extends CustomPainter {
-  final double animation;
+// Custom painter dla gwiazd w tle
+class StarsPainter extends CustomPainter {
+  final double rotation;
 
-  CosmicPainter({required this.animation});
+  StarsPainter(this.rotation);
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
-      ..color = AppColors.cyan.withOpacity(0.2);
+      ..color = Colors.white.withOpacity(0.1)
+      ..strokeWidth = 1;
 
-    // Draw cosmic circles
-    for (int i = 0; i < 3; i++) {
-      final radius = 100.0 + (i * 50.0);
-      final offset = 20.0 * math.sin(animation * 2 * math.pi + i);
+    final random = math.Random(42); // Seed dla konsystentnych pozycji
 
-      canvas.drawCircle(
-        Offset(size.width / 2, size.height / 2 + offset),
-        radius,
-        paint,
-      );
-    }
+    for (int i = 0; i < 100; i++) {
+      final x = random.nextDouble() * size.width;
+      final y = random.nextDouble() * size.height;
 
-    // Draw cosmic lines
-    for (int i = 0; i < 12; i++) {
-      final angle = (i / 12.0) * 2 * math.pi + (animation * math.pi);
-      final dx = math.cos(angle);
-      final dy = math.sin(angle);
+      final opacity = (math.sin(rotation + i * 0.1) + 1) / 2 * 0.8 + 0.2;
+      paint.color = Colors.white.withOpacity(opacity * 0.3);
 
-      final startRadius = 50.0;
-      final endRadius = size.width * 0.4;
-
-      canvas.drawLine(
-        Offset(
-          size.width / 2 + dx * startRadius,
-          size.height / 2 + dy * startRadius,
-        ),
-        Offset(
-          size.width / 2 + dx * endRadius,
-          size.height / 2 + dy * endRadius,
-        ),
-        paint
-          ..color = AppColors.cyan
-              .withOpacity(0.1 + (0.1 * math.sin(animation * 2 * math.pi + i))),
-      );
+      canvas.drawCircle(Offset(x, y), 1, paint);
     }
   }
 
