@@ -1,0 +1,5 @@
+flutter pub get
+flutter run
+flutter run -d 7L6HS4D6RG7LQK99
+
+
