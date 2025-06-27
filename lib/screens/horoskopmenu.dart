@@ -1,5 +1,5 @@
 // lib/screens/horoskopmenu.dart
-// 🔮 MENU HOROSKOPÓW - zaktualizowane z nowymi polami Firebase
+// 🔮 MENU HOROSKOPÓW - NAPRAWIONA WERSJA
 // Zgodny z wytycznymi projektu AI Wróżka - KOMPLETNY KOD
 
 import 'package:flutter/material.dart';
@@ -44,6 +44,7 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
   HoroscopeData? _todayHoroscope;
   HoroscopeData? _lunarHoroscope;
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -78,24 +79,36 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
 
   Future<void> _loadTodayHoroscope() async {
     try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
       final zodiacSign = _getZodiacSign();
-      if (zodiacSign != 'Nieznany') {
-        final horoscope = await _horoscopeService.getDailyHoroscope(zodiacSign);
-        final lunarHoroscope =
-            await _horoscopeService.getDailyHoroscope('lunar');
-        setState(() {
-          _todayHoroscope = horoscope;
-          _lunarHoroscope = lunarHoroscope;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      final englishZodiacSign = _convertPolishToEnglish(zodiacSign);
+
+      print(
+          '🔮 Pobieranie horoskopu dla znaku: $zodiacSign ($englishZodiacSign)');
+
+      // Pobierz horoskop dla znaku użytkownika
+      final horoscope =
+          await _horoscopeService.getDailyHoroscope(englishZodiacSign);
+
+      // Pobierz horoskop księżycowy (lunar)
+      final lunarHoroscope = await _horoscopeService.getDailyHoroscope('lunar');
+
+      setState(() {
+        _todayHoroscope = horoscope;
+        _lunarHoroscope = lunarHoroscope;
+        _isLoading = false;
+      });
+
+      print('✅ Załadowano horoskop: ${horoscope?.text.length} znaków');
     } catch (e) {
+      print('❌ Błąd ładowania horoskopu: $e');
       setState(() {
         _isLoading = false;
+        _errorMessage = 'Błąd ładowania horoskopu';
       });
     }
   }
@@ -142,28 +155,23 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Dzisiejszy horoskop z symbolem zodiaku i NOWYMI POLAMI
-                    _buildEnhancedDailyHoroscopeCard(),
+                    // 1️⃣ HOROSKOP DZIENNY - główna sekcja (uproszczona)
+                    _buildSimpleDailyHoroscopeCard(),
 
                     const SizedBox(height: 20),
 
-                    // Kalendarz księżycowy
-                    _buildLunarCalendarCard(),
-
-                    const SizedBox(height: 20),
-
-                    // Horoskop rozbudowany
+                    // 2️⃣ HOROSKOP ROZBUDOWANY - bezpośrednio po dziennym
                     _buildHoroscopeOption(
                       title: 'Horoskop Rozbudowany',
                       icon: Icons.auto_awesome,
-                      description: 'Specjalnie dla Ciebie',
+                      description: 'Szczegółowa analiza dla Ciebie',
                       color: Colors.deepPurple,
                       onTap: () => _navigateToHoroscope('extended'),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
-                    // Pozostałe opcje horoskopów
+                    // 3️⃣ HOROSKOPY TYGODNIOWY I MIESIĘCZNY
                     Row(
                       children: [
                         Expanded(
@@ -186,8 +194,19 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
                       ],
                     ),
 
+                    const SizedBox(height: 20),
+
+                    // 4️⃣ KALENDARZ KSIĘŻYCOWY - z fazą księżyca
+                    _buildLunarCalendarCard(),
+
+                    const SizedBox(height: 20),
+
+                    // 5️⃣ ŚWIECA DNIA - osobna sekcja
+                    _buildCandleRecommendationCard(),
+
                     const SizedBox(height: 16),
 
+                    // 6️⃣ HOROSKOP SPECJALNY
                     _buildCompactHoroscopeOption(
                       title: 'Horoskop Specjalnie dla Ciebie',
                       icon: Icons.star_outline,
@@ -216,8 +235,8 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
     );
   }
 
-  /// 🔮 Rozbudowana karta dzisiejszego horoskopu z NOWYMI POLAMI
-  Widget _buildEnhancedDailyHoroscopeCard() {
+  /// 🔮 UPROSZCZONA karta dzisiejszego horoskopu - tylko treść horoskopu
+  Widget _buildSimpleDailyHoroscopeCard() {
     final zodiacSign = _getZodiacSign();
     final zodiacEmoji = _getZodiacEmoji(zodiacSign);
 
@@ -245,7 +264,7 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Dziś • ${DateTime.now().day}.${DateTime.now().month.toString().padLeft(2, '0')}',
+                        'Dziś • ${DateTime.now().day}.${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().year}',
                         style: GoogleFonts.cinzelDecorative(
                           fontSize: 14,
                           color: AppColors.cyan,
@@ -283,148 +302,70 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
 
               const SizedBox(height: 16),
 
-              // Faza księżyca z emoji
-              if (_todayHoroscope != null) ...[
-                Row(
-                  children: [
-                    Text(
-                      _todayHoroscope!.moonEmoji ?? '🌙',
-                      style: const TextStyle(fontSize: 20),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _todayHoroscope!.moonPhase ?? 'Faza księżyca',
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 14,
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-              ],
-
-              // Treść horoskopu
+              // TYLKO TREŚĆ HOROSKOPU - bez dodatkowych informacji
               if (_isLoading)
                 const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.cyan,
-                    strokeWidth: 2,
+                  child: Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: CircularProgressIndicator(
+                      color: AppColors.cyan,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                )
+              else if (_errorMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red, size: 24),
+                      const SizedBox(height: 8),
+                      Text(
+                        _errorMessage!,
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 14,
+                          color: Colors.red,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _getDailyHoroscopePreview(zodiacSign),
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 15,
+                          color: Colors.white70,
+                          height: 1.6,
+                        ),
+                      ),
+                    ],
                   ),
                 )
               else if (_todayHoroscope != null) ...[
+                // Główna treść horoskopu z Firebase/AI
                 Text(
                   _todayHoroscope!.text,
                   style: GoogleFonts.cinzelDecorative(
-                    fontSize: 14,
+                    fontSize: 15,
                     color: Colors.white,
                     height: 1.6,
                   ),
                 ),
-
-                // 🆕 NOWE SEKCJE - Opis księżycowy
-                if (_todayHoroscope!.lunarDescription != null &&
-                    _todayHoroscope!.lunarDescription!.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.indigo.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.indigo.withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Text('🌙', style: TextStyle(fontSize: 16)),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Wpływ Księżyca',
-                              style: GoogleFonts.cinzelDecorative(
-                                fontSize: 14,
-                                color: Colors.indigo[300],
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _todayHoroscope!.lunarDescription!,
-                          style: GoogleFonts.cinzelDecorative(
-                            fontSize: 12,
-                            color: Colors.white70,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                // 🆕 NOWA SEKCJA - Rekomendowana świeca
-                if (_todayHoroscope!.recommendedCandle != null &&
-                    _todayHoroscope!.recommendedCandle!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.amber.withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Text('🕯️', style: TextStyle(fontSize: 16)),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Świeca dnia: ${_todayHoroscope!.recommendedCandle}',
-                              style: GoogleFonts.cinzelDecorative(
-                                fontSize: 14,
-                                color: Colors.amber[300],
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (_todayHoroscope!.recommendedCandleReason != null &&
-                            _todayHoroscope!
-                                .recommendedCandleReason!.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            _todayHoroscope!.recommendedCandleReason!,
-                            style: GoogleFonts.cinzelDecorative(
-                              fontSize: 12,
-                              color: Colors.white70,
-                              height: 1.5,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ] else
+              ] else ...[
+                // Fallback - gdy nie ma danych
                 Text(
                   _getDailyHoroscopePreview(zodiacSign),
                   style: GoogleFonts.cinzelDecorative(
-                    fontSize: 14,
+                    fontSize: 15,
                     color: Colors.white,
                     height: 1.6,
                   ),
                 ),
+              ],
 
               const SizedBox(height: 16),
 
@@ -446,7 +387,7 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
     );
   }
 
-  /// 🌙 Kalendarz księżycowy
+  /// 🌙 KALENDARZ KSIĘŻYCOWY - tylko faza księżyca i wpływ
   Widget _buildLunarCalendarCard() {
     return Card(
       color: Colors.grey[900]?.withOpacity(0.8),
@@ -500,7 +441,7 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(width: 4),
                       Text(
                         _lunarHoroscope?.moonPhase ?? 'Faza księżyca',
                         style: GoogleFonts.cinzelDecorative(
@@ -515,14 +456,61 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
               ],
             ),
             const SizedBox(height: 16),
-            Text(
-              _lunarHoroscope?.text ?? _getLunarHoroscopePreview(),
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 14,
-                color: Colors.white70,
-                height: 1.5,
+
+            // Wpływ księżyca
+            if (_lunarHoroscope?.lunarDescription != null &&
+                _lunarHoroscope!.lunarDescription!.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.indigo.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text('🌙', style: TextStyle(fontSize: 16)),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Wpływ Księżyca',
+                          style: GoogleFonts.cinzelDecorative(
+                            fontSize: 14,
+                            color: Colors.indigo[300],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _lunarHoroscope!.lunarDescription!,
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 13,
+                        color: Colors.white70,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ] else ...[
+              // Fallback opis
+              Text(
+                _getLunarHoroscopePreview(),
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 14,
+                  color: Colors.white70,
+                  height: 1.5,
+                ),
+              ),
+            ],
+
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -538,6 +526,146 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
         ),
       ),
     );
+  }
+
+  /// 🕯️ ŚWIECA DNIA - osobna sekcja
+  Widget _buildCandleRecommendationCard() {
+    // Pobierz dane świecy z horoskopu lub fallback
+    String candleColor = 'biała';
+    String candleReason =
+        'Biała świeca symbolizuje czystość i pozytywną energię.';
+
+    if (_todayHoroscope?.recommendedCandle != null) {
+      candleColor = _todayHoroscope!.recommendedCandle!;
+      candleReason = _todayHoroscope!.recommendedCandleReason ?? candleReason;
+    } else if (_lunarHoroscope?.moonPhase != null) {
+      // Fallback na podstawie fazy księżyca
+      final moonPhase = _lunarHoroscope!.moonPhase!;
+      candleColor = _getFallbackCandle(moonPhase);
+      candleReason = _getFallbackCandleReason(moonPhase);
+    }
+
+    return Card(
+      color: Colors.grey[900]?.withOpacity(0.8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: Colors.amber.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: Colors.amber.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Text(
+                    '🕯️',
+                    style: TextStyle(fontSize: 24),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Świeca Dnia',
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Kolor: $candleColor',
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 14,
+                          color: Colors.amber,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.amber.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                candleReason,
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 13,
+                  color: Colors.white70,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 🕯️ Fallback świeca na podstawie fazy księżyca
+  String _getFallbackCandle(String moonPhase) {
+    const candles = {
+      'Nów': 'biała',
+      'Przybywający sierp': 'zielona',
+      'Pierwsza kwadra': 'czerwona',
+      'Przybywający garb': 'pomarańczowa',
+      'Pełnia': 'złota',
+      'Ubywający garb': 'niebieska',
+      'Ostatnia kwadra': 'fioletowa',
+      'Ubywający sierp': 'czarna',
+    };
+    return candles[moonPhase] ?? 'biała';
+  }
+
+  /// 🕯️ Fallback powód świecy
+  String _getFallbackCandleReason(String moonPhase) {
+    const reasons = {
+      'Nów':
+          'Biała świeca symbolizuje czystość, nowe początki i nieskazitelną energię.',
+      'Przybywający sierp':
+          'Zielona świeca wspiera wzrost, rozwój i realizację nowych planów.',
+      'Pierwsza kwadra':
+          'Czerwona świeca daje siłę i determinację do pokonywania przeszkód.',
+      'Przybywający garb':
+          'Pomarańczowa świeca wspiera kreatywność i pozytywną energię.',
+      'Pełnia':
+          'Złota świeca symbolizuje obfitość, sukces i manifestację marzeń.',
+      'Ubywający garb':
+          'Niebieska świeca przynosi spokój, refleksję i głęboką mądrość.',
+      'Ostatnia kwadra':
+          'Fioletowa świeca wspiera transformację i duchowe oczyszczenie.',
+      'Ubywający sierp':
+          'Czarna świeca symbolizuje ochronę i usuwanie negatywnej energii.',
+    };
+    return reasons[moonPhase] ??
+        'Ta świeca wspiera Twoje intencje i harmonizuje energię.';
   }
 
   Widget _buildMysticalBackground() {
@@ -799,6 +927,27 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
         );
       },
     );
+  }
+
+  /// 🔄 Konwersja polskiej nazwy znaku na angielską
+  String _convertPolishToEnglish(String zodiacSign) {
+    const polishToEnglish = {
+      'Koziorożec': 'capricorn',
+      'Wodnik': 'aquarius',
+      'Ryby': 'pisces',
+      'Baran': 'aries',
+      'Byk': 'taurus',
+      'Bliźnięta': 'gemini',
+      'Rak': 'cancer',
+      'Lew': 'leo',
+      'Panna': 'virgo',
+      'Waga': 'libra',
+      'Skorpion': 'scorpio',
+      'Strzelec': 'sagittarius',
+    };
+
+    return polishToEnglish[zodiacSign]?.toLowerCase() ??
+        zodiacSign.toLowerCase();
   }
 
   String _getZodiacSign() {

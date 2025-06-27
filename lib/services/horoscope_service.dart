@@ -1,6 +1,6 @@
 // lib/services/horoscope_service.dart
-// 🔮 SERWIS HOROSKOPÓW - integracja z Firebase i AI backend
-// Zgodny z wytycznymi projektu AI Wróżka - ZAKTUALIZOWANY dla nowej struktury Firebase
+// 🔮 SERWIS HOROSKOPÓW - KOMPLETNA NAPRAWIONA WERSJA obsługująca obie struktury Firebase
+// Zgodny z wytycznymi projektu AI Wróżka - PEŁNY KOD
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -19,7 +19,7 @@ class HoroscopeService {
   // 📝 Logging zgodnie z wytycznymi
   final LoggingService _logger = LoggingService();
 
-  // 🏠 Kolekcje horoskopów w Firestore - NOWA STRUKTURA
+  // 🏠 Kolekcje horoskopów w Firestore - OBSŁUGA DWÓCH STRUKTUR
   static const String _horoscopesCollection = 'horoscopes';
   static const String _dailySubCollection = 'daily';
   static const String _weeklySubCollection = 'weekly';
@@ -86,7 +86,7 @@ class HoroscopeService {
     return _polishToEnglishZodiac[zodiacSign] ?? zodiacSign.toLowerCase();
   }
 
-  /// 📅 Pobierz horoskop dzienny dla znaku zodiaku - NOWA STRUKTURA
+  /// 📅 NAPRAWIONA metoda pobierania horoskopu dziennego - OBSŁUGUJE OBIE STRUKTURY
   Future<HoroscopeData?> getDailyHoroscope(String zodiacSign,
       {DateTime? date}) async {
     final targetDate = date ?? DateTime.now();
@@ -105,28 +105,105 @@ class HoroscopeService {
         return _getFallbackHoroscope(englishZodiac, targetDate);
       }
 
-      // NOWA ŚCIEŻKA: horoscopes/daily/[zodiacSign]/[date]
-      final docRef = _firestore!
+      // 🔍 STRATEGIA 1: Próbuj NOWĄ strukturę (horoscopes/daily/[zodiacSign]/[date])
+      final newStructureRef = _firestore!
           .collection(_horoscopesCollection)
           .doc(_dailySubCollection)
           .collection(englishZodiac)
           .doc(dateString);
 
-      final docSnapshot = await docRef.get();
+      final newDoc = await newStructureRef.get();
 
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        _logger.logToConsole('✅ Znaleziono horoskop w Firebase',
+      if (newDoc.exists && newDoc.data() != null) {
+        _logger.logToConsole(
+            '✅ Znaleziono horoskop w NOWEJ strukturze Firebase',
             tag: 'HOROSCOPE');
-        return HoroscopeData.fromFirestore(docSnapshot);
-      } else {
-        _logger.logToConsole('⚠️ Brak horoskopu w Firebase - używam fallback',
-            tag: 'HOROSCOPE');
-        return _getFallbackHoroscope(englishZodiac, targetDate);
+        return HoroscopeData.fromFirestore(newDoc);
       }
+
+      // 🔍 STRATEGIA 2: Próbuj STARĄ strukturę (horoscopes/[date]/[zodiacSign])
+      final oldStructureRef = _firestore!
+          .collection(_horoscopesCollection)
+          .doc(dateString)
+          .collection('zodiacSigns')
+          .doc(englishZodiac);
+
+      final oldDoc = await oldStructureRef.get();
+
+      if (oldDoc.exists && oldDoc.data() != null) {
+        _logger.logToConsole(
+            '✅ Znaleziono horoskop w STAREJ strukturze Firebase',
+            tag: 'HOROSCOPE');
+        return HoroscopeData.fromFirestore(oldDoc);
+      }
+
+      // 🔍 STRATEGIA 3: Próbuj ALTERNATYWNĄ starą strukturę (horoscopes/[date] -> bezpośrednio jako pole)
+      final altStructureRef =
+          _firestore!.collection(_horoscopesCollection).doc(dateString);
+
+      final altDoc = await altStructureRef.get();
+
+      if (altDoc.exists && altDoc.data() != null) {
+        final data = altDoc.data()!;
+
+        // Sprawdź czy znak zodiaku jest jako pole w dokumencie
+        if (data.containsKey(englishZodiac)) {
+          _logger.logToConsole(
+              '✅ Znaleziono horoskop w ALTERNATYWNEJ strukturze Firebase',
+              tag: 'HOROSCOPE');
+
+          // Utwórz HoroscopeData z pola dokumentu
+          final zodiacData = data[englishZodiac] as Map<String, dynamic>? ?? {};
+          return _createHoroscopeFromData(
+              zodiacData, englishZodiac, targetDate, altDoc.id);
+        }
+      }
+
+      // 🔍 STRATEGIA 4: Specjalna obsługa dla 'lunar'
+      if (englishZodiac == 'lunar') {
+        final lunarRef = _firestore!
+            .collection(_horoscopesCollection)
+            .doc(_dailySubCollection)
+            .collection('lunar')
+            .doc(dateString);
+
+        final lunarDoc = await lunarRef.get();
+
+        if (lunarDoc.exists && lunarDoc.data() != null) {
+          _logger.logToConsole('✅ Znaleziono horoskop LUNAR w Firebase',
+              tag: 'HOROSCOPE');
+          return HoroscopeData.fromFirestore(lunarDoc);
+        }
+      }
+
+      _logger.logToConsole(
+          '⚠️ Brak horoskopu we WSZYSTKICH strukturach Firebase - używam fallback',
+          tag: 'HOROSCOPE');
+      return _getFallbackHoroscope(englishZodiac, targetDate);
     } catch (e) {
       _logger.logToConsole('❌ Błąd pobierania horoskopu: $e', tag: 'ERROR');
       return _getFallbackHoroscope(zodiacSign, targetDate);
     }
+  }
+
+  /// 🏗️ Utwórz HoroscopeData z danych Firebase
+  HoroscopeData _createHoroscopeFromData(Map<String, dynamic> data,
+      String zodiacSign, DateTime date, String docId) {
+    return HoroscopeData(
+      zodiacSign: zodiacSign,
+      text: data['text'] ?? '',
+      date: date,
+      moonPhase: data['moonPhase'] ?? calculateMoonPhase(date),
+      moonEmoji: data['moonEmoji'] ??
+          _getMoonEmoji(data['moonPhase'] ?? calculateMoonPhase(date)),
+      isFromAI: data['generatedBy'] != 'fallback',
+      createdAt: DateTime.now(),
+      type: 'daily',
+      generatedBy: data['generatedBy'] ?? 'firebase',
+      lunarDescription: data['lunarDescription'],
+      recommendedCandle: data['recommendedCandle'],
+      recommendedCandleReason: data['recommendedCandleReason'],
+    );
   }
 
   /// 📅 Pobierz horoskop tygodniowy - NOWA IMPLEMENTACJA
