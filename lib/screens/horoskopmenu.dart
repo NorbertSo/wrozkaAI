@@ -42,7 +42,6 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
 
   // Stan
   HoroscopeData? _todayHoroscope;
-  HoroscopeData? _lunarHoroscope;
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -94,12 +93,8 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
       final horoscope =
           await _horoscopeService.getDailyHoroscope(englishZodiacSign);
 
-      // Pobierz horoskop księżycowy (lunar)
-      final lunarHoroscope = await _horoscopeService.getDailyHoroscope('lunar');
-
       setState(() {
         _todayHoroscope = horoscope;
-        _lunarHoroscope = lunarHoroscope;
         _isLoading = false;
       });
 
@@ -387,8 +382,20 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
     );
   }
 
-  /// 🌙 KALENDARZ KSIĘŻYCOWY - tylko faza księżyca i wpływ
+  /// 🌙 KALENDARZ KSIĘŻYCOWY - pobiera dane z głównego horoskopu dziennego
   Widget _buildLunarCalendarCard() {
+    // POPRAWIONE: pobieramy dane o księżycu z głównego horoskopu dziennego
+    final moonEmoji = _todayHoroscope?.moonEmoji ?? '🌙';
+    final moonPhase = _todayHoroscope?.moonPhase ?? 'Faza księżyca';
+    final lunarDescription = _todayHoroscope?.lunarDescription;
+
+    // 🔍 DEBUG - sprawdź co mamy w danych
+    print('🔍 DEBUG Kalendarz Księżycowy:');
+    print('moonEmoji: $moonEmoji');
+    print('moonPhase: $moonPhase');
+    print('lunarDescription: $lunarDescription');
+    print('lunarDescription.isNotEmpty: ${lunarDescription?.isNotEmpty}');
+
     return Card(
       color: Colors.grey[900]?.withOpacity(0.8),
       shape: RoundedRectangleBorder(
@@ -421,7 +428,7 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
                           ),
                         ),
                         child: Text(
-                          _lunarHoroscope?.moonEmoji ?? '🌙',
+                          moonEmoji,
                           style: const TextStyle(fontSize: 24),
                         ),
                       ),
@@ -441,9 +448,9 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(height: 4),
                       Text(
-                        _lunarHoroscope?.moonPhase ?? 'Faza księżyca',
+                        moonPhase,
                         style: GoogleFonts.cinzelDecorative(
                           fontSize: 14,
                           color: Colors.purple,
@@ -457,9 +464,8 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
             ),
             const SizedBox(height: 16),
 
-            // Wpływ księżyca
-            if (_lunarHoroscope?.lunarDescription != null &&
-                _lunarHoroscope!.lunarDescription!.isNotEmpty) ...[
+            // Wpływ księżyca z głównego horoskopu
+            if (lunarDescription != null && lunarDescription.isNotEmpty) ...[
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -489,7 +495,7 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _lunarHoroscope!.lunarDescription!,
+                      lunarDescription,
                       style: GoogleFonts.cinzelDecorative(
                         fontSize: 13,
                         color: Colors.white70,
@@ -500,9 +506,18 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
                 ),
               ),
             ] else ...[
-              // Fallback opis
+              // 🔍 DEBUG - pokaż czy wchodzimy w fallback
               Text(
-                _getLunarHoroscopePreview(),
+                '🔍 DEBUG: lunarDescription = $lunarDescription',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 12,
+                  color: Colors.red,
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Fallback opis na podstawie fazy księżyca
+              Text(
+                _getFallbackLunarDescription(moonPhase),
                 style: GoogleFonts.cinzelDecorative(
                   fontSize: 14,
                   color: Colors.white70,
@@ -538,9 +553,9 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
     if (_todayHoroscope?.recommendedCandle != null) {
       candleColor = _todayHoroscope!.recommendedCandle!;
       candleReason = _todayHoroscope!.recommendedCandleReason ?? candleReason;
-    } else if (_lunarHoroscope?.moonPhase != null) {
-      // Fallback na podstawie fazy księżyca
-      final moonPhase = _lunarHoroscope!.moonPhase!;
+    } else if (_todayHoroscope?.moonPhase != null) {
+      // Fallback na podstawie fazy księżyca z głównego horoskopu
+      final moonPhase = _todayHoroscope!.moonPhase!;
       candleColor = _getFallbackCandle(moonPhase);
       candleReason = _getFallbackCandleReason(moonPhase);
     }
@@ -666,6 +681,30 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
     };
     return reasons[moonPhase] ??
         'Ta świeca wspiera Twoje intencje i harmonizuje energię.';
+  }
+
+  /// 🌙 Fallback opis księżycowy
+  String _getFallbackLunarDescription(String moonPhase) {
+    const lunarDescriptions = {
+      'Nów':
+          'Dziś panuje energia Nowiu, symbolizująca nowe początki i czystą kartę. To idealny czas na zasiewanie intencji.',
+      'Przybywający sierp':
+          'Energia przybywającego sierpa wspiera inicjowanie nowych projektów. Czas na pierwsze kroki.',
+      'Pierwsza kwadra':
+          'Pierwsza kwadra to moment podejmowania ważnych decyzji. Przezwyciężaj przeszkody z determinacją.',
+      'Przybywający garb':
+          'Energia przybywającego garba zachęca do wytrwałej pracy. Efekty będą wkrótce widoczne.',
+      'Pełnia':
+          'Pełnia to szczyt energii lunalnej. Czas manifestacji i celebrowania osiągnięć.',
+      'Ubywający garb':
+          'Czas refleksji nad osiągnięciami. Podziękuj za to, co udało się zrealizować.',
+      'Ostatnia kwadra':
+          'Ostatnia kwadra to czas puszczenia tego, co już nie służy. Przygotuj miejsce na nowe.',
+      'Ubywający sierp':
+          'Okres oczyszczenia i przygotowań do nowego cyklu księżycowego.',
+    };
+    return lunarDescriptions[moonPhase] ??
+        'Księżyc wpływa na nasze emocje i energię. Żyj w zgodzie z jego cyklem.';
   }
 
   Widget _buildMysticalBackground() {
@@ -1085,8 +1124,8 @@ class _HoroskopeMenuScreenState extends State<HoroskopeMenuScreen>
   }
 
   String _getLunarHoroscopePreview() {
-    return 'Księżyc w obecnej fazie wpływa na nasze emocje i intuicję. To doskonały czas na refleksję '
-        'i kontakt z wewnętrzną mądrością. Skorzystaj z energii lunalnej do realizacji swoich marzeń.';
+    // 🔍 USUŃ TEN FALLBACK - teraz pobieramy prawdziwe dane z Firebase
+    return 'FALLBACK: Ten tekst nie powinien się już wyświetlać!';
   }
 }
 

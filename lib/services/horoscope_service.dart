@@ -154,8 +154,25 @@ class HoroscopeService {
 
           // Utwórz HoroscopeData z pola dokumentu
           final zodiacData = data[englishZodiac] as Map<String, dynamic>? ?? {};
+
+          // DODAJ mergowanie danych z głównego dokumentu
+          final mergedData = <String, dynamic>{
+            ...zodiacData, // Dane specyficzne dla znaku (text, zodiacSign)
+            'moonPhase': data['moonPhase'] ?? zodiacData['moonPhase'],
+            'moonEmoji': data['moonEmoji'] ?? zodiacData['moonEmoji'],
+            'lunarDescription':
+                data['lunarDescription'] ?? zodiacData['lunarDescription'],
+            'recommendedCandle':
+                data['recommendedCandle'] ?? zodiacData['recommendedCandle'],
+            'recommendedCandleReason': data['recommendedCandleReason'] ??
+                zodiacData['recommendedCandleReason'],
+            'generatedBy': data['generatedBy'] ?? zodiacData['generatedBy'],
+            'createdAt': data['createdAt'] ?? zodiacData['createdAt'],
+            'type': data['type'] ?? zodiacData['type'],
+          };
+
           return _createHoroscopeFromData(
-              zodiacData, englishZodiac, targetDate, altDoc.id);
+              mergedData, englishZodiac, targetDate, altDoc.id);
         }
       }
 
@@ -225,21 +242,44 @@ class HoroscopeService {
         return _getFallbackWeeklyHoroscope(englishZodiac, targetDate);
       }
 
-      // ŚCIEŻKA: horoscopes/weekly/weeks/[weekKey] -> znajdź dokument ze zodiacSign
-      final collectionRef = _firestore!
+      // ✅ NOWA LOGIKA: Pobierz dokument tygodnia i znajdź pole znaku zodiaku
+      final weekDocRef = _firestore!
           .collection(_horoscopesCollection)
           .doc(_weeklySubCollection)
           .collection('weeks')
           .doc(weekKey);
 
-      final docSnapshot = await collectionRef.get();
+      final docSnapshot = await weekDocRef.get();
 
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final data = docSnapshot.data()!;
-        if (data['zodiacSign'] == englishZodiac) {
+
+        // Sprawdź czy istnieje pole dla tego znaku zodiaku
+        if (data.containsKey(englishZodiac)) {
           _logger.logToConsole('✅ Znaleziono horoskop tygodniowy w Firebase',
               tag: 'HOROSCOPE');
-          return HoroscopeData.fromFirestore(docSnapshot);
+
+          final zodiacData = data[englishZodiac] as Map<String, dynamic>? ?? {};
+
+          // Utwórz HoroscopeData z danych
+          return HoroscopeData(
+            zodiacSign: englishZodiac,
+            text: zodiacData['text'] ?? '',
+            date: targetDate,
+            moonPhase:
+                zodiacData['moonPhase'] ?? calculateMoonPhase(targetDate),
+            moonEmoji: zodiacData['moonEmoji'] ??
+                _getMoonEmoji(
+                    zodiacData['moonPhase'] ?? calculateMoonPhase(targetDate)),
+            isFromAI: zodiacData['generatedBy'] != 'fallback',
+            createdAt: DateTime.now(),
+            type: 'weekly',
+            generatedBy: zodiacData['generatedBy'] ?? 'firebase',
+            weekKey: weekKey,
+            weekStart:
+                DateTime.parse(data['weekStart'] ?? targetDate.toString()),
+            weekEnd: DateTime.parse(data['weekEnd'] ?? targetDate.toString()),
+          );
         }
       }
 
@@ -272,21 +312,63 @@ class HoroscopeService {
         return _getFallbackMonthlyHoroscope(englishZodiac, targetDate);
       }
 
-      // ŚCIEŻKA: horoscopes/monthly/months/[monthKey] -> znajdź dokument ze zodiacSign
-      final collectionRef = _firestore!
+      // 🔍 STRATEGIA 1: horoscopes/monthly/months/[monthKey]/zodiacSigns/[zodiacSign]
+      final strategy1Ref = _firestore!
+          .collection(_horoscopesCollection)
+          .doc(_monthlySubCollection)
+          .collection('months')
+          .doc(monthKey)
+          .collection('zodiacSigns')
+          .doc(englishZodiac);
+
+      final strategy1Doc = await strategy1Ref.get();
+
+      if (strategy1Doc.exists && strategy1Doc.data() != null) {
+        _logger.logToConsole(
+            '✅ Znaleziono horoskop miesięczny w Firebase (strategia 1)',
+            tag: 'HOROSCOPE');
+        return HoroscopeData.fromFirestore(strategy1Doc);
+      }
+
+      // 🔍 STRATEGIA 2: horoscopes/monthly/months/[monthKey] -> data['zodiacSign']
+      final strategy2Ref = _firestore!
           .collection(_horoscopesCollection)
           .doc(_monthlySubCollection)
           .collection('months')
           .doc(monthKey);
 
-      final docSnapshot = await collectionRef.get();
+      final strategy2Doc = await strategy2Ref.get();
 
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        final data = docSnapshot.data()!;
-        if (data['zodiacSign'] == englishZodiac) {
-          _logger.logToConsole('✅ Znaleziono horoskop miesięczny w Firebase',
+      if (strategy2Doc.exists && strategy2Doc.data() != null) {
+        final data = strategy2Doc.data()!;
+
+        // Sprawdź czy istnieje pole dla tego znaku zodiaku
+        if (data.containsKey(englishZodiac)) {
+          _logger.logToConsole(
+              '✅ Znaleziono horoskop miesięczny w Firebase (strategia 2)',
               tag: 'HOROSCOPE');
-          return HoroscopeData.fromFirestore(docSnapshot);
+
+          final zodiacData = data[englishZodiac] as Map<String, dynamic>? ?? {};
+
+          // Utwórz HoroscopeData z danych
+          return HoroscopeData(
+            zodiacSign: englishZodiac,
+            text: zodiacData['text'] ?? '',
+            date: targetDate,
+            moonPhase:
+                zodiacData['moonPhase'] ?? calculateMoonPhase(targetDate),
+            moonEmoji: zodiacData['moonEmoji'] ??
+                _getMoonEmoji(
+                    zodiacData['moonPhase'] ?? calculateMoonPhase(targetDate)),
+            isFromAI: zodiacData['generatedBy'] != 'fallback',
+            createdAt: DateTime.now(),
+            type: 'monthly',
+            generatedBy: zodiacData['generatedBy'] ?? 'firebase',
+            monthKey: monthKey,
+            monthName: _getMonthName(targetDate),
+            monthStart: DateTime(targetDate.year, targetDate.month, 1),
+            monthEnd: DateTime(targetDate.year, targetDate.month + 1, 0),
+          );
         }
       }
 
@@ -300,7 +382,7 @@ class HoroscopeService {
     }
   }
 
-  /// 📊 Pobierz wszystkie horoskopy dzienne na dany dzień
+  /// 📊 Pobierz wszystkie horoskopory dzienne na dany dzień
   Future<List<HoroscopeData>> getAllDailyHoroscopes({DateTime? date}) async {
     final targetDate = date ?? DateTime.now();
 
@@ -375,6 +457,11 @@ class HoroscopeService {
   String _getWeekKey(DateTime date) {
     final year = date.year;
     final weekNumber = _getWeekNumber(date);
+
+    // 🔍 DEBUG - sprawdź co liczy
+    print(
+        '🔍 Week calculation: $year-W${weekNumber.toString().padLeft(2, '0')} for date: $date');
+
     return '$year-W${weekNumber.toString().padLeft(2, '0')}';
   }
 
@@ -385,15 +472,16 @@ class HoroscopeService {
 
   /// 📊 Oblicz numer tygodnia
   int _getWeekNumber(DateTime date) {
-    final startOfYear = DateTime(date.year, 1, 1);
-    final firstMonday =
-        startOfYear.add(Duration(days: (8 - startOfYear.weekday) % 7));
+    // Znajdź poniedziałek tego tygodnia
+    final monday = date.subtract(Duration(days: date.weekday - 1));
 
-    if (date.isBefore(firstMonday)) {
-      return _getWeekNumber(DateTime(date.year - 1, 12, 31));
-    }
+    // Oblicz numer tygodnia według ISO 8601
+    final jan4 = DateTime(monday.year, 1, 4);
+    final firstMonday = jan4.subtract(Duration(days: jan4.weekday - 1));
+    final weekNumber =
+        ((monday.difference(firstMonday).inDays) / 7).floor() + 1;
 
-    return ((date.difference(firstMonday).inDays) / 7).floor() + 1;
+    return weekNumber;
   }
 
   /// 🌙 Oblicz fazę księżyca

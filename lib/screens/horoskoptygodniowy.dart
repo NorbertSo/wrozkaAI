@@ -69,15 +69,13 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
   Future<void> _initializeWeeklyData() async {
     await _horoscopeService.initialize();
 
-    // Załaduj horoskopy na każdy dzień tygodnia
-    for (int i = 0; i < 7; i++) {
-      final date = _startDate.add(Duration(days: i));
-      final horoscope = await _horoscopeService.getDailyHoroscope(
-          _getZodiacSignFromName(widget.zodiacSign),
-          date: date);
-      if (horoscope != null) {
-        _weeklyHoroscopes.add(horoscope);
-      }
+    // ✅ POPRAWNIE: Pobierz JEDEN horoskop tygodniowy
+    final weeklyHoroscope = await _horoscopeService.getWeeklyHoroscope(
+        _convertPolishToEnglish(widget.zodiacSign) // ← zwraca 'sagittarius'
+        );
+
+    if (weeklyHoroscope != null) {
+      _weeklyHoroscopes.add(weeklyHoroscope);
     }
 
     setState(() {
@@ -842,6 +840,11 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
   }
 
   String _getWeeklyHoroscopePreview() {
+    // If we have loaded weekly horoscope data, use it
+    if (_weeklyHoroscopes.isNotEmpty) {
+      return _weeklyHoroscopes.first.text;
+    }
+
     // Return different content based on zodiac sign
     switch (widget.zodiacSign.toLowerCase()) {
       case 'koziorożec':
@@ -899,24 +902,42 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
 
   // Helper method to get zodiac sign from name
   String _getZodiacSignFromName(String name) {
-    // Mapping of zodiac sign names to their corresponding symbols
     const zodiacSigns = {
-      'koziorożec': '♑',
-      'wodnik': '♒',
-      'ryby': '♓',
-      'baran': '♈',
-      'byk': '♉',
-      'bliźnięta': '♊',
-      'rak': '♋',
-      'lew': '♌',
-      'panna': '♍',
-      'waga': '♎',
-      'skorpion': '♏',
-      'strzelec': '♐',
+      'koziorożec': 'capricorn',
+      'wodnik': 'aquarius',
+      'ryby': 'pisces',
+      'baran': 'aries',
+      'byk': 'taurus',
+      'bliźnięta': 'gemini',
+      'rak': 'cancer',
+      'lew': 'leo',
+      'panna': 'virgo',
+      'waga': 'libra',
+      'skorpion': 'scorpio',
+      'strzelec': 'sagittarius',
+    };
+    return zodiacSigns[name.toLowerCase()] ?? 'sagittarius';
+  }
+
+  // Helper method to convert Polish zodiac sign to English
+  String _convertPolishToEnglish(String zodiacSign) {
+    const polishToEnglish = {
+      'Koziorożec': 'capricorn',
+      'Wodnik': 'aquarius',
+      'Ryby': 'pisces',
+      'Baran': 'aries',
+      'Byk': 'taurus',
+      'Bliźnięta': 'gemini',
+      'Rak': 'cancer',
+      'Lew': 'leo',
+      'Panna': 'virgo',
+      'Waga': 'libra',
+      'Skorpion': 'scorpio',
+      'Strzelec': 'sagittarius',
     };
 
-    return zodiacSigns[name.toLowerCase()] ??
-        '♑'; // Default to Capricorn if not found
+    return polishToEnglish[zodiacSign]?.toLowerCase() ??
+        zodiacSign.toLowerCase();
   }
 }
 
@@ -1198,11 +1219,11 @@ class DetailedWeeklyHoroscopeScreen extends StatelessWidget {
   String _getDetailedHoroscope() {
     // Return detailed horoscope based on zodiac sign and date range
     // For simplicity, using static text. This can be expanded to fetch from a service.
-    return 'Szczegółowy horoskop dla znaku $zodiacSign na okres od ${DateFormat('dd.MM.yyyy').format(startDate)} do ${DateFormat('dd.MM.yyyy').format(endDate)}. \n\n' +
-        'Ogólne: Ten tydzień przyniesie wiele możliwości rozwoju osobistego i zawodowego. Gwiazdy sprzyjają podejmowaniu nowych wyzwań oraz nawiązywaniu cennych kontaktów. ' +
-        'Zadbaj o równowagę między pracą a życiem prywatnym. \n\n' +
-        'Miłość: W relacjach uczuciowych zapanować może harmonia i zrozumienie. To dobry czas na wspólne chwile i szczerą rozmowę. ' +
-        'Single mogą liczyć na interesujące znajomości. \n\n' +
+    return 'Szczegółowy horoskop dla znaku $zodiacSign na okres od ${DateFormat('dd.MM.yyyy').format(startDate)} do ${DateFormat('dd.MM.yyyy').format(endDate)}.\n\n'
+        'Ogólne: Ten tydzień przyniesie wiele możliwości rozwoju osobistego i zawodowego. Gwiazdy sprzyjają podejmowaniu nowych wyzwań oraz nawiązywaniu cennych kontaktów. '
+        'Zadbaj o równowagę między pracą a życiem prywatnym.\n\n'
+        'Miłość: W relacjach uczuciowych zapanować może harmonia i zrozumienie. To dobry czas na wspólne chwile i szczerą rozmowę. '
+        'Single mogą liczyć na interesujące znajomości.\n\n'
         'Zdrowie: Twoje samopoczucie będzie stabilne, jednak warto zadbać o chwilę relaksu i odpoczynku. Nie ignoruj sygnałów, które wysyła Ci organizm.';
   }
 }
