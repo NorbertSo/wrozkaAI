@@ -11,13 +11,14 @@ import '../models/user_data.dart';
 import '../services/fortune_history_service.dart';
 import '../services/user_preferences_service.dart';
 import '../services/haptic_service.dart';
-import '../services/horoscope_service.dart'; // ✅ DODANE
+import '../services/horoscope_service.dart';
 import '../widgets/haptic_button.dart';
 import 'palm_intro_screen.dart';
 import 'fortune_history_screen.dart';
 import 'user_data_screen.dart';
 import 'horoskopmenu.dart';
 import 'horoskopmiesieczny.dart';
+import 'onboarding/music_selection_screen.dart';
 
 class MainMenuScreen extends StatefulWidget {
   final String userName;
@@ -492,6 +493,24 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           ),
 
           const SizedBox(width: 12),
+
+          // Melodia Settings Button (NIEDOSTĘPNE)
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.black26,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              onPressed: () async {
+                await _hapticService.trigger(HapticType.selection);
+                _showComingSoon('Melodia');
+              },
+              icon: const Icon(Icons.music_note, color: Colors.grey),
+              tooltip: 'Melodia (wkrótce)',
+            ),
+          ),
+
+          const SizedBox(width: 8),
 
           // User Menu Button
           Container(
@@ -983,6 +1002,14 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 color: Colors.purple,
                 isAvailable: true,
                 onTap: () => _navigateToHoroscopeMenu(null),
+              ),
+              _buildExploreCard(
+                title: 'Muzyka w tle',
+                subtitle: 'Atmosfera dźwięków',
+                icon: Icons.music_note,
+                color: Colors.purple,
+                isAvailable: true,
+                onTap: _navigateToMusicSelection,
               ),
               _buildExploreCard(
                 title: 'Tarot',
@@ -1733,6 +1760,34 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           userName: _userName,
           userGender: _userGender,
           birthDate: _birthDate,
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.3, 0.0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                  parent: animation, curve: Curves.easeOutCubic)),
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 800),
+      ),
+    );
+  }
+
+  void _navigateToMusicSelection() async {
+    await _hapticService.trigger(HapticType.light);
+
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            MusicSelectionScreen(
+          userName: _userName,
+          userGender: _userGender,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(

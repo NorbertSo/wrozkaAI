@@ -1,7 +1,9 @@
 // lib/services/background_music_service.dart
-// NAPRAWIONA WERSJA - dodane metody onAppPaused i onAppResumed
+// ROZSZERZONA WERSJA - z obsługą wyboru muzyki przez użytkownika
 
 import 'package:just_audio/just_audio.dart';
+import 'user_preferences_service.dart';
+import 'logging_service.dart';
 
 class BackgroundMusicService {
   static final BackgroundMusicService _instance =
@@ -9,27 +11,81 @@ class BackgroundMusicService {
   factory BackgroundMusicService() => _instance;
   BackgroundMusicService._internal();
 
-  late AudioPlayer _audioPlayer;
+  late AudioPlayer _backgroundPlayer;
+  late AudioPlayer _previewPlayer;
+
   bool _isInitialized = false;
-  bool _wasPlayingBeforePause = false; // ✅ DODANE: Pamięć stanu przed pauzą
-  double _volume = 0.14; // Minimalna głośność (30%)
+  bool _wasPlayingBeforePause = false;
+  bool _isBackgroundMusicEnabled = true;
+  double _volume = 0.14; // 14% głośności
+  String _currentTrackFilename = 'musicbg.mp3'; // Domyślny utwór
 
   /// Inicjalizacja serwisu muzycznego
   Future<void> initialize() async {
     try {
-      _audioPlayer = AudioPlayer();
+      _backgroundPlayer = AudioPlayer();
+      _previewPlayer = AudioPlayer();
+
+      // Załaduj preferencje użytkownika
+      await _loadUserPreferences();
 
       // Ustawienie głośności
-      await _audioPlayer.setVolume(_volume);
+      await _backgroundPlayer.setVolume(_volume);
+      await _previewPlayer.setVolume(_volume * 1.5); // Preview trochę głośniej
 
-      // Ustaw źródło audio z loop
-      await _audioPlayer.setAsset('assets/sound/musicbg.mp3');
-      await _audioPlayer.setLoopMode(LoopMode.one); // Loop single track
+      // Ustaw domyślną muzykę z loop
+      if (_isBackgroundMusicEnabled && _currentTrackFilename.isNotEmpty) {
+        await _backgroundPlayer.setAsset('assets/sound/$_currentTrackFilename');
+        await _backgroundPlayer.setLoopMode(LoopMode.one);
+      }
 
       _isInitialized = true;
-      print('🎵 Background Music Service initialized');
+      LoggingService().logToConsole('🎵 Background Music Service initialized',
+          tag: 'MUSIC');
     } catch (e) {
-      print('❌ Error initializing background music: $e');
+      LoggingService().logToConsole('❌ Error initializing background music: $e',
+          tag: 'ERROR');
+    }
+  }
+
+  /// Załaduj preferencje użytkownika
+  Future<void> _loadUserPreferences() async {
+    try {
+      final selectedTrack =
+          await UserPreferencesService.getSelectedBackgroundMusic();
+      final isEnabled = await UserPreferencesService.isBackgroundMusicEnabled();
+
+      _isBackgroundMusicEnabled = isEnabled;
+
+      if (selectedTrack != null && selectedTrack != 'silent_mode') {
+        // Mapowanie ID na pliki
+        _currentTrackFilename = _getFilenameFromTrackId(selectedTrack);
+      }
+
+      LoggingService().logToConsole(
+          '🎵 Załadowano preferencje: enabled=$_isBackgroundMusicEnabled, track=$_currentTrackFilename',
+          tag: 'MUSIC');
+    } catch (e) {
+      LoggingService().logToConsole('❌ Błąd ładowania preferencji muzyki: $e',
+          tag: 'ERROR');
+    }
+  }
+
+  /// Mapowanie ID utworu na nazwę pliku
+  String _getFilenameFromTrackId(String trackId) {
+    switch (trackId) {
+      case 'mystic_ambient':
+        return 'musicbg.mp3';
+      case 'crystal_meditation':
+        return 'crystal_meditation.mp3';
+      case 'forest_whispers':
+        return 'forest_whispers.mp3';
+      case 'cosmic_energy':
+        return 'cosmic_energy.mp3';
+      case 'moonlight_serenade':
+        return 'moonlight_serenade.mp3';
+      default:
+        return 'musicbg.mp3'; // Fallback
     }
   }
 
@@ -39,70 +95,168 @@ class BackgroundMusicService {
       await initialize();
     }
 
+    if (!_isBackgroundMusicEnabled) {
+      LoggingService().logToConsole(
+          '🔇 Muzyka w tle wyłączona przez użytkownika',
+          tag: 'MUSIC');
+      return;
+    }
+
     try {
-      await _audioPlayer.play();
-      print('🎵 Background music started');
+      await _backgroundPlayer.play();
+      LoggingService().logToConsole(
+          '🎵 Background music started: $_currentTrackFilename',
+          tag: 'MUSIC');
     } catch (e) {
-      print('❌ Error starting background music: $e');
+      LoggingService()
+          .logToConsole('❌ Error starting background music: $e', tag: 'ERROR');
     }
   }
 
   /// Zatrzymaj muzykę w tle
   Future<void> stopBackgroundMusic() async {
     try {
-      await _audioPlayer.stop();
-      print('🔇 Background music stopped');
+      await _backgroundPlayer.stop();
+      LoggingService()
+          .logToConsole('🔇 Background music stopped', tag: 'MUSIC');
     } catch (e) {
-      print('❌ Error stopping background music: $e');
+      LoggingService()
+          .logToConsole('❌ Error stopping background music: $e', tag: 'ERROR');
     }
   }
 
-  /// Pauza muzyki
+  /// Pauza muzyki w tle
   Future<void> pauseBackgroundMusic() async {
     try {
-      await _audioPlayer.pause();
-      print('⏸️ Background music paused');
+      await _backgroundPlayer.pause();
+      LoggingService().logToConsole('⏸️ Background music paused', tag: 'MUSIC');
     } catch (e) {
-      print('❌ Error pausing background music: $e');
+      LoggingService()
+          .logToConsole('❌ Error pausing background music: $e', tag: 'ERROR');
     }
   }
 
-  /// Wznów muzykę
+  /// Wznów muzykę w tle
   Future<void> resumeBackgroundMusic() async {
+    if (!_isBackgroundMusicEnabled) return;
+
     try {
-      await _audioPlayer.play();
-      print('▶️ Background music resumed');
+      await _backgroundPlayer.play();
+      LoggingService()
+          .logToConsole('▶️ Background music resumed', tag: 'MUSIC');
     } catch (e) {
-      print('❌ Error resuming background music: $e');
+      LoggingService()
+          .logToConsole('❌ Error resuming background music: $e', tag: 'ERROR');
     }
   }
 
-  // ✅ DODANE: Metody obsługi cyklu życia aplikacji
+  /// Zmień muzykę w tle na nowy utwór
+  Future<void> changeBackgroundMusic(String filename) async {
+    try {
+      final wasPlaying = _backgroundPlayer.playing;
+
+      // Zatrzymaj aktualną muzykę
+      await _backgroundPlayer.stop();
+
+      // Załaduj nowy utwór
+      _currentTrackFilename = filename;
+      await _backgroundPlayer.setAsset('assets/sound/$filename');
+      await _backgroundPlayer.setLoopMode(LoopMode.one);
+
+      // Jeśli muzyka grała wcześniej, uruchom nowy utwór
+      if (wasPlaying && _isBackgroundMusicEnabled) {
+        await _backgroundPlayer.play();
+      }
+
+      LoggingService()
+          .logToConsole('🎵 Zmieniono muzykę na: $filename', tag: 'MUSIC');
+    } catch (e) {
+      LoggingService().logToConsole('❌ Błąd zmiany muzyki: $e', tag: 'ERROR');
+    }
+  }
+
+  /// Włącz/wyłącz muzykę w tle
+  Future<void> setBackgroundMusicEnabled(bool enabled) async {
+    _isBackgroundMusicEnabled = enabled;
+
+    try {
+      // Zapisz preferencje
+      await UserPreferencesService.setBackgroundMusicEnabled(enabled);
+
+      if (enabled) {
+        // Włącz muzykę
+        if (!_backgroundPlayer.playing) {
+          await startBackgroundMusic();
+        }
+        LoggingService().logToConsole('🎵 Muzyka w tle włączona', tag: 'MUSIC');
+      } else {
+        // Wyłącz muzykę
+        await stopBackgroundMusic();
+        LoggingService()
+            .logToConsole('🔇 Muzyka w tle wyłączona', tag: 'MUSIC');
+      }
+    } catch (e) {
+      LoggingService()
+          .logToConsole('❌ Błąd przełączania muzyki: $e', tag: 'ERROR');
+    }
+  }
+
+  /// Odtwórz podgląd utworu (preview)
+  Future<void> previewTrack(String filename) async {
+    try {
+      // Zatrzymaj poprzedni preview
+      await _previewPlayer.stop();
+
+      // Załaduj i odtwórz nowy preview
+      await _previewPlayer.setAsset('assets/sound/$filename');
+      await _previewPlayer.play();
+
+      LoggingService().logToConsole('🎵 Preview: $filename', tag: 'MUSIC');
+    } catch (e) {
+      LoggingService().logToConsole('❌ Błąd preview: $e', tag: 'ERROR');
+    }
+  }
+
+  /// Zatrzymaj podgląd utworu
+  Future<void> stopPreview() async {
+    try {
+      await _previewPlayer.stop();
+      LoggingService().logToConsole('⏹️ Preview zatrzymany', tag: 'MUSIC');
+    } catch (e) {
+      LoggingService()
+          .logToConsole('❌ Błąd zatrzymywania preview: $e', tag: 'ERROR');
+    }
+  }
+
   /// Obsługa pauzowania aplikacji
   Future<void> onAppPaused() async {
     try {
-      // Zapamiętaj czy muzyka grała przed pauzą
-      _wasPlayingBeforePause = _audioPlayer.playing;
+      _wasPlayingBeforePause = _backgroundPlayer.playing;
 
       if (_wasPlayingBeforePause) {
         await pauseBackgroundMusic();
-        print('🎵 App paused - music paused');
+        LoggingService()
+            .logToConsole('🎵 App paused - music paused', tag: 'MUSIC');
       }
     } catch (e) {
-      print('❌ Error handling app pause: $e');
+      LoggingService()
+          .logToConsole('❌ Error handling app pause: $e', tag: 'ERROR');
     }
   }
 
   /// Obsługa wznawiania aplikacji
   Future<void> onAppResumed() async {
     try {
-      // Wznów muzykę tylko jeśli grała przed pauzą
-      if (_wasPlayingBeforePause && !_audioPlayer.playing) {
+      if (_wasPlayingBeforePause &&
+          !_backgroundPlayer.playing &&
+          _isBackgroundMusicEnabled) {
         await resumeBackgroundMusic();
-        print('🎵 App resumed - music resumed');
+        LoggingService()
+            .logToConsole('🎵 App resumed - music resumed', tag: 'MUSIC');
       }
     } catch (e) {
-      print('❌ Error handling app resume: $e');
+      LoggingService()
+          .logToConsole('❌ Error handling app resume: $e', tag: 'ERROR');
     }
   }
 
@@ -110,17 +264,20 @@ class BackgroundMusicService {
   Future<void> setVolume(double volume) async {
     try {
       _volume = volume.clamp(0.0, 1.0);
-      await _audioPlayer.setVolume(_volume);
-      print('🔊 Volume set to: ${(_volume * 100).round()}%');
+      await _backgroundPlayer.setVolume(_volume);
+      await _previewPlayer.setVolume(_volume * 1.5);
+      LoggingService().logToConsole(
+          '🔊 Volume set to: ${(_volume * 100).round()}%',
+          tag: 'MUSIC');
     } catch (e) {
-      print('❌ Error setting volume: $e');
+      LoggingService().logToConsole('❌ Error setting volume: $e', tag: 'ERROR');
     }
   }
 
   /// Fade in effect
   Future<void> fadeIn({Duration duration = const Duration(seconds: 3)}) async {
     try {
-      await _audioPlayer.setVolume(0.0);
+      await _backgroundPlayer.setVolume(0.0);
 
       const steps = 30;
       const stepDuration = Duration(milliseconds: 100);
@@ -129,12 +286,12 @@ class BackgroundMusicService {
       for (int i = 0; i <= steps; i++) {
         await Future.delayed(stepDuration);
         final currentVolume = volumeStep * i;
-        await _audioPlayer.setVolume(currentVolume);
+        await _backgroundPlayer.setVolume(currentVolume);
       }
 
-      print('🎵 Fade in completed');
+      LoggingService().logToConsole('🎵 Fade in completed', tag: 'MUSIC');
     } catch (e) {
-      print('❌ Error during fade in: $e');
+      LoggingService().logToConsole('❌ Error during fade in: $e', tag: 'ERROR');
     }
   }
 
@@ -148,34 +305,39 @@ class BackgroundMusicService {
       for (int i = steps; i >= 0; i--) {
         await Future.delayed(stepDuration);
         final currentVolume = volumeStep * i;
-        await _audioPlayer.setVolume(currentVolume);
+        await _backgroundPlayer.setVolume(currentVolume);
       }
 
-      await _audioPlayer.pause();
-      await _audioPlayer.setVolume(_volume);
-      print('🎵 Fade out completed');
+      await _backgroundPlayer.pause();
+      await _backgroundPlayer.setVolume(_volume);
+      LoggingService().logToConsole('🎵 Fade out completed', tag: 'MUSIC');
     } catch (e) {
-      print('❌ Error during fade out: $e');
+      LoggingService()
+          .logToConsole('❌ Error during fade out: $e', tag: 'ERROR');
     }
   }
 
-  /// Sprawdź czy muzyka gra
-  bool get isPlaying => _audioPlayer.playing;
-
-  /// Pobierz aktualną głośność
+  /// Gettery dla stanu
+  bool get isPlaying => _backgroundPlayer.playing;
+  bool get isPreviewPlaying => _previewPlayer.playing;
+  bool get isBackgroundMusicEnabled => _isBackgroundMusicEnabled;
   double get volume => _volume;
+  String get currentTrackFilename => _currentTrackFilename;
 
   /// Dispose resources
   Future<void> dispose() async {
     try {
-      await _audioPlayer.dispose();
+      await _backgroundPlayer.dispose();
+      await _previewPlayer.dispose();
       _isInitialized = false;
-      print('🗑️ Background Music Service disposed');
+      LoggingService()
+          .logToConsole('🗑️ Background Music Service disposed', tag: 'MUSIC');
     } catch (e) {
-      print('❌ Error disposing background music: $e');
+      LoggingService()
+          .logToConsole('❌ Error disposing background music: $e', tag: 'ERROR');
     }
   }
 }
 
-// ✅ DODANE: Globalna instancja dla łatwego dostępu
+// Globalna instancja dla łatwego dostępu
 final backgroundMusic = BackgroundMusicService();

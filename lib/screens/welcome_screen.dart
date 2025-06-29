@@ -172,28 +172,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                           child: MysticButton(
                             text: 'Rozpocznij swoją podróż',
                             onPressed: () {
-                              Navigator.of(context).push(
-                                PageRouteBuilder(
-                                  pageBuilder: (
-                                    context,
-                                    animation,
-                                    secondaryAnimation,
-                                  ) =>
-                                      const OnboardingScreen(),
-                                  transitionsBuilder: (
-                                    context,
-                                    animation,
-                                    secondaryAnimation,
-                                    child,
-                                  ) {
-                                    return FadeTransition(
-                                      opacity: animation,
-                                      child: child,
-                                    );
-                                  },
-                                  transitionDuration: const Duration(
-                                    milliseconds: 800,
-                                  ),
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(
+                                  // --- WYŁĄCZONY EKRAN WYBORU MUZYKI ---
+                                  // builder: (context) => MusicSelectionScreen(
+                                  //     userName: '', userGender: ''),
+                                  // Zamiast tego przekieruj np. do OnboardingScreen lub innego ekranu:
+                                  builder: (context) => OnboardingScreen(),
+                                  // --- KONIEC WYŁĄCZENIA ---
                                 ),
                               );
                             },

@@ -8,10 +8,16 @@ import '../utils/constants.dart';
 import '../models/user_data.dart';
 import '../services/user_preferences_service.dart';
 import 'main_menu_screen.dart';
+import 'onboarding/mystical_world_intro_screen.dart'; // poprawiony import
 import '../utils/responsive_utils.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  final String? selectedMusic; // ⬅️ DODAJ ten parametr
+
+  const OnboardingScreen({
+    super.key,
+    this.selectedMusic, // ⬅️ DODAJ (opcjonalny dla kompatybilności)
+  });
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -1232,6 +1238,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           birthPlace: birthPlace,
           gender: _selectedGender,
           dominantHand: _selectedHand,
+          // Usuń selectedMusic jeśli nie istnieje w modelu UserData
           registrationDate: DateTime.now(),
         );
 
@@ -1245,17 +1252,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         print('✅ Dane użytkownika: $userData');
         print('🔍 DEBUG: Full birth info = ${userData.fullBirthInfo}');
 
-        // Nawigacja do menu głównego
+        // Nawigacja do MysticalWorldIntroScreen
         Future.delayed(const Duration(milliseconds: 1000), () {
           if (mounted) {
             Navigator.of(context).pushReplacement(
               PageRouteBuilder(
                 pageBuilder: (context, animation, secondaryAnimation) =>
-                    MainMenuScreen(
-                  userName: userData.name,
-                  userGender: userData.genderForMessages,
-                  dominantHand: userData.dominantHand,
-                  birthDate: userData.birthDate,
+                    MysticalWorldIntroScreen(
+                  userData: userData, // ⬅️ DZMIEŃ destinację
                 ),
                 transitionsBuilder:
                     (context, animation, secondaryAnimation, child) {

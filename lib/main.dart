@@ -1,3 +1,4 @@
+// lib/main.dart - NAPRAWIONY
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
@@ -13,6 +14,7 @@ import 'services/haptic_service.dart';
 import 'services/background_music_service.dart';
 import 'services/firebase_remote_config_service.dart';
 import 'services/logging_service.dart';
+import 'models/user_data.dart'; // ✅ DODANE
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -102,7 +104,6 @@ void main() async {
   );
 }
 
-// Reszta kodu pozostaje bez zmian...
 class AIWrozkaApp extends StatefulWidget {
   const AIWrozkaApp({super.key});
 
@@ -215,18 +216,7 @@ class _AppInitializerState extends State<AppInitializer> {
     try {
       logger.logToConsole('🚀 Inicjalizacja aplikacji...', tag: 'APP');
 
-      // ✅ DODAJ SPRAWDZENIE FIREBASE
-      if (Firebase.apps.isNotEmpty) {
-        logger.logToConsole('✅ Firebase dostępny w aplikacji', tag: 'FIREBASE');
-        print('🔍 Firebase Project ID: ${Firebase.app().options.projectId}');
-      } else {
-        logger.logToConsole('❌ Firebase niedostępny w aplikacji', tag: 'ERROR');
-      }
-
-      // ✅ Inicjalizacja HapticService
-      await _hapticService.initialize();
-      await _hapticService.printCapabilities();
-
+      // ✅ NAPRAWIONA LOGIKA - bez OnboardingNavigationController
       // Sprawdź czy onboarding został ukończony
       final isOnboardingCompleted =
           await UserPreferencesService.isOnboardingCompleted();
