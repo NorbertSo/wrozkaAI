@@ -13,6 +13,7 @@ import '../services/user_preferences_service.dart';
 import '../services/haptic_service.dart';
 import '../services/horoscope_service.dart';
 import '../widgets/haptic_button.dart';
+import '../widgets/candle_counter_widget.dart';
 import 'palm_intro_screen.dart';
 import 'fortune_history_screen.dart';
 import 'user_data_screen.dart';
@@ -65,6 +66,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   late AnimationController _starController;
   late Animation<double> _pulseAnimation;
   late Animation<double> _starAnimation;
+
+  // Testowa liczba świec
+  int _candlesCount = 5; // TODO: zsynchronizuj z backendem lub innym ekranem
 
   @override
   void initState() {
@@ -1298,6 +1302,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               ),
             ),
           ),
+          const SizedBox(height: 12),
+          // DODAJ LICZNIK ŚWIEC
+          CandleCounterWidget(candlesCount: _candlesCount, showLabel: true),
           const SizedBox(height: 12),
           Text(
             _userName,

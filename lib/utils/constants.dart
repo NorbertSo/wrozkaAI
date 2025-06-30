@@ -10,6 +10,10 @@ class AppColors {
   static const Color cyan = Color(0xFF00F5D4);
   static const Color lightCyan = Color(0xFF88FFF7);
   static const Color purple = Color(0xFF6B46C1);
+  static const Color green = Color(0xFF4CAF50); // Dodano zielony
+  static const Color blue = Color(0xFF2196F3); // Dodano niebieski
+  static const Color orange = Color(0xFFFF9800); // Dodano pomarańczowy
+  static const Color red = Color(0xFFF44336); // Dodano czerwony
 
   static const List<Color> welcomeGradient = [
     Color(0xFF0B1426),

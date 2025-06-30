@@ -307,51 +307,37 @@ class _HoroskopTygodniowyScreenState extends State<HoroskopTygodniowyScreen>
   }
 
   Widget _buildWeeklyPreview() {
-    return GestureDetector(
-      onTap: () {
-        // Navigate to the detailed weekly horoscope screen
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => DetailedWeeklyHoroscopeScreen(
-              zodiacSign: widget.zodiacSign,
-              startDate: _startDate,
-              endDate: _endDate,
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: Colors.black.withOpacity(0.5),
+        border: Border.all(
+          color: Colors.purple.withOpacity(0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Horoskop tygodniowy',
+            style: GoogleFonts.cinzelDecorative(
+              fontSize: 20,
+              color: Colors.purple,
+              fontWeight: FontWeight.w600,
             ),
           ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: Colors.black.withOpacity(0.5),
-          border: Border.all(
-            color: Colors.purple.withOpacity(0.3),
-            width: 1.5,
+          const SizedBox(height: 16),
+          Text(
+            _getWeeklyHoroscopePreview(),
+            style: AppTextStyles.fortuneText.copyWith(
+              fontSize: 16,
+              color: Colors.white,
+              height: 1.8,
+            ),
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Horoskop tygodniowy',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 20,
-                color: Colors.purple,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _getWeeklyHoroscopePreview(),
-              style: AppTextStyles.fortuneText.copyWith(
-                fontSize: 16,
-                color: Colors.white,
-                height: 1.8,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
