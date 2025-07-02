@@ -250,7 +250,58 @@ class HapticService {
       print('   $key: $value');
     });
   }
+
+  /// Statyczne metody dla szybkiego użycia
+  static Future<void> triggerLight() async {
+    try {
+      await HapticFeedback.lightImpact();
+    } catch (e) {
+      print('❌ HapticService.triggerLight error: $e');
+    }
+  }
+
+  static Future<void> triggerMedium() async {
+    try {
+      await HapticFeedback.mediumImpact();
+    } catch (e) {
+      print('❌ HapticService.triggerMedium error: $e');
+    }
+  }
+
+  static Future<void> triggerHeavy() async {
+    try {
+      await HapticFeedback.heavyImpact();
+    } catch (e) {
+      print('❌ HapticService.triggerHeavy error: $e');
+    }
+  }
+
+  static Future<void> triggerSuccess() async {
+    try {
+      // Podwójna lekka wibracja dla sukcesu
+      await HapticFeedback.lightImpact();
+      await Future.delayed(const Duration(milliseconds: 100));
+      await HapticFeedback.lightImpact();
+    } catch (e) {
+      print('❌ HapticService.triggerSuccess error: $e');
+    }
+  }
+
+  static Future<void> triggerError() async {
+    try {
+      // Potrójna mocna wibracja dla błędu
+      await HapticFeedback.heavyImpact();
+      await Future.delayed(const Duration(milliseconds: 80));
+      await HapticFeedback.heavyImpact();
+      await Future.delayed(const Duration(milliseconds: 80));
+      await HapticFeedback.heavyImpact();
+    } catch (e) {
+      print('❌ HapticService.triggerError error: $e');
+    }
+  }
 }
+
+
 
 // Powód podkreślenia "Vibration":
 /// 1. Najczęściej: nie masz dodanej paczki vibration w pubspec.yaml lub nie wykonałeś `flutter pub get`.

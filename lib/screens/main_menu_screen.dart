@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
 import 'dart:math';
-import '../utils/constants.dart';
+import '../utils/constants.dart' as constants;
 import '../models/user_data.dart';
 import '../services/fortune_history_service.dart';
 import '../services/user_preferences_service.dart';
@@ -14,12 +14,15 @@ import '../services/haptic_service.dart';
 import '../services/horoscope_service.dart';
 import '../widgets/haptic_button.dart';
 import '../widgets/candle_counter_widget.dart';
+import '../widgets/candle_balance_display.dart';
 import 'palm_intro_screen.dart';
 import 'fortune_history_screen.dart';
 import 'user_data_screen.dart';
 import 'horoskopmenu.dart';
 import 'horoskopmiesieczny.dart';
 import 'onboarding/music_selection_screen.dart';
+import '../utils/logger.dart';
+import '../utils/app_colors.dart' as app_colors;
 
 class MainMenuScreen extends StatefulWidget {
   final String userName;
@@ -330,9 +333,14 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
   @override
   Widget build(BuildContext context) {
-    // ✅ SAFE BUILD - bez ErrorWidget.withErrorBoundary
     try {
       return Scaffold(
+        // Usuń AppBar całkowicie
+        // appBar: AppBar(
+        //   backgroundColor: Colors.transparent,
+        //   elevation: 0,
+        //   actions: [],
+        // ),
         backgroundColor: Colors.black,
         body: Stack(
           children: [
@@ -340,6 +348,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             SafeArea(
               child: Column(
                 children: [
+                  // Usuń CandleBalanceDisplay z tego miejsca
+                  // _buildHeader już będzie zawierał ikonę świec
                   _buildHeader(),
                   Expanded(
                     child: TabBarView(
@@ -463,8 +473,10 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+      constraints: const BoxConstraints(minHeight: 56, maxHeight: 64),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Search Button
           Container(
@@ -477,58 +489,46 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 await _hapticService.trigger(HapticType.light);
                 _showSearchDialog();
               },
-              icon: const Icon(Icons.search, color: AppColors.cyan),
+              icon: Icon(Icons.search, color: app_colors.AppColors.cyan),
+              iconSize: 24,
+              padding: const EdgeInsets.all(0),
+              constraints: const BoxConstraints(),
             ),
           ),
-          const SizedBox(width: 12),
-
-          // App Title
-          Expanded(
-            child: Text(
-              'AI Wróżka',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 20,
-                color: AppColors.cyan,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.2,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          // Melodia Settings Button (NIEDOSTĘPNE)
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.black26,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              onPressed: () async {
-                await _hapticService.trigger(HapticType.selection);
-                _showComingSoon('Melodia');
-              },
-              icon: const Icon(Icons.music_note, color: Colors.grey),
-              tooltip: 'Melodia (wkrótce)',
-            ),
-          ),
-
           const SizedBox(width: 8),
 
-          // User Menu Button
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.black26,
-              borderRadius: BorderRadius.circular(12),
+          // App Title (centered, but with space for candles)
+          Expanded(
+            child: Center(
+              child: Text(
+                'AI Wróżka',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 20,
+                  color: app_colors.AppColors.cyan,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            child: IconButton(
-              onPressed: () async {
-                await _hapticService.trigger(HapticType.light);
-                _navigateToUserData();
-              },
-              icon: const Icon(Icons.account_circle_outlined,
-                  color: AppColors.cyan),
+          ),
+
+          // Ikona świec po prawej stronie, powiększona i z paddingiem
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: SizedBox(
+              width: 72, // zwiększ szerokość
+              height: 40, // zwiększ wysokość
+              child: Center(
+                child: CandleBalanceDisplay(),
+                // Usuń: iconSize: 32, // jeśli widget obsługuje ten parametr
+              ),
             ),
           ),
         ],
@@ -550,16 +550,16 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         ),
         border: Border(
           top: BorderSide(
-            color: AppColors.cyan.withOpacity(0.3),
+            color: app_colors.AppColors.cyan.withOpacity(0.3),
             width: 1,
           ),
         ),
       ),
       child: TabBar(
         controller: _tabController,
-        indicatorColor: AppColors.cyan,
+        indicatorColor: app_colors.AppColors.cyan,
         indicatorWeight: 3,
-        labelColor: AppColors.cyan,
+        labelColor: app_colors.AppColors.cyan,
         unselectedLabelColor: Colors.white54,
         labelStyle: GoogleFonts.cinzelDecorative(
           fontSize: 12,
@@ -646,7 +646,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.cyan.withOpacity(0.4),
+          color: app_colors.AppColors.cyan.withOpacity(0.4),
           width: 1,
         ),
       ),
@@ -659,7 +659,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 scale: _pulseAnimation.value,
                 child: const Icon(
                   Icons.auto_awesome,
-                  color: AppColors.cyan,
+                  color: app_colors.AppColors.cyan,
                   size: 32,
                 ),
               );
@@ -670,7 +670,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             'Witaj $_userName!',
             style: GoogleFonts.cinzelDecorative(
               fontSize: 18,
-              color: AppColors.cyan,
+              color: app_colors.AppColors.cyan,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -976,7 +976,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             'Odkryj Swoje Przeznaczenie',
             style: GoogleFonts.cinzelDecorative(
               fontSize: 22,
-              color: AppColors.cyan,
+              color: app_colors.AppColors.cyan,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -995,7 +995,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 title: 'Palmistyka',
                 subtitle: 'Analiza AI',
                 icon: Icons.pan_tool_outlined,
-                color: AppColors.cyan,
+                color: app_colors.AppColors.cyan,
                 isAvailable: true,
                 onTap: () => _navigateToPalmScan(),
               ),
@@ -1071,7 +1071,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         onTap();
       },
       child: Container(
-        padding: const EdgeInsets.all(12), // Zmniejszony padding
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -1096,11 +1096,11 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min, // ✅ KLUCZOWA ZMIANA
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 40, // Zmniejszone z 50
-              height: 40, // Zmniejszone z 50
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: isAvailable
@@ -1114,16 +1114,15 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               child: Icon(
                 icon,
                 color: isAvailable ? color : Colors.grey,
-                size: 20, // Zmniejszone z 24
+                size: 20,
               ),
             ),
-            const SizedBox(height: 8), // Zmniejszone z 12
+            const SizedBox(height: 8),
             Flexible(
-              // ✅ WRAP W FLEXIBLE
               child: Text(
                 title,
                 style: GoogleFonts.cinzelDecorative(
-                  fontSize: 14, // Zmniejszone z 16
+                  fontSize: 14,
                   color: isAvailable ? Colors.white : Colors.grey,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1132,13 +1131,12 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(height: 2), // Zmniejszone z 4
+            const SizedBox(height: 2),
             Flexible(
-              // ✅ WRAP W FLEXIBLE
               child: Text(
                 subtitle,
                 style: GoogleFonts.cinzelDecorative(
-                  fontSize: 11, // Zmniejszone z 12
+                  fontSize: 11,
                   color: isAvailable ? Colors.white70 : Colors.grey,
                   fontWeight: FontWeight.w300,
                 ),
@@ -1148,10 +1146,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               ),
             ),
             if (!isAvailable) ...[
-              const SizedBox(height: 6), // Zmniejszone z 8
+              const SizedBox(height: 6),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 6, vertical: 2), // Zmniejszone
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(6),
                   color: Colors.orange.withOpacity(0.8),
@@ -1159,7 +1156,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 child: Text(
                   'Wkrótce',
                   style: GoogleFonts.cinzelDecorative(
-                    fontSize: 9, // Zmniejszone z 10
+                    fontSize: 9,
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1183,7 +1180,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             'Mój Profil',
             style: GoogleFonts.cinzelDecorative(
               fontSize: 22,
-              color: AppColors.cyan,
+              color: app_colors.AppColors.cyan,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1273,7 +1270,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.cyan.withOpacity(0.4),
+          color: app_colors.AppColors.cyan.withOpacity(0.4),
           width: 1,
         ),
       ),
@@ -1286,12 +1283,12 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               shape: BoxShape.circle,
               gradient: RadialGradient(
                 colors: [
-                  AppColors.cyan.withOpacity(0.3),
-                  AppColors.cyan.withOpacity(0.1),
+                  app_colors.AppColors.cyan.withOpacity(0.3),
+                  app_colors.AppColors.cyan.withOpacity(0.1),
                 ],
               ),
               border: Border.all(
-                color: AppColors.cyan.withOpacity(0.5),
+                color: app_colors.AppColors.cyan.withOpacity(0.5),
                 width: 2,
               ),
             ),
@@ -1320,7 +1317,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               zodiacSign,
               style: GoogleFonts.cinzelDecorative(
                 fontSize: 14,
-                color: AppColors.cyan,
+                color: app_colors.AppColors.cyan,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1441,7 +1438,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             'Społeczność',
             style: GoogleFonts.cinzelDecorative(
               fontSize: 22,
-              color: AppColors.cyan,
+              color: app_colors.AppColors.cyan,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1886,20 +1883,21 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               ],
             ),
             borderRadius: BorderRadius.circular(20),
-            border:
-                Border.all(color: AppColors.cyan.withOpacity(0.5), width: 1),
+            border: Border.all(
+                color: app_colors.AppColors.cyan.withOpacity(0.5), width: 1),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.search, color: AppColors.cyan, size: 48),
+              const Icon(Icons.search,
+                  color: app_colors.AppColors.cyan, size: 48),
               const SizedBox(height: 16),
               Text(
                 'Wyszukiwanie - Wkrótce',
                 style: GoogleFonts.cinzelDecorative(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.cyan,
+                  color: app_colors.AppColors.cyan,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -1918,7 +1916,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 text: 'Rozumiem',
                 hapticType: HapticType.light,
                 onPressed: () => Navigator.of(context).pop(),
-                backgroundColor: AppColors.cyan,
+                backgroundColor: app_colors.AppColors.cyan,
                 foregroundColor: Colors.black,
               ),
             ],
@@ -2014,7 +2012,12 @@ class MenuBackgroundPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
 
+    // ✅ DEFINIUJ WSZYSTKIE PAINT OBIEKTY NA POCZĄTKU
     final paint = Paint()..style = PaintingStyle.fill;
+    final cornerPaint = Paint()
+      ..color = app_colors.AppColors.cyan.withOpacity(0.1)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
 
     try {
       // Floating mystical orbs
@@ -2037,18 +2040,14 @@ class MenuBackgroundPainter extends CustomPainter {
               0.08 + math.sin(animationValue * 3 * math.pi + i * 0.5) * 0.04;
 
           if (orbSize > 0) {
-            paint.color = AppColors.cyan.withOpacity(opacity.clamp(0.02, 0.12));
+            paint.color = app_colors.AppColors.cyan
+                .withOpacity(opacity.clamp(0.02, 0.12));
             canvas.drawCircle(Offset(x, y), orbSize.abs(), paint);
           }
         }
       }
 
-      // Corner decorations
-      final cornerPaint = Paint()
-        ..color = AppColors.cyan.withOpacity(0.1)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1;
-
+      // Corner decorations - teraz cornerPaint jest zdefiniowany
       if (size.width > 100 && size.height > 100) {
         canvas.drawArc(
           const Rect.fromLTWH(20, 20, 30, 30),
@@ -2067,10 +2066,10 @@ class MenuBackgroundPainter extends CustomPainter {
         );
       }
     } catch (e) {
-      debugPrint('Błąd w MenuBackgroundPainter: $e');
+      Logger.error('Błąd w MenuBackgroundPainter: $e');
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(CustomPainter oldDelegate) => true;
 }
