@@ -1,13 +1,15 @@
 // lib/screens/extended_horoscope_screen.dart
-// 🔮 HOROSKOP ROZBUDOWANY - OSTATECZNA WERSJA BEZ BŁĘDÓW
-// Zgodny z istniejącą strukturą projektu AI Wróżka
+// 🔮 EKRAN ROZBUDOWANEGO HOROSKOPU - ZAKTUALIZOWANY
+// Integracja z nowym systemem płatności świecami
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import '../utils/constants.dart';
 import '../services/haptic_service.dart';
+import '../services/candle_manager_service.dart';
 import '../widgets/haptic_button.dart';
+import '../utils/logger.dart';
 
 class ExtendedHoroscopeScreen extends StatefulWidget {
   final String userName;
@@ -36,6 +38,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     with TickerProviderStateMixin {
   // 🎯 SERWISY
   final HapticService _hapticService = HapticService();
+  final CandleManagerService _candleService = CandleManagerService();
 
   // 🎬 ANIMACJE
   late AnimationController _fadeController;
@@ -46,9 +49,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
   // 📊 STAN
   bool _isLoading = true;
   bool _hasAccess = false;
-  bool _isSubscriber = false;
   int _candlesCount = 0;
-  bool _usedMonthlyFree = false;
   Map<String, String>? _horoscopeData;
   String? _errorMessage;
 
@@ -97,7 +98,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     _shimmerController.repeat();
   }
 
-  /// 🔐 Sprawdź dostęp użytkownika (symulacja)
+  /// 🔐 Sprawdź dostęp użytkownika
   Future<void> _checkAccess() async {
     try {
       setState(() {
@@ -105,41 +106,80 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
         _errorMessage = null;
       });
 
-      // SYMULACJA - w rzeczywistej implementacji użyj prawdziwych serwisów
-      await Future.delayed(const Duration(seconds: 2));
+      await _candleService.initialize();
+      
+      final hasAccess = await _candleService.canUseExtendedHoroscope();
+      final balance = _candleService.currentBalance;
 
-      // TODO: Implementuj prawdziwe sprawdzanie dostępu
-      _isSubscriber = false; // Symulacja
-      _candlesCount = 5; // Symulacja
-      _usedMonthlyFree = false; // Symulacja
+      setState(() {
+        _hasAccess = hasAccess;
+        _candlesCount = balance;
+        _isLoading = false;
+      });
 
-      _hasAccess =
-          _isSubscriber || (!_usedMonthlyFree) || (_candlesCount >= 10);
-
-      print('Dostęp do horoskopu rozbudowanego: $_hasAccess');
-
-      if (_hasAccess) {
-        await _loadHoroscopeData();
-      }
+      Logger.info('Sprawdzono dostęp do rozbudowanego horoskopu: $hasAccess, saldo: $balance');
 
       _fadeController.forward();
     } catch (e) {
-      print('Błąd sprawdzania dostępu: $e');
+      Logger.error('Błąd sprawdzania dostępu: $e');
       setState(() {
         _errorMessage = 'Wystąpił błąd podczas sprawdzania dostępu';
-      });
-    } finally {
-      setState(() {
         _isLoading = false;
       });
     }
   }
 
-  /// 📊 Załaduj dane horoskopu (fallback)
+  /// 🎯 Użyj horoskopu z płatnością świecami
+  Future<void> _useHoroscope() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final result = await _candleService.useExtendedHoroscope();
+
+      if (result.success) {
+        await _loadHoroscopeData();
+        await _checkAccess();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.message,
+              style: GoogleFonts.cinzelDecorative(color: Colors.white),
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        setState(() {
+          _errorMessage = result.message;
+          _isLoading = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.message,
+              style: GoogleFonts.cinzelDecorative(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      Logger.error('Błąd użycia horoskopu: $e');
+      setState(() {
+        _errorMessage = 'Wystąpił błąd podczas dostępu do horoskopu';
+        _isLoading = false;
+      });
+    }
+  }
+
+  /// 📊 Załaduj dane horoskopu
   Future<void> _loadHoroscopeData() async {
     try {
-      // FALLBACK DATA - w rzeczywistej implementacji pobierz z Firebase
-      final zodiacSign = _getZodiacSign();
+      await Future.delayed(const Duration(seconds: 2));
 
       _horoscopeData = {
         'career':
@@ -156,44 +196,13 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
             'Atmosfera w domu jest spokojna i przyjazna. To dobry dzień na rozmowy z bliskimi o przyszłości i wspólnych planach.',
       };
 
-      print('Załadowano horoskop rozbudowany (fallback)');
+      setState(() => _isLoading = false);
+      Logger.info('Załadowano horoskop rozbudowany');
     } catch (e) {
-      print('Błąd ładowania horoskopu: $e');
+      Logger.error('Błąd ładowania horoskopu: $e');
       setState(() {
         _errorMessage = 'Nie udało się załadować horoskopu';
-      });
-    }
-  }
-
-  /// 🎯 Użyj horoskopu (symulacja)
-  Future<void> _useHoroscope() async {
-    try {
-      await _hapticService.trigger(HapticType.light);
-
-      if (_isSubscriber) {
-        await _loadHoroscopeData();
-        print('Horoskop rozbudowany użyty - subskrybent');
-      } else if (!_usedMonthlyFree) {
-        await _loadHoroscopeData();
-        setState(() {
-          _usedMonthlyFree = true;
-          _hasAccess = true;
-        });
-        print('Horoskop rozbudowany użyty - darmowy miesięczny');
-      } else if (_candlesCount >= 10) {
-        await _loadHoroscopeData();
-        setState(() {
-          _candlesCount -= 10;
-          _hasAccess = true;
-        });
-        print('Horoskop rozbudowany użyty - 10 świec');
-      } else {
-        print('Próba użycia bez dostępu');
-      }
-    } catch (e) {
-      print('Błąd użycia horoskopu: $e');
-      setState(() {
-        _errorMessage = 'Wystąpił błąd podczas dostępu do horoskopu';
+        _isLoading = false;
       });
     }
   }
@@ -212,9 +221,9 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
               Expanded(
                 child: _isLoading
                     ? _buildLoadingState()
-                    : _hasAccess && _horoscopeData != null
+                    : _horoscopeData != null
                         ? _buildHoroscopeContent()
-                        : _buildAccessDeniedState(),
+                        : _buildPaymentPrompt(),
               ),
             ],
           ),
@@ -335,8 +344,8 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     );
   }
 
-  /// 🚫 Stan braku dostępu
-  Widget _buildAccessDeniedState() {
+  /// 🚫 Stan braku dostępu - zaktualizowany
+  Widget _buildPaymentPrompt() {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -372,7 +381,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              _getAccessMessage(),
+              'Szczegółowa analiza wszystkich sfer Twojego życia na dziś',
               style: GoogleFonts.cinzelDecorative(
                 fontSize: 14,
                 color: Colors.white70,
@@ -380,6 +389,53 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
               ),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 32),
+            
+            // 💰 Informacje o koszcie
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.purple.withOpacity(0.2),
+                    Colors.purple.withOpacity(0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.purple.withOpacity(0.5),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('🕯️', style: TextStyle(fontSize: 24)),
+                      const SizedBox(width: 8),
+                      Text(
+                        '15 świec',
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.purple,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Twój balans: $_candlesCount świec',
+                    style: GoogleFonts.cinzelDecorative(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
             const SizedBox(height: 32),
             _buildAccessButtons(),
           ],
@@ -501,18 +557,32 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     ];
 
     return Column(
-      children: sections.map((section) {
-        return Column(
-          children: [
-            _buildHoroscopeSectionCard(
-              title: section['title'] as String,
-              content: _horoscopeData![section['key']] ?? 'Brak danych',
-              color: section['color'] as Color,
-            ),
-            const SizedBox(height: 16),
-          ],
-        );
-      }).toList(),
+      children: [
+        ...sections.map((section) {
+          return Column(
+            children: [
+              _buildHoroscopeSectionCard(
+                title: section['title'] as String,
+                content: _horoscopeData![section['key']] ?? 'Brak danych',
+                color: section['color'] as Color,
+              ),
+              const SizedBox(height: 16),
+            ],
+          );
+        }),
+        
+        // 🎯 Przycisk udostępnienia
+        SizedBox(
+          width: double.infinity,
+          child: HapticButton(
+            text: '📤 Udostępnij horoskop (+3 świece)',
+            onPressed: _shareHoroscope,
+            hapticType: HapticType.light,
+            backgroundColor: Colors.orange.withOpacity(0.2),
+            foregroundColor: Colors.orange,
+          ),
+        ),
+      ],
     );
   }
 
@@ -565,89 +635,70 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     );
   }
 
-  /// 🔢 Przyciski dostępu
+  /// 🔢 Przyciski dostępu - zaktualizowane
   Widget _buildAccessButtons() {
-    if (_isSubscriber) {
-      return const SizedBox.shrink();
-    }
-
     return Column(
       children: [
-        if (!_usedMonthlyFree) ...[
-          SizedBox(
-            width: double.infinity,
-            child: HapticButton(
-              text: '🎁 Pierwszy darmowy w tym miesiącu',
-              onPressed: _useHoroscope,
-              hapticType: HapticType.medium,
-              backgroundColor: Colors.green.withOpacity(0.2),
-              foregroundColor: Colors.green,
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-        if (_candlesCount >= 10) ...[
-          SizedBox(
-            width: double.infinity,
-            child: HapticButton(
-              text: '🕯️ Użyj 10 świec',
-              onPressed: _useHoroscope,
-              hapticType: HapticType.medium,
-              backgroundColor: Colors.orange.withOpacity(0.2),
-              foregroundColor: Colors.orange,
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
         SizedBox(
           width: double.infinity,
           child: HapticButton(
-            text: '⭐ Sprawdź subskrypcję',
-            onPressed: () => _showSubscriptionInfo(),
-            hapticType: HapticType.light,
-            backgroundColor: Colors.blue.withOpacity(0.2),
-            foregroundColor: Colors.blue,
+            text: _hasAccess ? '🔮 Sprawdź horoskop' : '🚫 Brak wystarczających świec',
+            onPressed: _hasAccess ? _useHoroscope : null,
+            hapticType: HapticType.medium,
+            backgroundColor: _hasAccess 
+                ? Colors.purple.withOpacity(0.2)
+                : Colors.grey.withOpacity(0.2),
+            foregroundColor: _hasAccess ? Colors.purple : Colors.grey,
           ),
         ),
+        
+        if (!_hasAccess) ...[
+          const SizedBox(height: 16),
+          Text(
+            'Potrzebujesz ${15 - _candlesCount} więcej świec',
+            style: GoogleFonts.cinzelDecorative(
+              fontSize: 14,
+              color: Colors.red.withOpacity(0.8),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Zbieraj świece w codziennych aktywnościach!',
+            style: GoogleFonts.cinzelDecorative(
+              fontSize: 12,
+              color: Colors.white70,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ],
     );
   }
 
-  /// 💳 Informacja o subskrypcji
-  void _showSubscriptionInfo() async {
-    await _hapticService.trigger(HapticType.light);
+  /// 📤 Udostępnij horoskop
+  Future<void> _shareHoroscope() async {
+    try {
+      final success = await _candleService.rewardForSharing('rozbudowany horoskop');
+      
+      if (success) {
+        await HapticService.triggerSuccess();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Otrzymałeś 3 świece za udostępnienie!',
+              style: GoogleFonts.cinzelDecorative(color: Colors.white),
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
 
-    if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: AppColors.darkBlue,
-          title: Text(
-            'Premium w przygotowaniu',
-            style: GoogleFonts.cinzelDecorative(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          content: Text(
-            'System subskrypcji będzie dostępny wkrótce. Zbieraj świece w codziennych aktywnościach!',
-            style: GoogleFonts.cinzelDecorative(
-              color: Colors.white70,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                'Rozumiem',
-                style: GoogleFonts.cinzelDecorative(
-                  color: AppColors.cyan,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
+        await _checkAccess();
+      }
+    } catch (e) {
+      Logger.error('Błąd udostępniania horoskopu: $e');
     }
   }
 
@@ -680,14 +731,10 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
   }
 
   String _getAccessMessage() {
-    if (_isSubscriber) {
-      return 'Jako subskrybent masz nieograniczony dostęp do horoskopów rozbudowanych.';
-    } else if (!_usedMonthlyFree) {
-      return 'Otrzymujesz jeden darmowy horoskop rozbudowany każdego miesiąca. Dodatkowo możesz korzystać z systemu świec.';
-    } else if (_candlesCount >= 10) {
-      return 'Możesz użyć 10 świec aby uzyskać dostęp do horoskopu rozbudowanego.';
+    if (_hasAccess) {
+      return 'Masz dostęp do horoskopu rozbudowanego.';
     } else {
-      return 'Horoskop rozbudowany dostępny dla subskrybentów lub za 10 świec. Zbieraj świece w codziennych aktywnościach!';
+      return 'Horoskop rozbudowany dostępny za 15 świec. Zbieraj świece w codziennych aktywnościach!';
     }
   }
 }

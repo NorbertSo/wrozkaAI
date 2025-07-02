@@ -473,65 +473,279 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-      constraints: const BoxConstraints(minHeight: 56, maxHeight: 64),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Search Button
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.black26,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              onPressed: () async {
-                await _hapticService.trigger(HapticType.light);
-                _showSearchDialog();
-              },
-              icon: Icon(Icons.search, color: app_colors.AppColors.cyan),
-              iconSize: 24,
-              padding: const EdgeInsets.all(0),
-              constraints: const BoxConstraints(),
-            ),
-          ),
-          const SizedBox(width: 8),
+      height: 80,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withOpacity(0.95),
+            Colors.black.withOpacity(0.7),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Logo/Ikona aplikacji (lewa strona)
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      app_colors.AppColors.cyan.withOpacity(0.3),
+                      app_colors.AppColors.cyan.withOpacity(0.1),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: app_colors.AppColors.cyan.withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(
+                  Icons.auto_awesome,
+                  color: app_colors.AppColors.cyan,
+                  size: 20,
+                ),
+              ),
 
-          // App Title (centered, but with space for candles)
-          Expanded(
-            child: Center(
-              child: Text(
-                'AI Wróżka',
+              // Tytuł aplikacji (środek)
+              Flexible(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'AI Wróżka',
+                    style: GoogleFonts.cinzelDecorative(
+                      fontSize: 22,
+                      color: app_colors.AppColors.cyan,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                      shadows: [
+                        Shadow(
+                          color: app_colors.AppColors.cyan.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+
+              // Widget świec (prawa strona)
+              GestureDetector(
+                onTap: () {
+                  print('🕯️ Kliknięto na świece - statystyki');
+                  _showCandleStats();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.amber.withOpacity(0.2),
+                        Colors.orange.withOpacity(0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.amber.withOpacity(0.4),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.amber.withOpacity(0.2),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.light_mode, // Zmieniono z Icons.local_fire_department na Icons.light_mode (ikona świecy)
+                        color: Colors.amber[300],
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '$_candlesCount',
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 14,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 🆕 NOWA METODA - Dialog ze statystykami świec
+  void _showCandleStats() async {
+    await _hapticService.trigger(HapticType.light);
+    
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF1A2332),
+                Color(0xFF0B1426),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.amber.withOpacity(0.5), 
+              width: 1
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.amber.withOpacity(0.2),
+                blurRadius: 20,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Ikona świec
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.amber.withOpacity(0.4),
+                      Colors.orange.withOpacity(0.2),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.amber.withOpacity(0.3),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.light_mode, // Zmieniono również w dialogu
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              Text(
+                'Twoje Świece',
                 style: GoogleFonts.cinzelDecorative(
                   fontSize: 20,
-                  color: app_colors.AppColors.cyan,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 1.2,
+                  color: Colors.amber,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
               ),
-            ),
-          ),
-
-          // Ikona świec po prawej stronie, powiększona i z paddingiem
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: SizedBox(
-              width: 72, // zwiększ szerokość
-              height: 40, // zwiększ wysokość
-              child: Center(
-                child: CandleBalanceDisplay(),
-                // Usuń: iconSize: 32, // jeśli widget obsługuje ten parametr
+              
+              const SizedBox(height: 12),
+              
+              Text(
+                'System świec pozwala korzystać z funkcji premium.\n\nZdobywaj świece codziennie logując się do aplikacji!',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w300,
+                  color: Colors.white70,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
+              
+              const SizedBox(height: 20),
+              
+              // Informacje o cenach
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.amber.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Ceny funkcji premium:',
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.amber,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '🔮 Rozbudowany horoskop: 15 świec\n'
+                      '🖐️ Skan dłoni: 25 świec\n'
+                      '📅 Horoskop tygodniowy: 10 świec',
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 12,
+                        color: Colors.white70,
+                        height: 1.4,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 24),
+              
+              SizedBox(
+                width: double.infinity,
+                child: HapticButton(
+                  text: 'Rozumiem',
+                  hapticType: HapticType.light,
+                  onPressed: () => Navigator.of(context).pop(),
+                  backgroundColor: Colors.amber,
+                  foregroundColor: Colors.black,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25)
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -1,6 +1,7 @@
 // lib/services/candle_manager_service.dart
-// 🕯️ SERWIS ZARZĄDZANIA ŚWIECAMI
+// 🕯️ SERWIS ZARZĄDZANIA ŚWIECAMI - ZAKTUALIZOWANY
 // Zgodny z wytycznymi projektu AI Wróżka
+// WSZYSTKIE FUNKCJE TYLKO PŁATNE ŚWIECAMI
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/candle_transaction.dart';
@@ -46,53 +47,30 @@ class CandleManagerService {
   /// 🔮 Sprawdź czy może użyć rozbudowanego horoskopu
   Future<bool> canUseExtendedHoroscope() async {
     await initialize();
-
-    // Sprawdź czy ma darmowe użycie w tym miesiącu
-    if (!_userService.hasUsedFreeExtendedHoroscope()) {
-      return true;
-    }
-
-    // Sprawdź czy ma wystarczająco świec
+    // TYLKO PŁATNE - sprawdź wyłącznie świece
     return canAfford(PRICE_EXTENDED_HOROSCOPE);
   }
 
   /// 🖐️ Sprawdź czy może użyć skanu dłoni
   Future<bool> canUsePalmReading() async {
     await initialize();
-
-    // Sprawdź czy ma darmowe użycie w tym miesiącu
-    if (!_userService.hasUsedFreePalmReading()) {
-      return true;
-    }
-
-    // Sprawdź czy ma wystarczająco świec
+    // TYLKO PŁATNE - sprawdź wyłącznie świece
     return canAfford(PRICE_PALM_READING);
   }
 
   /// 📅 Sprawdź czy może użyć horoskopu tygodniowego
-  bool canUseWeeklyHoroscope() {
+  Future<bool> canUseWeeklyHoroscope() async {
+    await initialize();
+    // TYLKO PŁATNE - sprawdź wyłącznie świece
     return canAfford(PRICE_WEEKLY_HOROSCOPE);
   }
 
-  /// 🔮 Użyj rozbudowanego horoskopu
+  /// 🔮 Użyj rozbudowanego horoskopu - TYLKO PŁATNY
   Future<CandleUsageResult> useExtendedHoroscope() async {
     await initialize();
 
     try {
-      // Sprawdź czy ma darmowe użycie
-      if (!_userService.hasUsedFreeExtendedHoroscope()) {
-        await _userService.markFreeExtendedHoroscopeUsed();
-        await HapticService.triggerSuccess();
-
-        Logger.info('Użyto darmowego rozbudowanego horoskopu');
-        return CandleUsageResult.success(
-          cost: 0,
-          wasFree: true,
-          message: 'Użyto darmowego rozbudowanego horoskopu na ten miesiąc!',
-        );
-      }
-
-      // Sprawdź czy ma świece
+      // Sprawdź czy ma wystarczająco świec
       if (!canAfford(PRICE_EXTENDED_HOROSCOPE)) {
         await HapticService.triggerError();
         return CandleUsageResult.failure(
@@ -108,6 +86,7 @@ class CandleManagerService {
       );
 
       if (success) {
+        await HapticService.triggerSuccess();
         Logger.info(
             'Użyto rozbudowanego horoskopu za $PRICE_EXTENDED_HOROSCOPE świec');
         return CandleUsageResult.success(
@@ -125,25 +104,12 @@ class CandleManagerService {
     }
   }
 
-  /// 🖐️ Użyj skanu dłoni
+  /// 🖐️ Użyj skanu dłoni - TYLKO PŁATNY
   Future<CandleUsageResult> usePalmReading() async {
     await initialize();
 
     try {
-      // Sprawdź czy ma darmowe użycie
-      if (!_userService.hasUsedFreePalmReading()) {
-        await _userService.markFreePalmReadingUsed();
-        await HapticService.triggerSuccess();
-
-        Logger.info('Użyto darmowego skanu dłoni');
-        return CandleUsageResult.success(
-          cost: 0,
-          wasFree: true,
-          message: 'Użyto darmowego skanu dłoni na ten miesiąc!',
-        );
-      }
-
-      // Sprawdź czy ma świece
+      // Sprawdź czy ma wystarczająco świec
       if (!canAfford(PRICE_PALM_READING)) {
         await HapticService.triggerError();
         return CandleUsageResult.failure(
@@ -159,6 +125,7 @@ class CandleManagerService {
       );
 
       if (success) {
+        await HapticService.triggerSuccess();
         Logger.info('Użyto skanu dłoni za $PRICE_PALM_READING świec');
         return CandleUsageResult.success(
           cost: PRICE_PALM_READING,
@@ -174,7 +141,7 @@ class CandleManagerService {
     }
   }
 
-  /// 📅 Użyj horoskopu tygodniowego
+  /// 📅 Użyj horoskopu tygodniowego - TYLKO PŁATNY
   Future<CandleUsageResult> useWeeklyHoroscope() async {
     await initialize();
 
@@ -193,6 +160,7 @@ class CandleManagerService {
       );
 
       if (success) {
+        await HapticService.triggerSuccess();
         Logger.info(
             'Użyto horoskopu tygodniowego za $PRICE_WEEKLY_HOROSCOPE świec');
         return CandleUsageResult.success(
@@ -290,9 +258,6 @@ class CandleManagerService {
         thisMonthEarned: stats.thisMonthEarned,
         thisMonthSpent: stats.thisMonthSpent,
         dailyStreak: _userService.dailyLoginStreak,
-        hasUsedFreePalmReading: _userService.hasUsedFreePalmReading(),
-        hasUsedFreeExtendedHoroscope:
-            _userService.hasUsedFreeExtendedHoroscope(),
       );
     } catch (e) {
       Logger.error('Błąd pobierania statystyk: $e');
@@ -314,6 +279,42 @@ class CandleManagerService {
         'referral_success': REWARD_REFERRAL_SUCCESS,
         'streak_bonus': REWARD_STREAK_BONUS,
       };
+
+  /// 🛒 METODY POMOCNICZE DLA UI
+
+  /// Pobierz informacje o funkcji
+  FeatureInfo getFeatureInfo(String featureKey) {
+    switch (featureKey) {
+      case 'extended_horoscope':
+        return FeatureInfo(
+          name: 'Rozbudowany horoskop',
+          icon: '🔮',
+          cost: PRICE_EXTENDED_HOROSCOPE,
+          description: 'Szczegółowa analiza wszystkich sfer życia na dziś',
+        );
+      case 'palm_reading':
+        return FeatureInfo(
+          name: 'Skan dłoni',
+          icon: '🖐️',
+          cost: PRICE_PALM_READING,
+          description: 'Analiza linii dłoni i odkrycie swojego przeznaczenia',
+        );
+      case 'weekly_horoscope':
+        return FeatureInfo(
+          name: 'Horoskop tygodniowy',
+          icon: '📅',
+          cost: PRICE_WEEKLY_HOROSCOPE,
+          description: 'Przewidywania na cały nadchodzący tydzień',
+        );
+      default:
+        return FeatureInfo(
+          name: 'Nieznana funkcja',
+          icon: '❓',
+          cost: 0,
+          description: 'Opis niedostępny',
+        );
+    }
+  }
 }
 
 /// 📊 Model wyniku użycia świec
@@ -353,7 +354,7 @@ class CandleUsageResult {
   }
 }
 
-/// 📈 Model statystyk świec
+/// 📈 Model statystyk świec - ZAKTUALIZOWANY
 class CandleStats {
   final int currentBalance;
   final int totalEarned;
@@ -365,8 +366,6 @@ class CandleStats {
   final int thisMonthEarned;
   final int thisMonthSpent;
   final int dailyStreak;
-  final bool hasUsedFreePalmReading;
-  final bool hasUsedFreeExtendedHoroscope;
 
   const CandleStats({
     required this.currentBalance,
@@ -379,8 +378,6 @@ class CandleStats {
     required this.thisMonthEarned,
     required this.thisMonthSpent,
     required this.dailyStreak,
-    required this.hasUsedFreePalmReading,
-    required this.hasUsedFreeExtendedHoroscope,
   });
 
   factory CandleStats.empty() {
@@ -395,8 +392,6 @@ class CandleStats {
       thisMonthEarned: 0,
       thisMonthSpent: 0,
       dailyStreak: 0,
-      hasUsedFreePalmReading: false,
-      hasUsedFreeExtendedHoroscope: false,
     );
   }
 
@@ -409,4 +404,19 @@ class CandleStats {
   bool get hasLongStreak => dailyStreak >= 7;
 
   double get spendingRate => totalEarned > 0 ? (totalSpent / totalEarned) : 0.0;
+}
+
+/// 🎯 Model informacji o funkcji
+class FeatureInfo {
+  final String name;
+  final String icon;
+  final int cost;
+  final String description;
+
+  const FeatureInfo({
+    required this.name,
+    required this.icon,
+    required this.cost,
+    required this.description,
+  });
 }
