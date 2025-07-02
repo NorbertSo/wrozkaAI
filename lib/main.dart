@@ -1,4 +1,4 @@
-// lib/main.dart - NAPRAWIONY
+// lib/main.dart - ZAKTUALIZOWANE dla systemu świec
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
@@ -14,7 +14,9 @@ import 'services/haptic_service.dart';
 import 'services/background_music_service.dart';
 import 'services/firebase_remote_config_service.dart';
 import 'services/logging_service.dart';
-import 'models/user_data.dart'; // ✅ DODANE
+import 'services/anonymous_user_service.dart'; // 🆕 NOWY
+import 'services/candle_manager_service.dart'; // 🆕 NOWY
+import 'models/user_data.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -77,19 +79,15 @@ void main() async {
               const Icon(Icons.error, size: 50, color: Colors.red),
               const SizedBox(height: 20),
               Text(
-                'Ups! Coś poszło nie tak...',
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 18,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
+                'Ups! Coś poszło nie tak.',
+                style: TextStyle(fontSize: 18, color: Colors.black),
               ),
               const SizedBox(height: 10),
-              const Text(
-                'Spróbuj uruchomić aplikację ponownie',
-                style: TextStyle(color: Colors.black54),
-                textAlign: TextAlign.center,
-              ),
+              if (kDebugMode)
+                Text(
+                  details.exception.toString(),
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
             ],
           ),
         ),
@@ -97,69 +95,16 @@ void main() async {
     );
   };
 
-  runApp(
-    Phoenix(
-      child: const AIWrozkaApp(),
-    ),
-  );
+  runApp(Phoenix(child: MyApp()));
 }
 
-class AIWrozkaApp extends StatefulWidget {
-  const AIWrozkaApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
-  @override
-  State<AIWrozkaApp> createState() => _AIWrozkaAppState();
-}
-
-class _AIWrozkaAppState extends State<AIWrozkaApp> with WidgetsBindingObserver {
-  final BackgroundMusicService _musicService = BackgroundMusicService();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-
-    // ✅ INICJALIZACJA MUZYKI - automatyczne uruchomienie
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeBackgroundMusic();
-    });
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _musicService.dispose();
-    super.dispose();
-  }
-
-  // ✅ OBSŁUGA CYKLU ŻYCIA APLIKACJI DLA MUZYKI
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-
-    switch (state) {
-      case AppLifecycleState.paused:
-      case AppLifecycleState.inactive:
-        //_musicService.onAppPaused();
-        break;
-      case AppLifecycleState.resumed:
-        _musicService.onAppResumed();
-        break;
-      case AppLifecycleState.detached:
-        _musicService.dispose();
-        break;
-      default:
-        break;
-    }
-  }
-
-  // ✅ INICJALIZACJA I URUCHOMIENIE MUZYKI W TLE
-  Future<void> _initializeBackgroundMusic() async {
+  // 🎵 Inicjalizacja muzyki w tle (opcjonalne)
+  void _initializeBackgroundMusic() async {
     try {
-      print('🎵 Inicjalizacja muzyki w tle...');
-      await _musicService.initialize();
-      await _musicService.startBackgroundMusic();
-      print('✅ Muzyka w tle uruchomiona pomyślnie');
+      await BackgroundMusicService().initialize();
     } catch (e) {
       print('❌ Błąd uruchamiania muzyki w tle: $e');
     }
@@ -203,6 +148,8 @@ class _AppInitializerState extends State<AppInitializer> {
   bool _isLoading = true;
   Widget? _targetScreen;
   final HapticService _hapticService = HapticService();
+  final AnonymousUserService _userService = AnonymousUserService(); // 🆕 NOWY
+  final CandleManagerService _candleService = CandleManagerService(); // 🆕 NOWY
 
   @override
   void initState() {
@@ -216,8 +163,39 @@ class _AppInitializerState extends State<AppInitializer> {
     try {
       logger.logToConsole('🚀 Inicjalizacja aplikacji...', tag: 'APP');
 
-      // ✅ NAPRAWIONA LOGIKA - bez OnboardingNavigationController
-      // Sprawdź czy onboarding został ukończony
+      // 🆕 INICJALIZUJ SYSTEM ŚWIEC JAKO PIERWSZY
+      try {
+        logger.logToConsole('🕯️ Inicjalizacja systemu świec...',
+            tag: 'CANDLES');
+
+        // Najpierw sprawdź czy Firebase działa
+        if (Firebase.apps.isNotEmpty) {
+          await _userService.initialize();
+          await _candleService.initialize();
+          logger.logToConsole('✅ System świec zainicjalizowany',
+              tag: 'CANDLES');
+
+          // Pokaż informacje o użytkowniku
+          final profile = _userService.currentProfile;
+          if (profile != null) {
+            logger.logToConsole(
+                '👤 Użytkownik: ${profile.userId.substring(0, 8)}..., '
+                'Świece: ${profile.candleBalance}, '
+                'Seria: ${profile.dailyLoginStreak} dni',
+                tag: 'USER');
+          }
+        } else {
+          logger.logToConsole(
+              '⚠️ Firebase niedostępny - system świec wyłączony',
+              tag: 'WARNING');
+        }
+      } catch (e) {
+        logger.logToConsole('❌ Błąd inicjalizacji systemu świec: $e',
+            tag: 'ERROR');
+        // Możemy kontynuować bez systemu świec w najgorszym przypadku
+      }
+
+      // ✅ SPRAWDŹ ONBOARDING (zmodyfikowane)
       final isOnboardingCompleted =
           await UserPreferencesService.isOnboardingCompleted();
       logger.logToConsole('📋 Onboarding completed: $isOnboardingCompleted',
@@ -226,45 +204,52 @@ class _AppInitializerState extends State<AppInitializer> {
       if (isOnboardingCompleted) {
         // Sprawdź czy mamy dane użytkownika
         final userData = await UserPreferencesService.getUserData();
-        logger.logToConsole('👤 User data: ${userData?.name ?? "BRAK"}',
-            tag: 'USER');
+        logger.logToConsole('👤 User data: ${userData?.name ?? "brak"}',
+            tag: 'APP');
 
         if (userData != null) {
-          // Przejdź bezpośrednio do menu głównego
-          logger.logToConsole('✅ Przekierowanie do menu głównego', tag: 'USER');
+          // Użytkownik ukończył onboarding - idź do main menu
           _targetScreen = MainMenuScreen(
             userName: userData.name,
-            userGender: userData.genderForMessages,
-            dominantHand: userData.dominantHand,
+            userGender: userData.gender,
             birthDate: userData.birthDate,
           );
         } else {
-          // Brak danych użytkownika mimo ukończonego onboardingu
-          logger.logToConsole('⚠️ Brak danych użytkownika - ponowny onboarding',
-              tag: 'USER');
-          await UserPreferencesService.clearAllUserData();
+          // Błąd - brak danych mimo ukończonego onboardingu
+          logger.logToConsole('⚠️ Onboarding ukończony ale brak user data',
+              tag: 'WARNING');
           _targetScreen = const WelcomeScreen();
         }
       } else {
-        // Pierwszy raz - pokaż welcome screen
-        logger.logToConsole('🎉 Pierwsze uruchomienie - welcome screen',
-            tag: 'USER');
+        // Pierwszy raz - rozpocznij onboarding
         _targetScreen = const WelcomeScreen();
       }
 
-      // Debug
-      await UserPreferencesService.debugPrintUserData();
-    } catch (e) {
-      logger.logToConsole('❌ Błąd inicjalizacji: $e', tag: 'ERROR');
-      // W przypadku błędu pokaż welcome screen
-      _targetScreen = const WelcomeScreen();
-    }
+      // ✅ INICJALIZUJ POZOSTAŁE SERWISY
+      try {
+        // Haptic service może nie mieć metody initialize()
+        // await _hapticService.initialize();
+        // await _hapticService.printCapabilities();
+        logger.logToConsole('✅ Haptic service gotowy', tag: 'APP');
+      } catch (e) {
+        logger.logToConsole('❌ Błąd haptic service: $e', tag: 'ERROR');
+      }
 
-    // Symulacja loading (opcjonalne)
-    await Future.delayed(const Duration(milliseconds: 500));
+      // ✅ Krótkie opóźnienie dla płynności UX
+      await Future.delayed(const Duration(milliseconds: 1500));
 
-    if (mounted) {
       setState(() {
+        _isLoading = false;
+      });
+
+      logger.logToConsole('🎉 Aplikacja zainicjalizowana pomyślnie',
+          tag: 'APP');
+    } catch (e) {
+      logger.logToConsole('💥 Krytyczny błąd inicjalizacji: $e', tag: 'ERROR');
+
+      // Fallback - idź do welcome screen
+      setState(() {
+        _targetScreen = const WelcomeScreen();
         _isLoading = false;
       });
     }
@@ -273,24 +258,107 @@ class _AppInitializerState extends State<AppInitializer> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0B1426),
-        body: Center(
+      return _buildLoadingScreen();
+    }
+
+    return _targetScreen ?? const WelcomeScreen();
+  }
+
+  Widget _buildLoadingScreen() {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B1426),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF1A2332),
+              Color(0xFF0B1426),
+            ],
+          ),
+        ),
+        child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(color: Color(0xFF00D4FF)),
-              SizedBox(height: 20),
+              // Logo lub ikona aplikacji
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.amber,
+                      Colors.orange,
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.amber.withOpacity(0.3),
+                      blurRadius: 20,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  size: 50,
+                  color: Colors.white,
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              // Nazwa aplikacji
               Text(
-                'Przywołuję mistyczne moce...',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+                'AI Wróżka',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 2,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // Podtytuł
+              Text(
+                'Odkryj tajemnice swojej przyszłości',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 16,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+
+              const SizedBox(height: 50),
+
+              // Loader
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+                strokeWidth: 3,
+              ),
+
+              const SizedBox(height: 20),
+
+              // 🆕 Status inicjalizacji
+              Text(
+                'Przygotowywanie magii...',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 14,
+                  color: Colors.white60,
+                  fontWeight: FontWeight.w300,
+                ),
               ),
             ],
           ),
         ),
-      );
-    }
-
-    return _targetScreen ?? const WelcomeScreen();
+      ),
+    );
   }
 }

@@ -11,6 +11,7 @@ import 'dart:math' as math;
 import '../utils/constants.dart';
 import '../services/palm_detection_service.dart';
 import '../services/logging_service.dart';
+import '../services/candle_manager_service.dart';
 import '../models/user_data.dart';
 import 'fortune_loading_screen.dart';
 import '../services/haptic_service.dart';
@@ -57,6 +58,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   final LoggingService _loggingService = LoggingService();
   final ImagePicker _imagePicker = ImagePicker();
   final HapticService _hapticService = HapticService();
+  final CandleManagerService _candleService = CandleManagerService();
 
   // ===== WYKRYWANIE =====
   bool _palmDetected = false;
@@ -432,6 +434,9 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       if (mounted && !_isDisposing) {
         print('🚀 Nawigacja do FortuneLoadingScreen...');
 
+        // Pokaż opcję udostępnienia przed przejściem
+        _showShareRewardDialog();
+
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
@@ -472,6 +477,105 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         });
         _showErrorSnackBar('Wystąpił błąd podczas analizy');
       }
+    }
+  }
+
+  void _showShareRewardDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.darkBlue,
+        title: Row(
+          children: [
+            const Text('🎉', style: TextStyle(fontSize: 24)),
+            const SizedBox(width: 8),
+            Text(
+              'Skan ukończony!',
+              style: GoogleFonts.cinzelDecorative(
+                color: Colors.green,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Udostępnij wyniki aby otrzymać 3 dodatkowe świece!',
+          style: GoogleFonts.cinzelDecorative(
+            color: Colors.white70,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Pomiń',
+              style: GoogleFonts.cinzelDecorative(
+                color: Colors.white70,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _shareResults();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              '📤 Udostępnij (+3 🕯️)',
+              style: GoogleFonts.cinzelDecorative(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _shareResults() async {
+    try {
+      // Udostępnij wyniki (implementacja zależna od systemu)
+      // Share.share('Sprawdź mój skan dłoni w AI Wróżka!');
+
+      // Dodaj nagrodę za udostępnienie
+      final success = await _candleService.rewardForSharing('skan dłoni');
+
+      if (success) {
+        // Pokaż potwierdzenie nagrody
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Text('🎉', style: TextStyle(fontSize: 20)),
+                const SizedBox(width: 8),
+                Text(
+                  'Otrzymałeś 3 świece za udostępnienie!',
+                  style: GoogleFonts.cinzelDecorative(color: Colors.white),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+
+        await _hapticService.trigger(HapticType.success);
+      }
+    } catch (e) {
+      // Obsłuż błąd
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Błąd podczas udostępniania',
+            style: GoogleFonts.cinzelDecorative(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -661,47 +765,56 @@ class _PalmScanScreenState extends State<PalmScanScreen>
           ],
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.cyan.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: AppColors.cyan.withOpacity(0.3), width: 1),
       ),
       child: Row(
         children: [
           IconButton(
-            onPressed: () async {
-              await _hapticService.trigger(HapticType.light);
-              Navigator.of(context).pop();
-            },
+            onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
             iconSize: 18,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            padding: EdgeInsets.zero,
           ),
           Expanded(
             child: Column(
               children: [
-                Text(
-                  'SKAN DŁONI',
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 16,
-                    color: AppColors.cyan,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.0,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('🖐️', style: TextStyle(fontSize: 16)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'SKAN DŁONI',
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 16,
+                        color: AppColors.cyan,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  _getTargetHandName().toUpperCase(),
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 12,
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w300,
+                const SizedBox(height: 4),
+                // DODAJ informację o płatności:
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.withOpacity(0.5)),
+                  ),
+                  child: Text(
+                    '✅ OPŁACONE (${CandleManagerService.PRICE_PALM_READING} świec)',
+                    style: GoogleFonts.cinzelDecorative(
+                      fontSize: 10,
+                      color: Colors.green,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 32), // Spacer dla symetrii
+          const SizedBox(width: 32),
         ],
       ),
     );

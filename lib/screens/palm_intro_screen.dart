@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import '../utils/constants.dart';
 import 'palm_scan_screen.dart';
@@ -10,6 +11,8 @@ import '../utils/responsive_utils.dart';
 import '../services/user_preferences_service.dart';
 import '../models/user_data.dart';
 import '../services/haptic_service.dart';
+import '../services/candle_manager_service.dart';
+import '../widgets/candle_payment_confirmation_widget.dart';
 
 class PalmIntroScreen extends StatefulWidget {
   final String userName;
@@ -45,6 +48,7 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
   bool _loadingUserData = true;
 
   final HapticService _hapticService = HapticService();
+  final CandleManagerService _candleService = CandleManagerService();
 
   @override
   void initState() {
@@ -221,7 +225,6 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
                 ),
               ),
             ),
-
             // Główna zawartość z responsywnym layoutem
             SafeArea(
               child: AnimatedBuilder(
@@ -341,7 +344,7 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
       child: ElevatedButton(
         onPressed: () async {
           await _hapticService.trigger(HapticType.medium);
-          _startRitual();
+          _startPalmScan();
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
@@ -437,7 +440,7 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
     if (context.isSmallScreen) {
       return '''$userName,
 
-Wkraczasz w świat, który może zmienić Twoje życie. W liniach dłoni kryją się sekrety, które czekają na odkrycie.
+Wkraczas w świat, który może zmienić Twoje życie. W liniach dłoni kryją się sekrety, które czekają na odkrycie.
 
 Twoja dłoń to mapa przeznaczenia. Znajdziemy w niej ślady predyspozycji i tajemnice serca.
 
@@ -455,37 +458,64 @@ Każda linia, każdy wzgórek, każda drobna kreska ma swoje znaczenie. To staro
 Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popłynęła przez Twoją dłoń i objawi Ci prawdy, na które czekał$genderSuffix.''';
   }
 
-  void _startRitual() {
-    print(
-        '🚀 START RITUAL: userGender = ${widget.userGender}, dominantHand = ${widget.dominantHand}');
+  Future<void> _startPalmScan() async {
+    try {
+      // Pobierz informacje o funkcji
+      final featureInfo = _candleService.getFeatureInfo('palm_reading');
 
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => PalmScanScreen(
-          userName: widget.userName,
-          userGender: widget.userGender,
-          dominantHand: widget.dominantHand,
-          birthDate: widget.birthDate,
-          testMode: false, // Używa prawdziwej kamery
-        ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.0, 0.3),
-                end: Offset.zero,
-              ).animate(
-                CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                ),
-              ),
-              child: child,
+      // Użyj gotowego widgetu płatności
+      final confirmed = await CandlePaymentHelper.showPaymentConfirmation(
+        context: context,
+        featureName: featureInfo.name,
+        featureIcon: featureInfo.icon,
+        candleCost: featureInfo.cost,
+        featureDescription: featureInfo.description,
+        accentColor: AppColors.cyan,
+      );
+
+      if (!confirmed) return;
+
+      // Wykonaj płatność
+      final result = await _candleService.usePalmReading();
+
+      if (result.success) {
+        // Przejdź do skanu
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PalmScanScreen(
+              userName: widget.userName,
+              userGender: widget.userGender,
+              dominantHand: widget.dominantHand,
+              birthDate: widget.birthDate,
             ),
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 1200),
+          ),
+        );
+      } else {
+        // Pokaż błąd
+        _showErrorDialog(result.message);
+      }
+    } catch (e) {
+      _showErrorDialog('Wystąpił błąd podczas przetwarzania płatności');
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.darkBlue,
+        title: Text('Błąd',
+            style: GoogleFonts.cinzelDecorative(color: Colors.red)),
+        content: Text(message,
+            style: GoogleFonts.cinzelDecorative(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK',
+                style: GoogleFonts.cinzelDecorative(color: Colors.orange)),
+          ),
+        ],
       ),
     );
   }
