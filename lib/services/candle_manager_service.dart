@@ -70,9 +70,9 @@ class CandleManagerService {
     await initialize();
 
     try {
-      // Sprawdź czy ma wystarczająco świec
+      // Sprawdź czy ma wystarczająco świec (bez wyświetlania dialogu)
       if (!canAfford(PRICE_EXTENDED_HOROSCOPE)) {
-        await HapticService.triggerError();
+        // Usunięto HapticService.triggerError() - będzie obsłużone przez UI
         return CandleUsageResult.failure(
           'Potrzebujesz $PRICE_EXTENDED_HOROSCOPE świec do rozbudowanego horoskopu. Masz tylko $currentBalance.',
         );
@@ -109,9 +109,9 @@ class CandleManagerService {
     await initialize();
 
     try {
-      // Sprawdź czy ma wystarczająco świec
+      // Sprawdź czy ma wystarczająco świec (bez wyświetlania dialogu)
       if (!canAfford(PRICE_PALM_READING)) {
-        await HapticService.triggerError();
+        // Usunięto HapticService.triggerError() - będzie obsłużone przez UI
         return CandleUsageResult.failure(
           'Potrzebujesz $PRICE_PALM_READING świec do skanu dłoni. Masz tylko $currentBalance.',
         );
@@ -147,7 +147,7 @@ class CandleManagerService {
 
     try {
       if (!canAfford(PRICE_WEEKLY_HOROSCOPE)) {
-        await HapticService.triggerError();
+        // Usunięto HapticService.triggerError() - będzie obsłużone przez UI
         return CandleUsageResult.failure(
           'Potrzebujesz $PRICE_WEEKLY_HOROSCOPE świec do horoskopu tygodniowego. Masz tylko $currentBalance.',
         );

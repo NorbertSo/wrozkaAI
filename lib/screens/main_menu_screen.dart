@@ -12,6 +12,7 @@ import '../services/fortune_history_service.dart';
 import '../services/user_preferences_service.dart';
 import '../services/haptic_service.dart';
 import '../services/horoscope_service.dart';
+import '../services/candle_manager_service.dart';
 import '../widgets/haptic_button.dart';
 import '../widgets/candle_counter_widget.dart';
 import '../widgets/candle_balance_display.dart';
@@ -46,6 +47,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     with TickerProviderStateMixin {
   final HapticService _hapticService = HapticService();
   final FortuneHistoryService _historyService = FortuneHistoryService();
+  final CandleManagerService _candleService = CandleManagerService();
 
   // Tab Controller
   late TabController _tabController;
@@ -58,6 +60,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
   // State
   int _fortuneCount = 0;
+  int _candlesCount = 0; // Teraz będzie synchronizowane z rzeczywistym serwisem
 
   // ✅ DODAJ HOROSCOPE DATA
   String _currentMoonPhase = '';
@@ -70,9 +73,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   late Animation<double> _pulseAnimation;
   late Animation<double> _starAnimation;
 
-  // Testowa liczba świec
-  int _candlesCount = 5; // TODO: zsynchronizuj z backendem lub innym ekranem
-
   @override
   void initState() {
     super.initState();
@@ -84,7 +84,32 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     _tabController = TabController(length: 4, vsync: this);
     _initializeAnimations();
     _loadFortuneCount();
-    _loadHoroscopeData(); // ✅ DODAJ ŁADOWANIE DANYCH HOROSKOPU
+    _loadHoroscopeData();
+    _loadCandleBalance(); // Dodaj ładowanie rzeczywistego salda świec
+  }
+
+  // 🆕 NOWA METODA - ładuj rzeczywiste saldo świec
+  Future<void> _loadCandleBalance() async {
+    try {
+      await _candleService.initialize();
+      final balance = _candleService.currentBalance;
+
+      if (mounted) {
+        setState(() {
+          _candlesCount = balance;
+        });
+      }
+
+      Logger.info('Załadowano saldo świec: $balance');
+    } catch (e) {
+      Logger.error('Błąd ładowania salda świec: $e');
+      // Zachowaj wartość domyślną w przypadku błędu
+      if (mounted) {
+        setState(() {
+          _candlesCount = 0;
+        });
+      }
+    }
   }
 
   // ✅ NOWA METODA - ładuj dane z horoskopu
@@ -550,7 +575,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   _showCandleStats();
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -575,7 +601,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.light_mode, // Zmieniono z Icons.local_fire_department na Icons.light_mode (ikona świecy)
+                        Icons
+                            .light_mode, // Zmieniono z Icons.local_fire_department na Icons.light_mode (ikona świecy)
                         color: Colors.amber[300],
                         size: 18,
                       ),
@@ -602,7 +629,10 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   // 🆕 NOWA METODA - Dialog ze statystykami świec
   void _showCandleStats() async {
     await _hapticService.trigger(HapticType.light);
-    
+
+    // Odśwież saldo przed pokazaniem dialogu
+    await _loadCandleBalance();
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -619,10 +649,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               ],
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.amber.withOpacity(0.5), 
-              width: 1
-            ),
+            border: Border.all(color: Colors.amber.withOpacity(0.5), width: 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.amber.withOpacity(0.2),
@@ -655,14 +682,14 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   ],
                 ),
                 child: const Icon(
-                  Icons.light_mode, // Zmieniono również w dialogu
+                  Icons.light_mode,
                   color: Colors.white,
                   size: 30,
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               Text(
                 'Twoje Świece',
                 style: GoogleFonts.cinzelDecorative(
@@ -672,9 +699,22 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 ),
                 textAlign: TextAlign.center,
               ),
-              
+
+              const SizedBox(height: 8),
+
+              // Aktualne saldo
+              Text(
+                'Aktualnie masz: $_candlesCount świec',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
               const SizedBox(height: 12),
-              
+
               Text(
                 'System świec pozwala korzystać z funkcji premium.\n\nZdobywaj świece codziennie logując się do aplikacji!',
                 style: GoogleFonts.cinzelDecorative(
@@ -685,10 +725,10 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 ),
                 textAlign: TextAlign.center,
               ),
-              
+
               const SizedBox(height: 20),
-              
-              // Informacje o cenach
+
+              // Informacje o cenach - użyj rzeczywistych cen z serwisu
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -711,9 +751,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '🔮 Rozbudowany horoskop: 15 świec\n'
-                      '🖐️ Skan dłoni: 25 świec\n'
-                      '📅 Horoskop tygodniowy: 10 świec',
+                      '🔮 Rozbudowany horoskop: ${CandleManagerService.PRICE_EXTENDED_HOROSCOPE} świec\n'
+                      '🖐️ Skan dłoni: ${CandleManagerService.PRICE_PALM_READING} świec\n'
+                      '📅 Horoskop tygodniowy: ${CandleManagerService.PRICE_WEEKLY_HOROSCOPE} świec',
                       style: GoogleFonts.cinzelDecorative(
                         fontSize: 12,
                         color: Colors.white70,
@@ -724,9 +764,9 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               SizedBox(
                 width: double.infinity,
                 child: HapticButton(
@@ -738,8 +778,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25)
-                    ),
+                        borderRadius: BorderRadius.circular(25)),
                   ),
                 ),
               ),
@@ -1514,7 +1553,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             ),
           ),
           const SizedBox(height: 12),
-          // DODAJ LICZNIK ŚWIEC
+          // Użyj rzeczywistego salda świec
           CandleCounterWidget(candlesCount: _candlesCount, showLabel: true),
           const SizedBox(height: 12),
           Text(
@@ -1838,31 +1877,100 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
   // ==================== NAVIGATION METHODS ====================
 
+  Future<void> _goToPalmScan() async {
+    await _candleService.initialize();
+    final canAfford = await _candleService.canUsePalmReading();
+
+    if (canAfford || _candleService.currentBalance >= 0) {
+      // Przejdź do intro screen (tam jest płatność)
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PalmIntroScreen(
+            userName: _userName,
+            userGender: _userGender,
+            dominantHand: _dominantHand,
+            birthDate: _birthDate,
+          ),
+        ),
+      );
+    } else {
+      // Pokaż info o braku świec
+      _showInsufficientCandlesDialog();
+    }
+  }
+
   void _navigateToPalmScan() async {
     await _hapticService.trigger(HapticType.success);
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            PalmIntroScreen(
-          userName: _userName,
-          userGender: _userGender,
-          dominantHand: _dominantHand,
-          birthDate: _birthDate,
-        ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.0, 0.3),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                  parent: animation, curve: Curves.easeOutCubic)),
-              child: child,
+
+    // Odśwież saldo przed przejściem do następnego ekranu
+    await _loadCandleBalance();
+
+    await _goToPalmScan();
+
+    // Odśwież saldo po powrocie z innych ekranów
+    _loadCandleBalance();
+  }
+
+  void _showInsufficientCandlesDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF1A2332),
+                Color(0xFF0B1426),
+              ],
             ),
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 800),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.red.withOpacity(0.5), width: 1),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                'Niewystarczające saldo',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.red,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Potrzebujesz więcej świec aby skorzystać z tej funkcji.',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 14,
+                  color: Colors.white70,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Rozumiem',
+                    style: GoogleFonts.cinzelDecorative(
+                      color: Colors.red,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1971,7 +2079,12 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
   void _navigateToHoroscopeMenu(String? zodiacSign) async {
     await _hapticService.trigger(HapticType.light);
-    Navigator.of(context).push(
+
+    // Odśwież saldo przed przejściem
+    await _loadCandleBalance();
+
+    Navigator.of(context)
+        .push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             HoroskopeMenuScreen(
@@ -1994,7 +2107,11 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         },
         transitionDuration: const Duration(milliseconds: 800),
       ),
-    );
+    )
+        .then((_) {
+      // Odśwież saldo po powrocie
+      _loadCandleBalance();
+    });
   }
 
   void _navigateToMusicSelection() async {

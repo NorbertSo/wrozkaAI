@@ -6,16 +6,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import '../services/haptic_service.dart';
-import '../services/candle_manager_service.dart';
 import '../utils/responsive_utils.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
 
 class CandlePaymentConfirmationWidget extends StatefulWidget {
-  final String featureName; // Nazwa funkcji np. "Rozbudowany horoskop"
-  final String featureIcon; // Ikona funkcji np. "🔮"
+  final String featureName; // Nazwa funkcji np. "Skan dłoni"
+  final String featureIcon; // Ikona funkcji np. "�️"
   final int candleCost; // Koszt w świecach
   final String featureDescription; // Dodatkowy opis funkcji
+  final int currentBalance; // Aktualne saldo świec użytkownika
   final VoidCallback onConfirm; // Callback po potwierdzeniu
   final VoidCallback? onCancel; // Callback po anulowaniu
   final Color? accentColor; // Kolor akcentu (domyślnie pomarańczowy)
@@ -26,6 +26,7 @@ class CandlePaymentConfirmationWidget extends StatefulWidget {
     required this.featureIcon,
     required this.candleCost,
     required this.featureDescription,
+    required this.currentBalance,
     required this.onConfirm,
     this.onCancel,
     this.accentColor,
@@ -39,21 +40,15 @@ class CandlePaymentConfirmationWidget extends StatefulWidget {
 class _CandlePaymentConfirmationWidgetState
     extends State<CandlePaymentConfirmationWidget>
     with TickerProviderStateMixin {
-  final CandleManagerService _candleService = CandleManagerService();
-
   late AnimationController _pulseController;
   late AnimationController _glowController;
   late Animation<double> _pulseAnimation;
   late Animation<double> _glowAnimation;
 
-  int _currentBalance = 0;
-  bool _isLoading = true;
-
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
-    _loadCurrentBalance();
   }
 
   void _initializeAnimations() {
@@ -79,26 +74,13 @@ class _CandlePaymentConfirmationWidgetState
     _glowController.repeat(reverse: true);
   }
 
-  Future<void> _loadCurrentBalance() async {
-    try {
-      await _candleService.initialize();
-      setState(() {
-        _currentBalance = _candleService.currentBalance;
-        _isLoading = false;
-      });
-    } catch (e) {
-      Logger.error('Błąd ładowania salda świec: $e');
-      setState(() => _isLoading = false);
-    }
-  }
-
-  bool get _hasEnoughCandles => _currentBalance >= widget.candleCost;
-  int get _balanceAfter => _currentBalance - widget.candleCost;
+  bool get _hasEnoughCandles => widget.currentBalance >= widget.candleCost;
+  int get _balanceAfter => widget.currentBalance - widget.candleCost;
   Color get _accentColor => widget.accentColor ?? Colors.orange;
 
   Future<void> _handleConfirm() async {
     await HapticService.triggerMedium();
-    
+
     if (_hasEnoughCandles) {
       widget.onConfirm();
     } else {
@@ -116,7 +98,7 @@ class _CandlePaymentConfirmationWidgetState
     showDialog(
       context: context,
       builder: (context) => InsufficientCandlesDialog(
-        currentBalance: _currentBalance,
+        currentBalance: widget.currentBalance,
         requiredAmount: widget.candleCost,
         featureName: widget.featureName,
       ),
@@ -132,12 +114,6 @@ class _CandlePaymentConfirmationWidgetState
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.orange),
-      );
-    }
-
     return ResponsiveContainer(
       child: Container(
         padding: const EdgeInsets.all(24),
@@ -255,7 +231,8 @@ class _CandlePaymentConfirmationWidgetState
                                   ),
                                 ],
                               ),
-                              child: const Text('🕯️', style: TextStyle(fontSize: 24)),
+                              child: const Text('🕯️',
+                                  style: TextStyle(fontSize: 24)),
                             );
                           },
                         ),
@@ -319,7 +296,7 @@ class _CandlePaymentConfirmationWidgetState
                   const Text('🕯️', style: TextStyle(fontSize: 16)),
                   const SizedBox(width: 4),
                   Text(
-                    '$_currentBalance',
+                    '${widget.currentBalance}',
                     style: GoogleFonts.cinzelDecorative(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -378,8 +355,8 @@ class _CandlePaymentConfirmationWidgetState
           child: ElevatedButton(
             onPressed: _handleConfirm,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _hasEnoughCandles 
-                  ? _accentColor 
+              backgroundColor: _hasEnoughCandles
+                  ? _accentColor
                   : Colors.grey.withOpacity(0.3),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -655,7 +632,8 @@ class InsufficientCandlesDialog extends StatelessWidget {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop(); // Zamknij dialog zakupu
-              Navigator.of(context).pop(); // Zamknij dialog niewystarczających świec
+              Navigator.of(context)
+                  .pop(); // Zamknij dialog niewystarczających świec
             },
             child: Text(
               'OK',
@@ -679,6 +657,7 @@ class CandlePaymentHelper {
     required String featureIcon,
     required int candleCost,
     required String featureDescription,
+    required int currentBalance,
     Color? accentColor,
   }) async {
     final completer = Completer<bool>();
@@ -693,10 +672,58 @@ class CandlePaymentHelper {
           featureIcon: featureIcon,
           candleCost: candleCost,
           featureDescription: featureDescription,
+          currentBalance: currentBalance,
           accentColor: accentColor,
           onConfirm: () {
             Navigator.of(context).pop();
             completer.complete(true);
+          },
+          onCancel: () {
+            Navigator.of(context).pop();
+            completer.complete(false);
+          },
+        ),
+      ),
+    );
+
+    return completer.future;
+  }
+
+  /// 🎯 NOWA METODA - Dialog płatności z callback wykonania płatności
+  static Future<bool> showPaymentConfirmationWithCallback({
+    required BuildContext context,
+    required String featureName,
+    required String featureIcon,
+    required int candleCost,
+    required String featureDescription,
+    required int currentBalance,
+    required Future<void> Function() onPaymentSuccess,
+    Color? accentColor,
+  }) async {
+    final completer = Completer<bool>();
+
+    await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: CandlePaymentConfirmationWidget(
+          featureName: featureName,
+          featureIcon: featureIcon,
+          candleCost: candleCost,
+          featureDescription: featureDescription,
+          currentBalance: currentBalance,
+          accentColor: accentColor,
+          onConfirm: () async {
+            Navigator.of(context).pop();
+            try {
+              // Wykonaj callback płatności
+              await onPaymentSuccess();
+              completer.complete(true);
+            } catch (e) {
+              Logger.error('Błąd wykonania płatności: $e');
+              completer.complete(false);
+            }
           },
           onCancel: () {
             Navigator.of(context).pop();

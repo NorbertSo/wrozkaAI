@@ -459,26 +459,41 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
   }
 
   Future<void> _startPalmScan() async {
+    print('🔍 DEBUG: _startPalmScan() wywołana');
+
     try {
+      print('🔍 DEBUG: Inicjalizacja CandleManagerService...');
+      await _candleService.initialize();
+
       // Pobierz informacje o funkcji
       final featureInfo = _candleService.getFeatureInfo('palm_reading');
+      print(
+          '🔍 DEBUG: FeatureInfo: ${featureInfo.name}, koszt: ${featureInfo.cost}');
 
-      // Użyj gotowego widgetu płatności
+      print('🔍 DEBUG: Pokazuję dialog płatności...');
+
+      // ✅ UŻYWAJ TEJ SAMEJ METODY CO W EXTENDED_HOROSCOPE!
       final confirmed = await CandlePaymentHelper.showPaymentConfirmation(
         context: context,
         featureName: featureInfo.name,
         featureIcon: featureInfo.icon,
         candleCost: featureInfo.cost,
         featureDescription: featureInfo.description,
+        currentBalance: _candleService.currentBalance,
         accentColor: AppColors.cyan,
       );
 
-      if (!confirmed) return;
+      print('🔍 DEBUG: Dialog result: $confirmed');
+      if (!confirmed) {
+        print('🔍 DEBUG: Użytkownik anulował płatność');
+        return;
+      }
 
       // Wykonaj płatność
       final result = await _candleService.usePalmReading();
 
       if (result.success) {
+        print('🔍 DEBUG: Przechodzę do PalmScanScreen...');
         // Przejdź do skanu
         Navigator.push(
           context,
@@ -492,10 +507,11 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
           ),
         );
       } else {
-        // Pokaż błąd
+        print('🔍 DEBUG: Płatność nieudana, pokazuję błąd...');
         _showErrorDialog(result.message);
       }
     } catch (e) {
+      print('🔍 DEBUG: Exception w _startPalmScan(): $e');
       _showErrorDialog('Wystąpił błąd podczas przetwarzania płatności');
     }
   }
