@@ -7,9 +7,10 @@ import 'package:google_fonts/google_fonts.dart';
 import '../utils/constants.dart';
 import '../services/haptic_service.dart';
 import '../services/candle_manager_service.dart';
+import '../services/horoscope_cache_service.dart';
+import '../models/cached_horoscope.dart';
 import '../widgets/haptic_button.dart';
 import '../utils/logger.dart';
-import '../widgets/candle_payment_confirmation_widget.dart';
 
 class ExtendedHoroscopeScreen extends StatefulWidget {
   final String userName;
@@ -38,6 +39,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     with TickerProviderStateMixin {
   // 🎯 SERWISY
   final CandleManagerService _candleService = CandleManagerService();
+  final HoroscopeCacheService _cacheService = HoroscopeCacheService();
 
   // 🎬 ANIMACJE
   late AnimationController _fadeController;
@@ -82,7 +84,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     _shimmerController.repeat();
   }
 
-  /// 🔐 Sprawdź dostęp użytkownika
+  /// 🔐 Sprawdź dostęp użytkownika - NAJPIERW SPRAWDŹ CACHE
   Future<void> _checkAccess() async {
     try {
       setState(() {
@@ -90,20 +92,42 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
       });
 
       await _candleService.initialize();
-
-      final hasAccess = await _candleService.canUseExtendedHoroscope();
+      await _cacheService.initialize();
+      
+      // 🧹 Wyczyść wygasłe horokorty
+      await _cacheService.cleanupExpiredHoroscopes();
+      
       final balance = _candleService.currentBalance;
 
       setState(() {
         _candlesCount = balance;
-        _isLoading = false;
       });
 
-      Logger.info(
-        'Sprawdzono dostęp do rozbudowanego horoskopu: $hasAccess, saldo: $balance',
-      );
+      Logger.info('Sprawdzono saldo świec: $balance');
 
+      // ✅ KROK 1: Sprawdź czy użytkownik ma już dziś zakupiony horoskop
+      final cachedHoroscope = await _cacheService.getTodaysHoroscope();
+      
+      if (cachedHoroscope != null) {
+        // 🎉 MAMY ZAKUPIONY HOROSKOP - ZAŁADUJ GO
+        Logger.info('Znaleziono cachowany horoskop: ${cachedHoroscope.validityInfo}');
+        setState(() {
+          _horoscopeData = cachedHoroscope.horoscopeData;
+          _isLoading = false;
+        });
+        _fadeController.forward();
+        return;
+      }
+
+      // ✅ KROK 2: Brak cachowanego horoskopu - pokaż dialog płatności
+      setState(() {
+        _isLoading = false;
+      });
       _fadeController.forward();
+
+      // Małe opóźnienie aby UI się wyrenderowało
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _showPaymentDialogImmediately();
     } catch (e) {
       Logger.error('Błąd sprawdzania dostępu: $e');
       setState(() {
@@ -122,83 +146,17 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     }
   }
 
-  /// 🎯 Użyj horoskopu z płatnością świecami - NAPRAWIONA WERSJA
-  Future<void> _showPaymentDialog() async {
+  /// 📊 Załaduj dane horoskopu i zapisz do cache
+  Future<void> _loadAndCacheHoroscopeData() async {
     try {
-      // ✅ UŻYWAJ TEJ SAMEJ METODY CO W PALM_INTRO!
-      final confirmed = await CandlePaymentHelper.showPaymentConfirmation(
-        context: context,
-        featureName: 'Rozbudowany horoskop',
-        featureIcon: '🔮',
-        candleCost: 15,
-        featureDescription:
-            'Szczegółowa analiza wszystkich sfer Twojego życia na dziś',
-        currentBalance: _candleService.currentBalance,
-        accentColor: AppColors.cyan,
-      );
-
-      if (!confirmed) {
-        Logger.info('Użytkownik anulował płatność za horoskop');
-        return;
-      }
-
-      // Wykonaj płatność
-      setState(() => _isLoading = true);
-      final result = await _candleService.useExtendedHoroscope();
-
-      if (result.success) {
-        await _loadHoroscopeData();
-        await _checkAccess();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result.message,
-              style: GoogleFonts.cinzelDecorative(color: Colors.white),
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result.message,
-              style: GoogleFonts.cinzelDecorative(color: Colors.white),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      Logger.error('Błąd płatności za horoskop: $e');
       setState(() {
-        _isLoading = false;
+        _isLoading = true;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Wystąpił błąd podczas przetwarzania płatności',
-            style: GoogleFonts.cinzelDecorative(color: Colors.white),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  /// 📊 Załaduj dane horoskopu
-  Future<void> _loadHoroscopeData() async {
-    try {
       await Future.delayed(const Duration(seconds: 2));
 
-      _horoscopeData = {
+      // 🔮 WYGENERUJ HOROSKOP (w przyszłości będzie to AI)
+      final horoscopeData = {
         'career':
             'Twoja naturalna energia i determinacja przyniosą dziś konkretne rezultaty w pracy. Śmiało przedstaw swoje pomysły przełożonym.',
         'love':
@@ -213,8 +171,32 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
             'Atmosfera w domu jest spokojna i przyjazna. To dobry dzień na rozmowy z bliskimi o przyszłości i wspólnych planach.',
       };
 
-      setState(() => _isLoading = false);
-      Logger.info('Załadowano horoskop rozbudowany');
+      // 💾 ZAPISZ DO CACHE
+      final cachedHoroscope = await _cacheService.createHoroscopeForUser(
+        horoscopeData: horoscopeData,
+        userName: widget.userName,
+        userGender: widget.userGender,
+        birthDate: widget.birthDate,
+        dominantHand: widget.dominantHand,
+        relationshipStatus: widget.relationshipStatus,
+        primaryConcern: widget.primaryConcern,
+      );
+
+      final saved = await _cacheService.saveHoroscope(cachedHoroscope);
+      
+      if (saved) {
+        Logger.info('Horoskop zapisany do cache: ${cachedHoroscope.validityInfo}');
+      } else {
+        Logger.warning('Nie udało się zapisać horoskopu do cache');
+      }
+
+      // 🎨 ZAKTUALIZUJ UI
+      setState(() {
+        _horoscopeData = horoscopeData;
+        _isLoading = false;
+      });
+      
+      Logger.info('Załadowano i zapisano horoskop rozbudowany');
     } catch (e) {
       Logger.error('Błąd ładowania horoskopu: $e');
       setState(() {
@@ -249,7 +231,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
                     ? _buildLoadingState()
                     : _horoscopeData != null
                         ? _buildHoroscopeContent()
-                        : _buildPaymentPrompt(),
+                        : _buildLoadingState(), // Jeśli nie ma danych, pokaż loading (płatność już się wyświetla)
               ),
             ],
           ),
@@ -382,7 +364,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     );
   }
 
-  /// 🎯 Nagłówek horoskopu
+  /// 🎯 Nagłówek horoskopu z informacją o ważności
   Widget _buildHoroscopeHeader() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -414,6 +396,42 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
               color: Colors.white70,
             ),
           ),
+          
+          // 📅 INFORMACJA O WAŻNOŚCI HOROSKOPU
+          FutureBuilder<CachedHoroscope?>(
+            future: _cacheService.getTodaysHoroscope(),
+            builder: (context, snapshot) {
+              if (snapshot.hasData && snapshot.data != null) {
+                final horoscope = snapshot.data!;
+                return Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.withOpacity(0.4), width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('⏰', style: TextStyle(fontSize: 14)),
+                      const SizedBox(width: 6),
+                      Text(
+                        horoscope.validityInfo,
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 12,
+                          color: Colors.orange,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+          
           const SizedBox(height: 16),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -577,51 +595,29 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     }
   }
 
-  /// 🚫 Widget, który automatycznie wywołuje płatność
-  Widget _buildPaymentPrompt() {
-    // Auto-trigger płatności po wyświetleniu widgetu
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showPaymentDialog();
-    });
+  ///  Natychmiastowe wyświetlenie płatności i zapis do cache
+  Future<void> _showPaymentDialogImmediately() async {
+    try {
+      final success = await CandleManagerService.showPaymentDialog(
+        context,
+        'extended_horoscope',
+      );
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [AppColors.cyan.withOpacity(0.3), Colors.transparent],
-                ),
-              ),
-              child: const Icon(
-                Icons.auto_awesome,
-                size: 64,
-                color: AppColors.cyan,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Przygotowuję płatność...',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 20,
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.cyan),
-            ),
-          ],
-        ),
-      ),
-    );
+      if (success) {
+        // ✅ PŁATNOŚĆ ZAKOŃCZONA SUKCESEM - WYGENERUJ I ZAPISZ HOROSKOP
+        await _loadAndCacheHoroscopeData();
+      } else {
+        // Użytkownik anulował - wróć do poprzedniego ekranu
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      }
+    } catch (e) {
+      Logger.error('Błąd płatności za horoskop: $e');
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    }
   }
 
   /// 📝 Pomocnicze metody

@@ -12,7 +12,6 @@ import '../services/user_preferences_service.dart';
 import '../models/user_data.dart';
 import '../services/haptic_service.dart';
 import '../services/candle_manager_service.dart';
-import '../widgets/candle_payment_confirmation_widget.dart';
 
 class PalmIntroScreen extends StatefulWidget {
   final String userName;
@@ -344,22 +343,13 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
         onPressed: () async {
           await _hapticService.trigger(HapticType.medium);
 
-          // 🔮 UŻYWAJ TEGO SAMEGO UNIWERSALNEGO WIDGETU CO extended_horoscope!
-          final candleService = CandleManagerService();
-          await candleService.initialize();
-
-          final confirmed = await CandlePaymentHelper.showPaymentConfirmation(
-            context: context,
-            featureName: 'Skanowanie Dłoni',
-            featureIcon: '👋',
-            candleCost: 25,
-            featureDescription:
-                'Odkryj sekrety ukryte w liniach Twojej dłoni. Analiza linii życia, miłości i szczęścia.',
-            currentBalance: candleService.currentBalance,
-            accentColor: AppColors.cyan,
+          // ✅ UNIWERSALNA METODA PŁATNOŚCI!
+          final success = await CandleManagerService.showPaymentDialog(
+            context,
+            'palm_reading',
           );
 
-          if (confirmed) {
+          if (success) {
             _startPalmScan();
           }
         },

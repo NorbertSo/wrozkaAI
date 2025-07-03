@@ -3,11 +3,14 @@
 // Zgodny z wytycznymi projektu AI Wróżka
 // WSZYSTKIE FUNKCJE TYLKO PŁATNE ŚWIECAMI
 
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/candle_transaction.dart';
 import '../services/anonymous_user_service.dart';
 import '../services/haptic_service.dart';
 import '../utils/logger.dart';
+import '../utils/constants.dart';
+import '../widgets/candle_payment_confirmation_widget.dart';
 
 class CandleManagerService {
   static final CandleManagerService _instance =
@@ -290,14 +293,16 @@ class CandleManagerService {
           name: 'Rozbudowany horoskop',
           icon: '🔮',
           cost: PRICE_EXTENDED_HOROSCOPE,
-          description: 'Szczegółowa analiza wszystkich sfer życia na dziś',
+          description:
+              'Szczegółowa analiza wszystkich sfer Twojego życia na dziś',
         );
       case 'palm_reading':
         return FeatureInfo(
-          name: 'Skan dłoni',
-          icon: '🖐️',
+          name: 'Skanowanie Dłoni',
+          icon: '�',
           cost: PRICE_PALM_READING,
-          description: 'Analiza linii dłoni i odkrycie swojego przeznaczenia',
+          description:
+              'Odkryj sekrety ukryte w liniach Twojej dłoni. Analiza linii życia, miłości i szczęścia.',
         );
       case 'weekly_horoscope':
         return FeatureInfo(
@@ -314,6 +319,44 @@ class CandleManagerService {
           description: 'Opis niedostępny',
         );
     }
+  }
+
+  /// 🎨 UNIWERSALNA METODA PŁATNOŚCI + UI
+  static Future<bool> showPaymentDialog(
+      BuildContext context, String featureKey) async {
+    final service = CandleManagerService();
+    await service.initialize();
+
+    final featureInfo = service.getFeatureInfo(featureKey);
+
+    final confirmed = await CandlePaymentHelper.showPaymentConfirmation(
+      context: context,
+      featureName: featureInfo.name,
+      featureIcon: featureInfo.icon,
+      candleCost: featureInfo.cost,
+      featureDescription: featureInfo.description,
+      currentBalance: service.currentBalance,
+      accentColor: AppColors.cyan,
+    );
+
+    if (confirmed) {
+      late CandleUsageResult result;
+      switch (featureKey) {
+        case 'extended_horoscope':
+          result = await service.useExtendedHoroscope();
+          break;
+        case 'palm_reading':
+          result = await service.usePalmReading();
+          break;
+        case 'weekly_horoscope':
+          result = await service.useWeeklyHoroscope();
+          break;
+        default:
+          return false;
+      }
+      return result.success;
+    }
+    return false;
   }
 }
 
