@@ -48,7 +48,6 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
   bool _loadingUserData = true;
 
   final HapticService _hapticService = HapticService();
-  final CandleManagerService _candleService = CandleManagerService();
 
   @override
   void initState() {
@@ -344,7 +343,25 @@ class _PalmIntroScreenState extends State<PalmIntroScreen>
       child: ElevatedButton(
         onPressed: () async {
           await _hapticService.trigger(HapticType.medium);
-          _startPalmScan();
+
+          // 🔮 UŻYWAJ TEGO SAMEGO UNIWERSALNEGO WIDGETU CO extended_horoscope!
+          final candleService = CandleManagerService();
+          await candleService.initialize();
+
+          final confirmed = await CandlePaymentHelper.showPaymentConfirmation(
+            context: context,
+            featureName: 'Skanowanie Dłoni',
+            featureIcon: '👋',
+            candleCost: 25,
+            featureDescription:
+                'Odkryj sekrety ukryte w liniach Twojej dłoni. Analiza linii życia, miłości i szczęścia.',
+            currentBalance: candleService.currentBalance,
+            accentColor: AppColors.cyan,
+          );
+
+          if (confirmed) {
+            _startPalmScan();
+          }
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
@@ -462,38 +479,14 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
     print('🔍 DEBUG: _startPalmScan() wywołana');
 
     try {
-      print('🔍 DEBUG: Inicjalizacja CandleManagerService...');
-      await _candleService.initialize();
-
-      // Pobierz informacje o funkcji
-      final featureInfo = _candleService.getFeatureInfo('palm_reading');
-      print(
-          '🔍 DEBUG: FeatureInfo: ${featureInfo.name}, koszt: ${featureInfo.cost}');
-
-      print('🔍 DEBUG: Pokazuję dialog płatności...');
-
-      // ✅ UŻYWAJ TEJ SAMEJ METODY CO W EXTENDED_HOROSCOPE!
-      final confirmed = await CandlePaymentHelper.showPaymentConfirmation(
-        context: context,
-        featureName: featureInfo.name,
-        featureIcon: featureInfo.icon,
-        candleCost: featureInfo.cost,
-        featureDescription: featureInfo.description,
-        currentBalance: _candleService.currentBalance,
-        accentColor: AppColors.cyan,
-      );
-
-      print('🔍 DEBUG: Dialog result: $confirmed');
-      if (!confirmed) {
-        print('🔍 DEBUG: Użytkownik anulował płatność');
-        return;
-      }
+      final candleService = CandleManagerService();
+      await candleService.initialize();
 
       // Wykonaj płatność
-      final result = await _candleService.usePalmReading();
+      final result = await candleService.usePalmReading();
 
       if (result.success) {
-        print('🔍 DEBUG: Przechodzę do PalmScanScreen...');
+        print('🔍 DEBUG: Płatność udana, przechodzę do PalmScanScreen...');
         // Przejdź do skanu
         Navigator.push(
           context,
@@ -507,7 +500,7 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
           ),
         );
       } else {
-        print('🔍 DEBUG: Płatność nieudana, pokazuję błąd...');
+        print('🔍 DEBUG: Płatność nieudana: ${result.message}');
         _showErrorDialog(result.message);
       }
     } catch (e) {

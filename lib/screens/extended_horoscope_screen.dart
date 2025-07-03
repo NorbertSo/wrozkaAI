@@ -46,7 +46,6 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
 
   // 📊 STAN
   bool _isLoading = true;
-  bool _hasAccess = false;
   int _candlesCount = 0;
   Map<String, String>? _horoscopeData;
 
@@ -76,13 +75,9 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _fadeController,
-      curve: Curves.easeInOut,
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
+    );
 
     _shimmerController.repeat();
   }
@@ -100,13 +95,13 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
       final balance = _candleService.currentBalance;
 
       setState(() {
-        _hasAccess = hasAccess;
         _candlesCount = balance;
         _isLoading = false;
       });
 
       Logger.info(
-          'Sprawdzono dostęp do rozbudowanego horoskopu: $hasAccess, saldo: $balance');
+        'Sprawdzono dostęp do rozbudowanego horoskopu: $hasAccess, saldo: $balance',
+      );
 
       _fadeController.forward();
     } catch (e) {
@@ -130,18 +125,16 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
   /// 🎯 Użyj horoskopu z płatnością świecami - NAPRAWIONA WERSJA
   Future<void> _showPaymentDialog() async {
     try {
-      // Pobierz informacje o funkcji
-      final featureInfo = _candleService.getFeatureInfo('extended_horoscope');
-
       // ✅ UŻYWAJ TEJ SAMEJ METODY CO W PALM_INTRO!
       final confirmed = await CandlePaymentHelper.showPaymentConfirmation(
         context: context,
-        featureName: featureInfo.name,
-        featureIcon: featureInfo.icon,
-        candleCost: featureInfo.cost,
-        featureDescription: featureInfo.description,
+        featureName: 'Rozbudowany horoskop',
+        featureIcon: '🔮',
+        candleCost: 15,
+        featureDescription:
+            'Szczegółowa analiza wszystkich sfer Twojego życia na dziś',
         currentBalance: _candleService.currentBalance,
-        accentColor: AppColors.cyan, // ← ZMIEŃ NA CYAN
+        accentColor: AppColors.cyan,
       );
 
       if (!confirmed) {
@@ -319,10 +312,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.orange.withOpacity(0.4),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.orange.withOpacity(0.4), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -377,111 +367,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     );
   }
 
-  /// 🚫 Stan braku dostępu - zaktualizowany
-  Widget _buildPaymentPrompt() {
-    return SingleChildScrollView(
-      // ← DODAJ TO!
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.cyan.withOpacity(0.3),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-              child: const Icon(
-                Icons.auto_awesome,
-                size: 64,
-                color: AppColors.cyan,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Horoskop Rozbudowany',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 24,
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Szczegółowa analiza wszystkich sfer Twojego życia na dziś',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 14,
-                color: Colors.white70,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-
-            // 💰 Informacje o koszcie
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.orange.withOpacity(0.2), // ← ZMIEŃ NA ORANGE
-                    Colors.orange.withOpacity(0.1),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.orange.withOpacity(0.5), // ← ZMIEŃ NA ORANGE
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('🕯️', style: TextStyle(fontSize: 24)),
-                      const SizedBox(width: 8),
-                      Text(
-                        '15 świec',
-                        style: GoogleFonts.cinzelDecorative(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.orange, // ← ZMIEŃ NA ORANGE
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Twój balans: $_candlesCount świec',
-                    style: GoogleFonts.cinzelDecorative(
-                      fontSize: 14,
-                      color: Colors.white70,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 32),
-            _buildAccessButtons(),
-
-            // Dodaj dodatkowy padding na dole
-            const SizedBox(height: 50), // ← DODAJ TO żeby nie było overflow
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 📝 Zawartość horoskopu
+  ///  Zawartość horoskopu
   Widget _buildHoroscopeContent() {
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -508,10 +394,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.cyan.withOpacity(0.5),
-          width: 1,
-        ),
+        border: Border.all(color: AppColors.cyan.withOpacity(0.5), width: 1),
       ),
       child: Column(
         children: [
@@ -589,7 +472,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
       {
         'title': '👨‍👩‍👧‍👦 Rodzina i Dom',
         'key': 'family',
-        'color': Colors.cyan
+        'color': Colors.cyan,
       },
     ];
 
@@ -636,16 +519,10 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            color.withOpacity(0.15),
-            color.withOpacity(0.05),
-          ],
+          colors: [color.withOpacity(0.15), color.withOpacity(0.05)],
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: color.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -672,130 +549,12 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     );
   }
 
-  /// 🔢 Przyciski dostępu - NAPRAWIONA WERSJA
-  Widget _buildAccessButtons() {
-    return Column(
-      children: [
-        SizedBox(
-          width: double.infinity,
-          child: HapticButton(
-            text: _candlesCount >= 15
-                ? '🔮 Odbierz horoskop'
-                : '🚫 Brak wystarczających świec',
-            onPressed: _candlesCount >= 15
-                ? _showPaymentDialog
-                : null, // ← UŻYWAJ NOWEJ METODY!
-            hapticType: HapticType.medium,
-            backgroundColor: _candlesCount >= 15
-                ? AppColors.cyan.withOpacity(0.2)
-                : Colors.grey.withOpacity(0.2),
-            foregroundColor: _candlesCount >= 15 ? AppColors.cyan : Colors.grey,
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // Informacje o kosztach
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColors.purple.withOpacity(0.3),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Koszt:',
-                    style: GoogleFonts.cinzelDecorative(
-                      fontSize: 14,
-                      color: Colors.white70,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      const Text('🕯️', style: TextStyle(fontSize: 16)),
-                      const SizedBox(width: 4),
-                      Text(
-                        '15',
-                        style: GoogleFonts.cinzelDecorative(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.purple,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Twoje saldo:',
-                    style: GoogleFonts.cinzelDecorative(
-                      fontSize: 14,
-                      color: Colors.white70,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      const Text('🕯️', style: TextStyle(fontSize: 16)),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$_candlesCount',
-                        style: GoogleFonts.cinzelDecorative(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color:
-                              _candlesCount >= 15 ? Colors.green : Colors.red,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              if (_candlesCount < 15) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Potrzebujesz ${15 - _candlesCount} więcej świec',
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 12,
-                    color: Colors.red.withOpacity(0.8),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        Text(
-          'Zbieraj świece w codziennych aktywnościach!',
-          style: GoogleFonts.cinzelDecorative(
-            fontSize: 12,
-            color: Colors.white70,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  /// 📤 Udostępnij horoskop
+  ///  Udostępnij horoskop
   Future<void> _shareHoroscope() async {
     try {
-      final success =
-          await _candleService.rewardForSharing('rozbudowany horoskop');
+      final success = await _candleService.rewardForSharing(
+        'rozbudowany horoskop',
+      );
 
       if (success) {
         await HapticService.triggerSuccess();
@@ -816,6 +575,53 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     } catch (e) {
       Logger.error('Błąd udostępniania horoskopu: $e');
     }
+  }
+
+  /// 🚫 Widget, który automatycznie wywołuje płatność
+  Widget _buildPaymentPrompt() {
+    // Auto-trigger płatności po wyświetleniu widgetu
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showPaymentDialog();
+    });
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [AppColors.cyan.withOpacity(0.3), Colors.transparent],
+                ),
+              ),
+              child: const Icon(
+                Icons.auto_awesome,
+                size: 64,
+                color: AppColors.cyan,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Przygotowuję płatność...',
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 20,
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.cyan),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// 📝 Pomocnicze metody

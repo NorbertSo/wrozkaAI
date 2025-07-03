@@ -1,650 +1,16 @@
 // lib/widgets/candle_payment_confirmation_widget.dart
-// 🕯️ UNIWERSALNY WIDGET POTWIERDZANIA PŁATNOŚCI ŚWIECAMI
-// Zgodny z wytycznymi projektu AI Wróżka
+// 🎨 UNIWERSALNY WIDGET PŁATNOŚCI - FINALNE ROZWIĄZANIE
+// Jeden kod dla WSZYSTKICH płatności świecami
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import '../services/haptic_service.dart';
-import '../utils/responsive_utils.dart';
 import '../utils/constants.dart';
 import '../utils/logger.dart';
+import '../widgets/haptic_button.dart';
 
-class CandlePaymentConfirmationWidget extends StatefulWidget {
-  final String featureName; // Nazwa funkcji np. "Skan dłoni"
-  final String featureIcon; // Ikona funkcji np. "�️"
-  final int candleCost; // Koszt w świecach
-  final String featureDescription; // Dodatkowy opis funkcji
-  final int currentBalance; // Aktualne saldo świec użytkownika
-  final VoidCallback onConfirm; // Callback po potwierdzeniu
-  final VoidCallback? onCancel; // Callback po anulowaniu
-  final Color? accentColor; // Kolor akcentu (domyślnie pomarańczowy)
-
-  const CandlePaymentConfirmationWidget({
-    Key? key,
-    required this.featureName,
-    required this.featureIcon,
-    required this.candleCost,
-    required this.featureDescription,
-    required this.currentBalance,
-    required this.onConfirm,
-    this.onCancel,
-    this.accentColor,
-  }) : super(key: key);
-
-  @override
-  State<CandlePaymentConfirmationWidget> createState() =>
-      _CandlePaymentConfirmationWidgetState();
-}
-
-class _CandlePaymentConfirmationWidgetState
-    extends State<CandlePaymentConfirmationWidget>
-    with TickerProviderStateMixin {
-  late AnimationController _pulseController;
-  late AnimationController _glowController;
-  late Animation<double> _pulseAnimation;
-  late Animation<double> _glowAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeAnimations();
-  }
-
-  void _initializeAnimations() {
-    // Delikatne pulsowanie świec
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    );
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-
-    // Subtelne świecenie
-    _glowController = AnimationController(
-      duration: const Duration(milliseconds: 3000),
-      vsync: this,
-    );
-    _glowAnimation = Tween<double>(begin: 0.3, end: 0.8).animate(
-      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
-    );
-
-    _pulseController.repeat(reverse: true);
-    _glowController.repeat(reverse: true);
-  }
-
-  bool get _hasEnoughCandles => widget.currentBalance >= widget.candleCost;
-  int get _balanceAfter => widget.currentBalance - widget.candleCost;
-  Color get _accentColor => widget.accentColor ?? Colors.orange;
-
-  Future<void> _handleConfirm() async {
-    await HapticService.triggerMedium();
-
-    if (_hasEnoughCandles) {
-      widget.onConfirm();
-    } else {
-      // Pokazuj dialog niewystarczających świec
-      _showInsufficientCandlesDialog();
-    }
-  }
-
-  Future<void> _handleCancel() async {
-    await HapticService.triggerLight();
-    widget.onCancel?.call();
-  }
-
-  void _showInsufficientCandlesDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => InsufficientCandlesDialog(
-        currentBalance: widget.currentBalance,
-        requiredAmount: widget.candleCost,
-        featureName: widget.featureName,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    _glowController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ResponsiveContainer(
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.darkBlue,
-              AppColors.deepBlue,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: _accentColor.withOpacity(0.5),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: _accentColor.withOpacity(0.2),
-              blurRadius: 20,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 🎯 Ikona funkcji
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  colors: [
-                    _accentColor.withOpacity(0.3),
-                    _accentColor.withOpacity(0.1),
-                  ],
-                ),
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                widget.featureIcon,
-                style: const TextStyle(fontSize: 48),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // 🏷️ Nazwa funkcji
-            Text(
-              widget.featureName,
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 8),
-
-            // 📄 Opis funkcji
-            Text(
-              widget.featureDescription,
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 14,
-                fontWeight: FontWeight.w300,
-                color: Colors.white70,
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 24),
-
-            // 🕯️ Animowane świece z kosztem
-            AnimatedBuilder(
-              animation: _pulseAnimation,
-              builder: (context, child) {
-                return Transform.scale(
-                  scale: _pulseAnimation.value,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          _accentColor.withOpacity(0.2),
-                          _accentColor.withOpacity(0.4),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(
-                        color: _accentColor.withOpacity(0.6),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AnimatedBuilder(
-                          animation: _glowAnimation,
-                          builder: (context, child) {
-                            return Container(
-                              decoration: BoxDecoration(
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.orange.withOpacity(
-                                      _glowAnimation.value,
-                                    ),
-                                    blurRadius: 8,
-                                    spreadRadius: 2,
-                                  ),
-                                ],
-                              ),
-                              child: const Text('🕯️',
-                                  style: TextStyle(fontSize: 24)),
-                            );
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${widget.candleCost} świec zostanie wydane',
-                          style: GoogleFonts.cinzelDecorative(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-
-            const SizedBox(height: 20),
-
-            // 💰 Informacje o saldzie
-            _buildBalanceInfo(),
-
-            const SizedBox(height: 24),
-
-            // 🎯 Przyciski akcji
-            _buildActionButtons(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBalanceInfo() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        children: [
-          // Aktualny balans
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Twój aktualny balans:',
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 14,
-                  color: Colors.white70,
-                ),
-              ),
-              Row(
-                children: [
-                  const Text('🕯️', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${widget.currentBalance}',
-                    style: GoogleFonts.cinzelDecorative(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          if (_hasEnoughCandles) ...[
-            const SizedBox(height: 8),
-            const Divider(color: Colors.white24, height: 1),
-            const SizedBox(height: 8),
-
-            // Balans po transakcji
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Balans po zakupie:',
-                  style: GoogleFonts.cinzelDecorative(
-                    fontSize: 14,
-                    color: Colors.white70,
-                  ),
-                ),
-                Row(
-                  children: [
-                    const Text('🕯️', style: TextStyle(fontSize: 16)),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$_balanceAfter',
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: _balanceAfter > 0 ? Colors.green : Colors.orange,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Column(
-      children: [
-        // Przycisk główny
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _handleConfirm,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _hasEnoughCandles
-                  ? _accentColor
-                  : Colors.grey.withOpacity(0.3),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: _hasEnoughCandles ? 4 : 0,
-            ),
-            child: Text(
-              _hasEnoughCandles ? 'Idę dalej' : 'Potrzebuję więcej świec',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // Przycisk anulowania
-        SizedBox(
-          width: double.infinity,
-          child: TextButton(
-            onPressed: _handleCancel,
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.white70,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-            child: Text(
-              'Anuluj',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// 📊 DIALOG NIEWYSTARCZAJĄCYCH ŚWIEC
-class InsufficientCandlesDialog extends StatelessWidget {
-  final int currentBalance;
-  final int requiredAmount;
-  final String featureName;
-
-  const InsufficientCandlesDialog({
-    Key? key,
-    required this.currentBalance,
-    required this.requiredAmount,
-    required this.featureName,
-  }) : super(key: key);
-
-  int get _missingCandles => requiredAmount - currentBalance;
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: SingleChildScrollView(
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.darkBlue,
-                AppColors.deepBlue,
-              ],
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.red.withOpacity(0.5),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.red.withOpacity(0.2),
-                blurRadius: 20,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 🚫 Ikona braku świec
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.red.withOpacity(0.3),
-                      Colors.red.withOpacity(0.1),
-                    ],
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.error_outline,
-                  size: 48,
-                  color: Colors.red,
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // 📋 Tytuł
-              Text(
-                'Niewystarczające saldo',
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.red,
-                ),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 12),
-
-              // 📄 Opis problemu
-              Text(
-                'Do zakupu funkcji "$featureName" potrzebujesz $_missingCandles więcej świec.',
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 14,
-                  color: Colors.white70,
-                  height: 1.4,
-                ),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 16),
-
-              // 💡 Sposoby zdobycia świec
-              Text(
-                'Sposoby zdobycia świec:',
-                style: GoogleFonts.cinzelDecorative(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 12),
-
-              // Lista metod zarobku
-              Column(
-                children: [
-                  _buildEarnMethod('🌅', 'Codzienne logowanie', '+1'),
-                  _buildEarnMethod('📤', 'Udostępnienie wyniku', '+3'),
-                  _buildEarnMethod('👥', 'Polecenie znajomemu', '+5'),
-                  _buildEarnMethod('🔥', 'Seria aktywności', '+2'),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              // 🎯 Przyciski akcji
-              Column(
-                children: [
-                  // Przycisk zakupu (placeholder)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => _showPurchaseComingSoon(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        '💎 Kup świece (wkrótce)',
-                        style: GoogleFonts.cinzelDecorative(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Przycisk zamknięcia
-                  SizedBox(
-                    width: double.infinity,
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white70,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(
-                        'Rozumiem',
-                        style: GoogleFonts.cinzelDecorative(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEarnMethod(String icon, String title, String reward) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Text(icon, style: const TextStyle(fontSize: 16)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              title,
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 13,
-                color: Colors.white70,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Text(
-            reward,
-            style: GoogleFonts.cinzelDecorative(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Colors.orange,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showPurchaseComingSoon(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.darkBlue,
-        title: Text(
-          'Funkcja w przygotowaniu',
-          style: GoogleFonts.cinzelDecorative(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        content: Text(
-          'System zakupu świec będzie dostępny wkrótce. Obecnie możesz zdobywać świece przez codzienne aktywności w aplikacji.',
-          style: GoogleFonts.cinzelDecorative(
-            color: Colors.white70,
-            height: 1.4,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Zamknij dialog zakupu
-              Navigator.of(context)
-                  .pop(); // Zamknij dialog niewystarczających świec
-            },
-            child: Text(
-              'OK',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.orange,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// 🎯 HELPER - Pokazanie dialogu płatności
+// 🎯 HELPER - Pokazanie JEDNEGO uniwersalnego widgetu
 class CandlePaymentHelper {
   static Future<bool> showPaymentConfirmation({
     required BuildContext context,
@@ -655,77 +21,438 @@ class CandlePaymentHelper {
     required int currentBalance,
     Color? accentColor,
   }) async {
-    final completer = Completer<bool>();
-
-    await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: CandlePaymentConfirmationWidget(
+    final result = await Navigator.push<bool>(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            UniversalPaymentScreen(
           featureName: featureName,
           featureIcon: featureIcon,
           candleCost: candleCost,
           featureDescription: featureDescription,
           currentBalance: currentBalance,
-          accentColor: accentColor,
-          onConfirm: () {
-            Navigator.of(context).pop();
-            completer.complete(true);
-          },
-          onCancel: () {
-            Navigator.of(context).pop();
-            completer.complete(false);
-          },
+          accentColor: accentColor ?? AppColors.cyan,
         ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
 
-    return completer.future;
+    return result ?? false;
+  }
+}
+
+// 🎨 UNIWERSALNY EKRAN PŁATNOŚCI - ELEGANCKI STYL
+class UniversalPaymentScreen extends StatefulWidget {
+  final String featureName;
+  final String featureIcon;
+  final int candleCost;
+  final String featureDescription;
+  final int currentBalance;
+  final Color accentColor;
+
+  const UniversalPaymentScreen({
+    super.key,
+    required this.featureName,
+    required this.featureIcon,
+    required this.candleCost,
+    required this.featureDescription,
+    required this.currentBalance,
+    required this.accentColor,
+  });
+
+  @override
+  State<UniversalPaymentScreen> createState() => _UniversalPaymentScreenState();
+}
+
+class _UniversalPaymentScreenState extends State<UniversalPaymentScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeController;
+  late AnimationController _sparkleController;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _sparkleAnimation;
+
+  bool get _hasEnoughCandles => widget.currentBalance >= widget.candleCost;
+  int get _balanceAfter => widget.currentBalance - widget.candleCost;
+
+  @override
+  void initState() {
+    super.initState();
+    _initAnimations();
+    _startAnimations();
   }
 
-  /// 🎯 NOWA METODA - Dialog płatności z callback wykonania płatności
-  static Future<bool> showPaymentConfirmationWithCallback({
-    required BuildContext context,
-    required String featureName,
-    required String featureIcon,
-    required int candleCost,
-    required String featureDescription,
-    required int currentBalance,
-    required Future<void> Function() onPaymentSuccess,
-    Color? accentColor,
-  }) async {
-    final completer = Completer<bool>();
+  void _initAnimations() {
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
 
-    await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: CandlePaymentConfirmationWidget(
-          featureName: featureName,
-          featureIcon: featureIcon,
-          candleCost: candleCost,
-          featureDescription: featureDescription,
-          currentBalance: currentBalance,
-          accentColor: accentColor,
-          onConfirm: () async {
-            Navigator.of(context).pop();
-            try {
-              // Wykonaj callback płatności
-              await onPaymentSuccess();
-              completer.complete(true);
-            } catch (e) {
-              Logger.error('Błąd wykonania płatności: $e');
-              completer.complete(false);
-            }
-          },
-          onCancel: () {
-            Navigator.of(context).pop();
-            completer.complete(false);
-          },
+    _sparkleController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
+    );
+
+    _sparkleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _sparkleController, curve: Curves.easeInOut),
+    );
+  }
+
+  void _startAnimations() {
+    _fadeController.forward();
+    _sparkleController.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _sparkleController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.darkBlue,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: AppColors.welcomeGradient,
+          ),
+        ),
+        child: SafeArea(
+          child: AnimatedBuilder(
+            animation: _fadeAnimation,
+            builder: (context, child) {
+              return Opacity(
+                opacity: _fadeAnimation.value,
+                child: Column(
+                  children: [
+                    _buildCustomAppBar(),
+                    Expanded(
+                      child: _buildPaymentContent(),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
+  }
 
-    return completer.future;
+  Widget _buildCustomAppBar() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          HapticButton(
+            text: '',
+            onPressed: () => Navigator.of(context).pop(false),
+            hapticType: HapticType.light,
+            backgroundColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            child: const Icon(Icons.arrow_back, color: Colors.white),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              widget.featureName.toUpperCase(),
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 20,
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          _buildCandleCounter(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCandleCounter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.orange.withOpacity(0.2),
+            Colors.orange.withOpacity(0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.orange.withOpacity(0.4),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('🕯️', style: TextStyle(fontSize: 16)),
+          const SizedBox(width: 6),
+          Text(
+            widget.currentBalance.toString(),
+            style: GoogleFonts.cinzelDecorative(
+              fontSize: 14,
+              color: Colors.orange,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentContent() {
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Animowana ikona z gradientem
+            AnimatedBuilder(
+              animation: _sparkleController,
+              builder: (context, child) {
+                return Container(
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        widget.accentColor
+                            .withOpacity(0.3 + _sparkleAnimation.value * 0.2),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                  child: Text(
+                    widget.featureIcon,
+                    style: TextStyle(
+                      fontSize: 64,
+                      color: widget.accentColor,
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 24),
+
+            // Nazwa funkcji
+            Text(
+              widget.featureName,
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 24,
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 16),
+
+            // Opis funkcji
+            Text(
+              widget.featureDescription,
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: 14,
+                color: Colors.white70,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 32),
+
+            // Karta kosztów - ELEGANCKA WERSJA (jak w horoskopie)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.orange.withOpacity(0.2),
+                    Colors.orange.withOpacity(0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.orange.withOpacity(0.5),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      AnimatedBuilder(
+                        animation: _sparkleAnimation,
+                        builder: (context, child) {
+                          return Transform.scale(
+                            scale: 1.0 + (_sparkleAnimation.value * 0.1),
+                            child: const Text('🕯️',
+                                style: TextStyle(fontSize: 24)),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${widget.candleCost} świec',
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Twój balans: ${widget.currentBalance} świec',
+                    style: GoogleFonts.cinzelDecorative(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // PRZYCISK PŁATNOŚCI - ELEGANCKI
+            SizedBox(
+              width: double.infinity,
+              child: HapticButton(
+                text: _hasEnoughCandles
+                    ? '🔮 Odbierz ${widget.featureName}'
+                    : '🚫 Brak wystarczających świec',
+                onPressed: _hasEnoughCandles
+                    ? _handleConfirm
+                    : _handleInsufficientFunds,
+                hapticType: HapticType.medium,
+                backgroundColor: _hasEnoughCandles
+                    ? widget.accentColor.withOpacity(0.2)
+                    : Colors.grey.withOpacity(0.2),
+                foregroundColor:
+                    _hasEnoughCandles ? widget.accentColor : Colors.grey,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Przycisk anulowania
+            SizedBox(
+              width: double.infinity,
+              child: HapticButton(
+                text: 'Anuluj',
+                onPressed: () => Navigator.of(context).pop(false),
+                hapticType: HapticType.light,
+                backgroundColor: Colors.transparent,
+                foregroundColor: Colors.white70,
+              ),
+            ),
+
+            // Informacje o saldzie po zakupie
+            if (_hasEnoughCandles) ...[
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Balans po zakupie:',
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 14,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    Text(
+                      '🕯️ $_balanceAfter',
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: _balanceAfter > 0 ? Colors.green : Colors.orange,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // Informacja o zdobywaniu świec
+            if (!_hasEnoughCandles) ...[
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.blue.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Zdobądź świece w codziennych aktywnościach',
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 14,
+                        color: Colors.blue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '🌅 Codzienne logowanie: +1 świeca\n📤 Udostępnienie wyniku: +3 świece',
+                      style: GoogleFonts.cinzelDecorative(
+                        fontSize: 12,
+                        color: Colors.white70,
+                        height: 1.4,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 50),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleConfirm() async {
+    await HapticService.triggerSuccess();
+    Navigator.of(context).pop(true);
+  }
+
+  Future<void> _handleInsufficientFunds() async {
+    await HapticService.triggerError();
+    // Można dodać dodatkowy dialog lub pozostawić obecny widget
+  }
+}
