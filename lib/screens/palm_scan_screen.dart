@@ -2,19 +2,20 @@
 // MINIMALISTYCZNA WERSJA - więcej miejsca na skan
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import '../utils/constants.dart';
+import '../utils/responsive_utils.dart';
 import '../services/palm_detection_service.dart';
 import '../services/logging_service.dart';
 import '../services/candle_manager_service.dart';
 import '../models/user_data.dart';
 import 'fortune_loading_screen.dart';
 import '../services/haptic_service.dart';
+import '../utils/logger.dart';
 
 class PalmScanScreen extends StatefulWidget {
   final String userName;
@@ -52,6 +53,9 @@ class _PalmScanScreenState extends State<PalmScanScreen>
   bool _isCameraLocked = false;
   bool _isAnalyzing = false;
   bool _isTakingPhoto = false;
+  bool _paymentProcessed =
+      true; // Płatność została już wykonana w poprzednim ekranie
+  bool _cameraPermissionChecked = false;
 
   // ===== SERWISY =====
   final PalmDetectionService _palmDetectionService = PalmDetectionService();
@@ -168,6 +172,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       await _safeDisposeCamera();
       if (_isDisposing || _hasCompletedScan) return;
 
+      // 🛡️ SPRAWDŹ DOSTĘPNOŚĆ KAMER PRZED INICJALIZACJĄ
       _cameras = await availableCameras();
       if (_cameras.isEmpty) {
         throw CameraException('no_cameras', 'Brak dostępnych kamer');
@@ -212,6 +217,7 @@ class _PalmScanScreenState extends State<PalmScanScreen>
       setState(() {
         _isCameraInitialized = true;
         _showCamera = true;
+        _cameraPermissionChecked = true;
       });
 
       print('✅ Kamera zainicjalizowana');
@@ -223,8 +229,10 @@ class _PalmScanScreenState extends State<PalmScanScreen>
           _detectionMessage = 'Błąd kamery - sprawdź uprawnienia';
           _isCameraInitialized = false;
           _showCamera = false;
+          _cameraPermissionChecked = true;
         });
-        _showCameraErrorDialog();
+        // 🔄 ZWRÓĆ ŚWIECE JEŚLI PŁATNOŚĆ ZOSTAŁA WYKONANA
+        await _handleCameraErrorWithRefund();
       }
     } finally {
       _isCameraLocked = false;
@@ -594,7 +602,30 @@ class _PalmScanScreenState extends State<PalmScanScreen>
     );
   }
 
-  void _showCameraErrorDialog() {
+  /// 🔄 Obsłuż błąd kamery ze zwrotem świec
+  Future<void> _handleCameraErrorWithRefund() async {
+    try {
+      // Zwróć świece jeśli płatność została wykonana
+      if (_paymentProcessed && !widget.testMode) {
+        final refunded =
+            await _candleService.refundPalmReading('Brak dostępu do kamery');
+
+        if (refunded) {
+          Logger.info('Zwrócono świece za skan dłoni - brak dostępu do kamery');
+        } else {
+          Logger.error('Nie udało się zwrócić świec za skan dłoni');
+        }
+      }
+    } catch (e) {
+      Logger.error('Błąd podczas zwrotu świec: $e');
+    }
+
+    // Pokaż dialog z opcjami
+    _showCameraErrorWithRefundDialog();
+  }
+
+  /// 💳 Dialog błędu kamery z informacją o zwrocie świec
+  void _showCameraErrorWithRefundDialog() {
     if (!mounted) return;
 
     showDialog(
@@ -604,66 +635,199 @@ class _PalmScanScreenState extends State<PalmScanScreen>
         backgroundColor: const Color(0xFF1A2332),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.red.withOpacity(0.5), width: 1),
+          side: BorderSide(color: Colors.orange.withOpacity(0.5), width: 1),
         ),
         title: Text(
           'Kamera niedostępna',
           style: GoogleFonts.cinzelDecorative(
-            color: Colors.red,
-            fontSize: 18,
+            color: Colors.orange,
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 18),
             fontWeight: FontWeight.w600,
           ),
           textAlign: TextAlign.center,
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.camera_alt_outlined, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              'Nie mogę wykonać wróżby z dłoni.\nSprawdź uprawnienia do kamery lub wybierz zdjęcie z galerii.',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.white70,
-                fontSize: 14,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.8,
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.camera_alt_outlined,
+                    color: Colors.orange, size: 48),
+                const SizedBox(height: 16),
+                if (!widget.testMode) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text('🕯️', style: TextStyle(fontSize: 20)),
+                        const SizedBox(height: 4),
+                        Text(
+                          '25 świec zostało zwrócone',
+                          style: GoogleFonts.cinzelDecorative(
+                            color: Colors.green,
+                            fontSize: ResponsiveUtils.getResponsiveFontSize(
+                                context, 14),
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                Text(
+                  'Nie mogę uzyskać dostępu do kamery.\n\nMożesz spróbować ponownie lub wybrać zdjęcie z galerii.',
+                  style: GoogleFonts.cinzelDecorative(
+                    color: Colors.white70,
+                    fontSize:
+                        ResponsiveUtils.getResponsiveFontSize(context, 14),
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: Text(
-              'Wróć',
-              style: GoogleFonts.cinzelDecorative(color: Colors.grey),
+          // Responsywny layout dla przycisków
+          if (MediaQuery.of(context).size.width < 400) ...[
+            // Na małych ekranach - pionowo
+            _buildResponsiveDialogButton(
+              context,
+              text: 'Wróć',
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
+              },
+              color: Colors.grey,
+              isSecondary: true,
             ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _pickImageFromGallery();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.cyan,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+            _buildResponsiveDialogButton(
+              context,
+              text: 'Wybierz zdjęcie',
+              onPressed: () {
+                Navigator.of(context).pop();
+                _pickImageFromGallery();
+              },
+              color: AppColors.cyan,
+            ),
+            if (!widget.testMode)
+              _buildResponsiveDialogButton(
+                context,
+                text: 'Spróbuj ponownie',
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _retryCamera();
+                },
+                color: Colors.orange,
               ),
+          ] else ...[
+            // Na większych ekranach - poziomo
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(
+                  child: _buildResponsiveDialogButton(
+                    context,
+                    text: 'Wróć',
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).pop();
+                    },
+                    color: Colors.grey,
+                    isSecondary: true,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildResponsiveDialogButton(
+                    context,
+                    text: 'Galeria',
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _pickImageFromGallery();
+                    },
+                    color: AppColors.cyan,
+                  ),
+                ),
+                if (!widget.testMode) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildResponsiveDialogButton(
+                      context,
+                      text: 'Ponów',
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _retryCamera();
+                      },
+                      color: Colors.orange,
+                    ),
+                  ),
+                ],
+              ],
             ),
-            child: Text(
-              'Wybierz zdjęcie',
-              style: GoogleFonts.cinzelDecorative(
-                color: Colors.black,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+          ],
         ],
       ),
     );
+  }
+
+  /// 🎨 Responsywny przycisk dla dialogu
+  Widget _buildResponsiveDialogButton(
+    BuildContext context, {
+    required String text,
+    required VoidCallback onPressed,
+    required Color color,
+    bool isSecondary = false,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isSecondary ? Colors.transparent : color,
+          foregroundColor: isSecondary ? color : Colors.black,
+          side: isSecondary ? BorderSide(color: color, width: 1) : null,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          padding: EdgeInsets.symmetric(
+            vertical: context.isSmallScreen ? 12 : 16,
+            horizontal: 16,
+          ),
+        ),
+        child: Text(
+          text,
+          style: GoogleFonts.cinzelDecorative(
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 🔄 Ponów próbę inicjalizacji kamery
+  void _retryCamera() {
+    setState(() {
+      _cameraPermissionChecked = false;
+      _isCameraInitialized = false;
+      _showCamera = false;
+    });
+    _initializeCamera();
   }
 
   @override

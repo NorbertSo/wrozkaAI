@@ -18,12 +18,13 @@ void main() {
 
       // Sprawdź czy data zakupu to dzisiaj
       expect(horoscope.isForToday, true);
-      
+
       // Sprawdź czy horoskop jest ważny
       expect(horoscope.isValid, true);
-      
+
       // Sprawdź czy ważny do jutro o 6:00
-      final expectedValidUntil = DateTime(now.year, now.month, now.day + 1, 6, 0, 0);
+      final expectedValidUntil =
+          DateTime(now.year, now.month, now.day + 1, 6, 0, 0);
       expect(horoscope.validUntil.day, expectedValidUntil.day);
       expect(horoscope.validUntil.hour, 6);
       expect(horoscope.validUntil.minute, 0);
@@ -31,8 +32,9 @@ void main() {
 
     test('should detect expired horoscope', () {
       final yesterday = DateTime.now().subtract(const Duration(days: 1));
-      final expiredValidUntil = DateTime(yesterday.year, yesterday.month, yesterday.day, 6, 0, 0);
-      
+      final expiredValidUntil =
+          DateTime(yesterday.year, yesterday.month, yesterday.day, 6, 0, 0);
+
       final expiredHoroscope = CachedHoroscope(
         userId: 'test_user_123',
         purchaseDate: yesterday,
@@ -50,7 +52,7 @@ void main() {
       // Horoskop ważny jeszcze przez kilka godzin
       final now = DateTime.now();
       final validUntil = now.add(const Duration(hours: 3, minutes: 30));
-      
+
       final horoscope = CachedHoroscope(
         userId: 'test_user_123',
         purchaseDate: now,
@@ -61,7 +63,7 @@ void main() {
       );
 
       expect(horoscope.isValid, true);
-      
+
       // Sprawdź czy validityInfo zawiera godziny (może być różne w zależności od dokładnego czasu)
       final validityInfo = horoscope.validityInfo;
       expect(validityInfo.contains('h'), true);
@@ -85,7 +87,7 @@ void main() {
 
       // Konwersja do Firestore i z powrotem
       final firestoreData = original.toFirestore();
-      
+
       // Symulacja Firestore Timestamp (w testach używamy DateTime)
       final modifiedData = Map<String, dynamic>.from(firestoreData);
       modifiedData['purchaseDate'] = MockTimestamp(original.purchaseDate);
@@ -111,6 +113,6 @@ void main() {
 class MockTimestamp {
   final DateTime dateTime;
   MockTimestamp(this.dateTime);
-  
+
   DateTime toDate() => dateTime;
 }

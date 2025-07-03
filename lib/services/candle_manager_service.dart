@@ -358,6 +358,36 @@ class CandleManagerService {
     }
     return false;
   }
+
+  /// 🔄 Zwróć świece w przypadku błędu po płatności
+  Future<bool> refundCandles(int amount, String reason) async {
+    await initialize();
+
+    try {
+      final success = await _userService.addCandles(
+        amount,
+        'Zwrot: $reason',
+        feature: 'refund',
+      );
+
+      if (success) {
+        await HapticService.triggerSuccess();
+        Logger.info('Zwrócono $amount świec: $reason');
+        return true;
+      } else {
+        Logger.error('Nie udało się zwrócić $amount świec: $reason');
+        return false;
+      }
+    } catch (e) {
+      Logger.error('Błąd zwrotu świec: $e');
+      return false;
+    }
+  }
+
+  /// 🔄 Specjalny zwrot dla skanu dłoni
+  Future<bool> refundPalmReading(String reason) async {
+    return refundCandles(PRICE_PALM_READING, 'Skan dłoni - $reason');
+  }
 }
 
 /// 📊 Model wyniku użycia świec

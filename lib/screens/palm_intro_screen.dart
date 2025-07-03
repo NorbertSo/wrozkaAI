@@ -12,6 +12,7 @@ import '../services/user_preferences_service.dart';
 import '../models/user_data.dart';
 import '../services/haptic_service.dart';
 import '../services/candle_manager_service.dart';
+import '../utils/logger.dart';
 
 class PalmIntroScreen extends StatefulWidget {
   final String userName;
@@ -466,7 +467,7 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
   }
 
   Future<void> _startPalmScan() async {
-    print('🔍 DEBUG: _startPalmScan() wywołana');
+    Logger.debug('_startPalmScan() wywołana');
 
     try {
       final candleService = CandleManagerService();
@@ -476,7 +477,7 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
       final result = await candleService.usePalmReading();
 
       if (result.success) {
-        print('🔍 DEBUG: Płatność udana, przechodzę do PalmScanScreen...');
+        Logger.success('Płatność udana, przechodzę do PalmScanScreen...');
         // Przejdź do skanu
         Navigator.push(
           context,
@@ -490,11 +491,11 @@ Przygotuj się na podróż w głąb siebie. Pozwól, by mistyczna energia popły
           ),
         );
       } else {
-        print('🔍 DEBUG: Płatność nieudana: ${result.message}');
+        Logger.warning('Płatność nieudana: ${result.message}');
         _showErrorDialog(result.message);
       }
     } catch (e) {
-      print('🔍 DEBUG: Exception w _startPalmScan(): $e');
+      Logger.error('Exception w _startPalmScan(): $e');
       _showErrorDialog('Wystąpił błąd podczas przetwarzania płatności');
     }
   }
@@ -579,7 +580,7 @@ class MysticParticlesPainter extends CustomPainter {
         }
       }
     } catch (e) {
-      print('❌ Błąd w MysticParticlesPainter: $e');
+      Logger.error('Błąd w MysticParticlesPainter: $e');
     }
   }
 

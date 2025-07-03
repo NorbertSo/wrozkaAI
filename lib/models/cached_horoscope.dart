@@ -42,7 +42,7 @@ class CachedHoroscope {
   }) {
     final now = DateTime.now();
     final purchaseDate = DateTime(now.year, now.month, now.day);
-    
+
     // Ważny do 6:00 następnego dnia
     final validUntil = DateTime(now.year, now.month, now.day + 1, 6, 0, 0);
 
@@ -110,7 +110,7 @@ class CachedHoroscope {
       purchaseDate.month,
       purchaseDate.day,
     );
-    
+
     return today.isAtSameMomentAs(horoscopeDay);
   }
 
@@ -128,7 +128,7 @@ class CachedHoroscope {
     if (!isValid) {
       return 'Horoskop wygasł';
     }
-    
+
     final remaining = timeUntilExpiration;
     if (remaining.inHours > 1) {
       return 'Ważny jeszcze ${remaining.inHours}h ${remaining.inMinutes % 60}min';

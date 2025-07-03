@@ -11,6 +11,7 @@ import '../services/horoscope_cache_service.dart';
 import '../models/cached_horoscope.dart';
 import '../widgets/haptic_button.dart';
 import '../utils/logger.dart';
+import '../utils/responsive_utils.dart';
 
 class ExtendedHoroscopeScreen extends StatefulWidget {
   final String userName;
@@ -93,10 +94,10 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
 
       await _candleService.initialize();
       await _cacheService.initialize();
-      
+
       // 🧹 Wyczyść wygasłe horokorty
       await _cacheService.cleanupExpiredHoroscopes();
-      
+
       final balance = _candleService.currentBalance;
 
       setState(() {
@@ -107,10 +108,11 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
 
       // ✅ KROK 1: Sprawdź czy użytkownik ma już dziś zakupiony horoskop
       final cachedHoroscope = await _cacheService.getTodaysHoroscope();
-      
+
       if (cachedHoroscope != null) {
         // 🎉 MAMY ZAKUPIONY HOROSKOP - ZAŁADUJ GO
-        Logger.info('Znaleziono cachowany horoskop: ${cachedHoroscope.validityInfo}');
+        Logger.info(
+            'Znaleziono cachowany horoskop: ${cachedHoroscope.validityInfo}');
         setState(() {
           _horoscopeData = cachedHoroscope.horoscopeData;
           _isLoading = false;
@@ -183,9 +185,10 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
       );
 
       final saved = await _cacheService.saveHoroscope(cachedHoroscope);
-      
+
       if (saved) {
-        Logger.info('Horoskop zapisany do cache: ${cachedHoroscope.validityInfo}');
+        Logger.info(
+            'Horoskop zapisany do cache: ${cachedHoroscope.validityInfo}');
       } else {
         Logger.warning('Nie udało się zapisać horoskopu do cache');
       }
@@ -195,7 +198,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
         _horoscopeData = horoscopeData;
         _isLoading = false;
       });
-      
+
       Logger.info('Załadowano i zapisano horoskop rozbudowany');
     } catch (e) {
       Logger.error('Błąd ładowania horoskopu: $e');
@@ -227,11 +230,16 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
             children: [
               _buildCustomAppBar(),
               Expanded(
-                child: _isLoading
-                    ? _buildLoadingState()
-                    : _horoscopeData != null
-                        ? _buildHoroscopeContent()
-                        : _buildLoadingState(), // Jeśli nie ma danych, pokaż loading (płatność już się wyświetla)
+                child: Center(
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 800.0),
+                    child: _isLoading
+                        ? _buildLoadingState()
+                        : _horoscopeData != null
+                            ? _buildHoroscopeContent()
+                            : _buildLoadingState(), // Jeśli nie ma danych, pokaż loading (płatność już się wyświetla)
+                  ),
+                ),
               ),
             ],
           ),
@@ -253,31 +261,63 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
 
   /// 📱 Niestandardowy AppBar
   Widget _buildCustomAppBar() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          HapticButton(
-            text: '',
-            onPressed: () => Navigator.of(context).pop(),
-            hapticType: HapticType.light,
-            backgroundColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            child: const Icon(Icons.arrow_back, color: Colors.white),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              'Horoskop Rozbudowany',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 20,
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 800.0),
+        padding: EdgeInsets.all(context.isSmallScreen ? 12 : 16),
+        child: Row(
+          children: [
+            // 🔙 Ujednolicony przycisk cofnij
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () async {
+                  await HapticService.triggerLight();
+                  Navigator.of(context).pop();
+                },
+                child: Container(
+                  width: context.isSmallScreen ? 44 : 48,
+                  height: context.isSmallScreen ? 44 : 48,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.cyan.withOpacity(0.5),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.cyan.withOpacity(0.12),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.arrow_back_ios_new,
+                      color: Colors.white,
+                      size: context.isSmallScreen ? 20 : 24,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-          _buildCandleCounter(),
-        ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                'Horoskop Rozbudowany',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            _buildCandleCounter(),
+          ],
+        ),
       ),
     );
   }
@@ -285,7 +325,9 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
   /// 🕯️ Licznik świec
   Widget _buildCandleCounter() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(
+          horizontal: context.isSmallScreen ? 10 : 12,
+          vertical: context.isSmallScreen ? 6 : 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -299,12 +341,13 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('🕯️', style: TextStyle(fontSize: 16)),
+          Text('🕯️',
+              style: TextStyle(fontSize: context.isSmallScreen ? 14 : 16)),
           const SizedBox(width: 6),
           Text(
             _candlesCount.toString(),
             style: GoogleFonts.cinzelDecorative(
-              fontSize: 14,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
               color: Colors.orange,
               fontWeight: FontWeight.w600,
             ),
@@ -321,8 +364,8 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
-            width: 120,
-            height: 120,
+            width: context.isSmallScreen ? 100 : 120,
+            height: context.isSmallScreen ? 100 : 120,
             child: Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -335,14 +378,17 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
               ),
             ),
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Przygotowuję Twój szczegółowy horoskop...',
-            style: GoogleFonts.cinzelDecorative(
-              fontSize: 16,
-              color: Colors.white70,
+          SizedBox(height: context.isSmallScreen ? 20 : 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32.0),
+            child: Text(
+              'Przygotowuję Twój szczegółowy horoskop...',
+              style: GoogleFonts.cinzelDecorative(
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
+                color: Colors.white70,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -354,7 +400,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
     return FadeTransition(
       opacity: _fadeAnimation,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(context.isSmallScreen ? 12 : 16),
         children: [
           _buildHoroscopeHeader(),
           const SizedBox(height: 24),
@@ -367,7 +413,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
   /// 🎯 Nagłówek horoskopu z informacją o ważności
   Widget _buildHoroscopeHeader() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(context.isSmallScreen ? 16 : 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -383,7 +429,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
           Text(
             '✨ ${widget.userName} ✨',
             style: GoogleFonts.cinzelDecorative(
-              fontSize: 22,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 22),
               color: Colors.white,
               fontWeight: FontWeight.w600,
             ),
@@ -392,11 +438,11 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
           Text(
             'Twój szczegółowy horoskop na dziś',
             style: GoogleFonts.cinzelDecorative(
-              fontSize: 14,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
               color: Colors.white70,
             ),
           ),
-          
+
           // 📅 INFORMACJA O WAŻNOŚCI HOROSKOPU
           FutureBuilder<CachedHoroscope?>(
             future: _cacheService.getTodaysHoroscope(),
@@ -405,11 +451,13 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
                 final horoscope = snapshot.data!;
                 return Container(
                   margin: const EdgeInsets.only(top: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: Colors.orange.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.orange.withOpacity(0.4), width: 1),
+                    border: Border.all(
+                        color: Colors.orange.withOpacity(0.4), width: 1),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -419,7 +467,8 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
                       Text(
                         horoscope.validityInfo,
                         style: GoogleFonts.cinzelDecorative(
-                          fontSize: 12,
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(
+                              context, 12),
                           color: Colors.orange,
                           fontWeight: FontWeight.w500,
                         ),
@@ -431,7 +480,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
               return const SizedBox.shrink();
             },
           ),
-          
+
           const SizedBox(height: 16),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -454,7 +503,9 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
   /// 🏷️ Chip z informacją
   Widget _buildInfoChip(String emoji, String text) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(
+          horizontal: context.isSmallScreen ? 10 : 12,
+          vertical: context.isSmallScreen ? 4 : 6),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.1),
         borderRadius: BorderRadius.circular(15),
@@ -462,12 +513,13 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 16)),
+          Text(emoji,
+              style: TextStyle(fontSize: context.isSmallScreen ? 14 : 16)),
           const SizedBox(width: 4),
           Text(
             text,
             style: GoogleFonts.cinzelDecorative(
-              fontSize: 12,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
               color: Colors.white,
               fontWeight: FontWeight.w500,
             ),
@@ -532,7 +584,7 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(context.isSmallScreen ? 16 : 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -548,16 +600,16 @@ class _ExtendedHoroscopeScreenState extends State<ExtendedHoroscopeScreen>
           Text(
             title,
             style: GoogleFonts.cinzelDecorative(
-              fontSize: 18,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 18),
               color: Colors.white,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: context.isSmallScreen ? 8 : 12),
           Text(
             content,
             style: GoogleFonts.cinzelDecorative(
-              fontSize: 14,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
               color: Colors.white70,
               height: 1.6,
             ),

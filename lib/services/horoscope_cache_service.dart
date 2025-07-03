@@ -8,7 +8,8 @@ import '../services/anonymous_user_service.dart';
 import '../utils/logger.dart';
 
 class HoroscopeCacheService {
-  static final HoroscopeCacheService _instance = HoroscopeCacheService._internal();
+  static final HoroscopeCacheService _instance =
+      HoroscopeCacheService._internal();
   factory HoroscopeCacheService() => _instance;
   HoroscopeCacheService._internal();
 
@@ -29,9 +30,10 @@ class HoroscopeCacheService {
   Future<bool> saveHoroscope(CachedHoroscope horoscope) async {
     try {
       await initialize();
-      
-      final docId = _generateDocumentId(horoscope.userId, horoscope.purchaseDate);
-      
+
+      final docId =
+          _generateDocumentId(horoscope.userId, horoscope.purchaseDate);
+
       await _firestore
           .collection(_collectionName)
           .doc(docId)
@@ -49,10 +51,11 @@ class HoroscopeCacheService {
   Future<CachedHoroscope?> getTodaysHoroscope() async {
     try {
       await initialize();
-      
+
       final userId = _userService.userId;
       if (userId == null) {
-        Logger.warning('Brak userId - nie można sprawdzić cachowanego horoskopu');
+        Logger.warning(
+            'Brak userId - nie można sprawdzić cachowanego horoskopu');
         return null;
       }
 
@@ -60,10 +63,7 @@ class HoroscopeCacheService {
       final todayDate = DateTime(today.year, today.month, today.day);
       final docId = _generateDocumentId(userId, todayDate);
 
-      final doc = await _firestore
-          .collection(_collectionName)
-          .doc(docId)
-          .get();
+      final doc = await _firestore.collection(_collectionName).doc(docId).get();
 
       if (!doc.exists) {
         Logger.info('Brak cachowanego horoskopu na dziś');
@@ -71,7 +71,7 @@ class HoroscopeCacheService {
       }
 
       final horoscope = CachedHoroscope.fromFirestore(doc.data()!);
-      
+
       // Sprawdź czy horoskop jest nadal ważny
       if (!horoscope.isValid) {
         Logger.info('Cachowany horoskop wygasł - usuwam');
@@ -79,7 +79,8 @@ class HoroscopeCacheService {
         return null;
       }
 
-      Logger.info('Znaleziono ważny cachowany horoskop: ${horoscope.validityInfo}');
+      Logger.info(
+          'Znaleziono ważny cachowany horoskop: ${horoscope.validityInfo}');
       return horoscope;
     } catch (e) {
       Logger.error('Błąd pobierania cachowanego horoskopu: $e');
@@ -107,7 +108,7 @@ class HoroscopeCacheService {
   Future<List<CachedHoroscope>> getHoroscopeHistory({int limit = 30}) async {
     try {
       await initialize();
-      
+
       final userId = _userService.userId;
       if (userId == null) return [];
 
@@ -134,12 +135,12 @@ class HoroscopeCacheService {
   Future<void> cleanupExpiredHoroscopes() async {
     try {
       await initialize();
-      
+
       final userId = _userService.userId;
       if (userId == null) return;
 
       final now = DateTime.now();
-      
+
       final querySnapshot = await _firestore
           .collection(_collectionName)
           .where('userId', isEqualTo: userId)
@@ -150,10 +151,11 @@ class HoroscopeCacheService {
       for (final doc in querySnapshot.docs) {
         batch.delete(doc.reference);
       }
-      
+
       if (querySnapshot.docs.isNotEmpty) {
         await batch.commit();
-        Logger.info('Usunięto ${querySnapshot.docs.length} wygasłych horoskopów');
+        Logger.info(
+            'Usunięto ${querySnapshot.docs.length} wygasłych horoskopów');
       }
     } catch (e) {
       Logger.error('Błąd czyszczenia wygasłych horoskopów: $e');
@@ -164,7 +166,7 @@ class HoroscopeCacheService {
   Future<HoroscopeCacheStats> getStats() async {
     try {
       await initialize();
-      
+
       final userId = _userService.userId;
       if (userId == null) {
         return HoroscopeCacheStats.empty();
@@ -181,9 +183,10 @@ class HoroscopeCacheService {
         totalCached: allHoroscopes.length,
         validCached: validHoroscopes.length,
         hasTodaysHoroscope: allHoroscopes.any((h) => h.isForToday && h.isValid),
-        todaysHoroscopeExpiry: allHoroscopes.any((h) => h.isForToday && h.isValid)
-            ? todaysHoroscope.validUntil
-            : null,
+        todaysHoroscopeExpiry:
+            allHoroscopes.any((h) => h.isForToday && h.isValid)
+                ? todaysHoroscope.validUntil
+                : null,
       );
     } catch (e) {
       Logger.error('Błąd pobierania statystyk cache: $e');
@@ -193,7 +196,8 @@ class HoroscopeCacheService {
 
   /// 🔑 Generuj ID dokumentu na podstawie userId i daty
   String _generateDocumentId(String userId, DateTime date) {
-    final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final dateStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     return '${userId}_$dateStr';
   }
 
@@ -208,7 +212,7 @@ class HoroscopeCacheService {
     String? primaryConcern,
   }) async {
     await initialize();
-    
+
     final userId = _userService.userId;
     if (userId == null) {
       throw Exception('Brak userId - nie można utworzyć horoskopu');
@@ -251,17 +255,17 @@ class HoroscopeCacheStats {
   }
 
   int get expiredCached => totalCached - validCached;
-  
+
   bool get hasValidCache => validCached > 0;
-  
+
   String get todaysExpiryInfo {
     if (!hasTodaysHoroscope || todaysHoroscopeExpiry == null) {
       return 'Brak horoskopu na dziś';
     }
-    
+
     final now = DateTime.now();
     final remaining = todaysHoroscopeExpiry!.difference(now);
-    
+
     if (remaining.isNegative) {
       return 'Horoskop wygasł';
     } else if (remaining.inHours > 1) {
