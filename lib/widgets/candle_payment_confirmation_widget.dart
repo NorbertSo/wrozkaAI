@@ -419,162 +419,156 @@ class InsufficientCandlesDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.darkBlue,
-              AppColors.deepBlue,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.red.withOpacity(0.5),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.red.withOpacity(0.2),
-              blurRadius: 20,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 🚫 Ikona braku świec
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  colors: [
-                    Colors.red.withOpacity(0.3),
-                    Colors.red.withOpacity(0.1),
-                  ],
-                ),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.error_outline,
-                size: 48,
-                color: Colors.red,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // 📋 Tytuł
-            Text(
-              'Niewystarczające saldo',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: Colors.red,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 12),
-
-            // 📄 Opis problemu
-            Text(
-              'Do zakupu funkcji "$featureName" potrzebujesz $_missingCandles więcej świec.',
-              style: GoogleFonts.cinzelDecorative(
-                fontSize: 14,
-                fontWeight: FontWeight.w300,
-                color: Colors.white70,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 20),
-
-            // 🔥 Sposoby zdobycia świec
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Colors.orange.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    '🕯️ Jak zdobyć więcej świec:',
-                    style: GoogleFonts.cinzelDecorative(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.orange,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildEarnMethod('📅', 'Codzienne logowanie', '+1 świeca'),
-                  _buildEarnMethod('📤', 'Udostępnianie wyników', '+3 świece'),
-                  _buildEarnMethod('👥', 'Polecenie znajomego', '+5 świec'),
-                  _buildEarnMethod('🔥', 'Seria logowań (7 dni)', '+2 świece'),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 🎯 Przyciski akcji
-            Column(
-              children: [
-                // Przycisk zakupu (placeholder)
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => _showPurchaseComingSoon(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      '💎 Kup świece (wkrótce)',
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Przycisk zamknięcia
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white70,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: Text(
-                      'Rozumiem',
-                      style: GoogleFonts.cinzelDecorative(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ),
-                ),
+      child: SingleChildScrollView(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.darkBlue,
+                AppColors.deepBlue,
               ],
             ),
-          ],
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.red.withOpacity(0.5),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.red.withOpacity(0.2),
+                blurRadius: 20,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 🚫 Ikona braku świec
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.red.withOpacity(0.3),
+                      Colors.red.withOpacity(0.1),
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: Colors.red,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // 📋 Tytuł
+              Text(
+                'Niewystarczające saldo',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.red,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 12),
+
+              // 📄 Opis problemu
+              Text(
+                'Do zakupu funkcji "$featureName" potrzebujesz $_missingCandles więcej świec.',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 14,
+                  color: Colors.white70,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 16),
+
+              // 💡 Sposoby zdobycia świec
+              Text(
+                'Sposoby zdobycia świec:',
+                style: GoogleFonts.cinzelDecorative(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 12),
+
+              // Lista metod zarobku
+              Column(
+                children: [
+                  _buildEarnMethod('🌅', 'Codzienne logowanie', '+1'),
+                  _buildEarnMethod('📤', 'Udostępnienie wyniku', '+3'),
+                  _buildEarnMethod('👥', 'Polecenie znajomemu', '+5'),
+                  _buildEarnMethod('🔥', 'Seria aktywności', '+2'),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // 🎯 Przyciski akcji
+              Column(
+                children: [
+                  // Przycisk zakupu (placeholder)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _showPurchaseComingSoon(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        '💎 Kup świece (wkrótce)',
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Przycisk zamknięcia
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text(
+                        'Rozumiem',
+                        style: GoogleFonts.cinzelDecorative(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -594,6 +588,7 @@ class InsufficientCandlesDialog extends StatelessWidget {
                 fontSize: 13,
                 color: Colors.white70,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           Text(
@@ -734,5 +729,3 @@ class CandlePaymentHelper {
     );
 
     return completer.future;
-  }
-}
